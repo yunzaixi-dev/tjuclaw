@@ -1,0 +1,37 @@
+import { RootProvider } from 'fumadocs-ui/provider/next';
+import './global.css';
+import { Geist, Geist_Mono } from 'next/font/google';
+import type { Metadata } from 'next';
+
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist',
+});
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  variable: '--font-geist-mono',
+});
+
+export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  title: {
+    default: 'TJUClaw Engineering Wiki',
+    template: '%s | TJUClaw',
+  },
+  description: '从单端口公网入口到嵌套虚拟化的 TJUClaw 工程手册。',
+};
+
+export default function Layout({ children }: LayoutProps<'/'>) {
+  return (
+    <html
+      lang="zh-CN"
+      className={`${geist.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="flex flex-col min-h-screen">
+        <RootProvider>{children}</RootProvider>
+      </body>
+    </html>
+  );
+}

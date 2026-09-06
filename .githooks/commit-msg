@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/git-policy.mjs commit-msg "$1"
