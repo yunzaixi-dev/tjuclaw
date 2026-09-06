@@ -39,10 +39,16 @@ next-env.d.ts
 *.private.*
 *.key
 /mobbin*.zip
+/Grok Bot*.zip
+/frontend/PRODUCT.md
+/frontend/DESIGN.md
+/frontend/public/audits/
 /ops/container-inventory.md
 /content/docs/0[1-7]-*.mdx
 /scripts/*intelligence*
 /scripts/collect-public-tju-data.mjs
+/docs/public/ui-reference/
+/docs/content/docs/0[1-7]-*.mdx
 
 # Local runtime and infrastructure state.
 /backend/bin/
@@ -59,3 +65,17 @@ talosconfig
 *.db
 *.dump
 *.sql.gz
+
+# Native toolchains, signing identities and generated platform projects.
+target/
+/frontend/src-tauri/gen/
+*.jks
+*.keystore
+*.p12
+*.pfx
+local.properties
+.gradle/
+.cxx/
+# Tauri's icon generator also emits unused Apple assets.
+/frontend/src-tauri/icons/ios/
+/frontend/src-tauri/icons/icon.icns

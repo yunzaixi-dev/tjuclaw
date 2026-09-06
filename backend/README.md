@@ -1,11 +1,21 @@
-# Product Backend
+# API
 
-Go 产品后端目录。首次实现时建立独立 go.mod，并按实际需要创建：
+One Go module, currently a standard-library HTTP service with `GET /healthz`.
+This proves the development and container build path, not business readiness.
 
-- `cmd/api/`：可运行的服务入口。
-- `internal/`：不对外发布的业务与集成代码，按实际职责划分包。
-- `migrations/`：存在数据库变更后再建立，版本化且考虑升级兼容性。
+From the repository root:
 
-单个模块和服务优先，不预建微服务、空接口或通用框架。
-测试靠近被测包；编译产物放 `bin/`，不进入 Git。
-运行时集成代码属于业务实现；部署清单属于 `ops/`。
+```bash
+rtk task api:dev
+rtk task api:test
+rtk task api:lint
+rtk task api:build
+```
+
+Defaults to `127.0.0.1:8080`. The container explicitly sets `HTTP_ADDR=0.0.0.0:8080`
+and Compose publishes only to host loopback. Unknown routes return 404;
+unsupported health methods return 405.
+
+Executable entry: `cmd/api/`. Add business packages under `internal/` and database
+migrations only when needed. Binaries go to ignored `bin/`. No authentication,
+campus integration, database or agent execution is implemented yet.

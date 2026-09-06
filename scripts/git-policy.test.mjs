@@ -39,6 +39,11 @@ test('private paths are blocked while safe templates and source remain allowed',
     'ops/container-inventory.md', 'mobbin_screens.zip',
     'scripts/clone-gitlab-intelligence.mjs', 'scripts/collect-public-tju-data.mjs',
     'data/accounts.sqlite', 'data/users.db', 'backup.sql.gz',
+    'docs/content/docs/07-intelligence.mdx', 'docs/public/ui-reference/image.png',
+    'frontend/release.jks', 'frontend/signing.keystore', 'key.p12', 'key.pfx',
+    'frontend/src-tauri/gen/android/local.properties',
+    'Grok Bot ios Aug 2026.zip', 'frontend/PRODUCT.md', 'frontend/DESIGN.md',
+    'frontend/public/audits/runtime.png',
   ]) assert.equal(isPrivatePath(path), true, path);
   for (const path of ['.env.example', 'backend/.env.dev.example', 'src/app/page.tsx', 'CONTRIBUTING.md']) {
     assert.equal(isPrivatePath(path), false, path);

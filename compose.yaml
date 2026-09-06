@@ -1,0 +1,37 @@
+name: tjuclaw-dev
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: ../ops/images/api.Dockerfile
+    environment:
+      HTTP_ADDR: 0.0.0.0:8080
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  web:
+    build:
+      context: .
+      dockerfile: ops/images/web.Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8088}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

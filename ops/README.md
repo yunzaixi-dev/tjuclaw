@@ -1,10 +1,28 @@
 # Operations
 
-只存放经过脱敏、可复现的部署配置与运维手册，不在骨架阶段生成未经验证的集群配置。
+`images/` contains local API/Web image definitions; `runbooks/` contains reviewed
+development and CI instructions. Root `compose.yaml` is a local smoke-test stack,
+not a production deployment or the complete execution infrastructure.
 
-有实际内容时按用途创建 `deploy/`、`images/` 和 `runbooks/`。
-环境差异放部署配置中；避免复制多份只有地址不同的完整清单。
-密钥、真实集群配置和本地运行状态放 Git 排除的 `local/`，不能用于发布打包。
+```bash
+rtk task compose:config
+rtk task compose:context
+rtk task compose:up
+rtk task compose:ps
+rtk task compose:smoke
+rtk task compose:logs
+rtk task compose:down
+```
 
-部署文档应同时说明前置条件、验证方式、回滚方式和数据影响。
-不要在未授权时操作集群、发布镜像或更改现有认证服务。
+Web: `http://127.0.0.1:8088`; API health: `http://127.0.0.1:8080/healthz`.
+The Web container proxies `/api/healthz` to the API health route.
+Use shell environment variables `WEB_PORT` / `API_PORT` for port overrides.
+Task explicitly selects the safe Compose example rather than loading root `.env`.
+
+Containers are read-only, non-root, drop capabilities and have no host mounts.
+Stopping them does not delete volumes. This initial stack has no persistent user
+data or database. Rebuild from a known reviewed revision to roll back images.
+
+Real configuration, credentials and runtime state stay in ignored `ops/local/`
+or other private storage. Do not mount repository roots, Docker sockets or private
+research into build containers. Do not operate existing clusters without approval.

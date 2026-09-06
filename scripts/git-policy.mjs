@@ -30,16 +30,21 @@ export function isPrivatePath(path) {
   const parts = path.split('/');
   const name = parts.at(-1);
   return ['CONTEXT.md', 'KEY_LINKS.md', 'content/docs/06-ui-reference.mdx'].includes(path)
-    || /^content\/docs\/0[1-7]-.*\.mdx$/.test(path)
+    || /^(?:docs\/)?content\/docs\/0[1-7]-.*\.mdx$/.test(path)
     || path === 'ops/container-inventory.md'
     || /^mobbin.*\.zip$/i.test(name)
+    || /^Grok Bot.*\.zip$/i.test(name)
+    || ['frontend/PRODUCT.md', 'frontend/DESIGN.md'].includes(path)
+    || path.startsWith('frontend/public/audits/')
     || /^scripts\/.*intelligence/.test(path)
     || path === 'scripts/collect-public-tju-data.mjs'
-    || ['private/', 'research/', 'public/ui-reference/', 'ops/local/'].some((prefix) => path.startsWith(prefix))
+    || ['private/', 'research/', 'public/ui-reference/', 'docs/public/ui-reference/', 'ops/local/'].some((prefix) => path.startsWith(prefix))
     || name.includes('.private.')
     || (name === '.env' || (name.startsWith('.env.') && !name.endsWith('.example')))
     || /\.(?:key|pem|tfstate)(?:\.|$)/.test(name)
     || /\.(?:sqlite3?|db|dump|sql\.gz)$/.test(name)
+    || /\.(?:jks|keystore|p12|pfx)$/.test(name)
+    || name === 'local.properties'
     || ['kubeconfig', 'talosconfig'].includes(name)
     || parts.includes('.terraform');
 }

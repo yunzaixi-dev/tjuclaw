@@ -1,21 +1,8 @@
-import { defineConfig, globalIgnores } from 'eslint/config';
-import nextVitals from 'eslint-config-next/core-web-vitals';
+import js from '@eslint/js';
+import globals from 'globals';
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  globalIgnores([
-    '.next/**',
-    'out/**',
-    'build/**',
-    'next-env.d.ts',
-    '.source/**',
-    'research/**',
-    'private/**',
-    'frontend/**',
-    'backend/**',
-    'ops/**',
-    'research/intelligence/**',
-  ]),
-]);
-
-export default eslintConfig;
+export default [
+  { ignores: ['**/node_modules/**', 'private/**', 'research/**', 'docs/**', 'frontend/**'] },
+  js.configs.recommended,
+  { languageOptions: { globals: globals.node } },
+];

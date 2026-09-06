@@ -47,7 +47,8 @@ scope 可省略；建议使用 `wiki`、`frontend`、`backend`、`ops`、`repo`�
 
 唯一版本来源为根 `package.json` 的 `version`，当前保留 `0.0.25`。
 这是仓库基线，不代表已经发布或承诺产品功能完成，不建立重复的 VERSION 文件。
-组件尚未独立发布，暂不维护多套产品版本。
+组件尚未独立发布，暂不维护多套产品版本。Tauri 配置直接读取根 package.json；
+Rust crate 的 0.0.0 仅为未发布内部元数据，不作为客户端安装包版本。
 
 采用 SemVer 的主 / 次 / 修订版本结构：
 
@@ -92,6 +93,8 @@ git:setup 只设置当前仓库的 hooksPath，不改全局配置，遇到已有
 `research/`、`private/`、本地情报文档、`*.private.*`、本地环境文件和密钥不进入 Git。
 历史架构、演示计划、情报章节和 UI 参考已归档到本地 `private/wiki-archive/`。
 原始素材包、采集脚本、实际容器规划及本地数据库也不进入 Git。
+文档站迁入 `docs/` 后仍遵循同样边界；Android 签名密钥、Windows 签名证书、
+本机 SDK 路径与生成的 Gradle 项目也不得进入 Git。
 如需发布其中内容，先逐项审查与脱敏，再调整规则。
 环境示例 `.env.example` 或 `.env.<name>.example` 可以提交，但只能包含无效示例值。
 hooks 检查整个 Git 索引中的受限路径，防止通过强制添加绕开常规 ignore。
