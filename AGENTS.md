@@ -18,6 +18,12 @@ them in tool-specific files.
 - Before architecture work, read local `CONTEXT.md` when available. Historical
   Wiki content is not authoritative for current private product decisions.
   Do not publish private decisions into the Wiki without explicit approval.
+- Follow `frontend/UI.md` for product UI components and appearance state.
+  Use shared semantic tokens and `src/components/ui/`, not parallel theme systems.
+- Follow root `DEVELOPMENT.md` for frontend/API boundaries and acceptance checks.
+  Kratos is the only identity authority; browser auth stays same-origin.
+  Read `ops/auth/README.md` before changing authentication policy or deployments.
+  Never apply the isolated Kratos policy blindly to a shared identity cluster.
 
 ## Common Commands
 
@@ -28,6 +34,12 @@ them in tool-specific files.
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`
 - Local containers: `task compose:up`, `task compose:down`
 - Local visual audit: `task audit:index`, `task audit:dev`, `task audit:test`
+- Refresh local auth audit evidence: `task audit:auth` (real tests, then private import).
+  Reference mappings and captures stay under ignored `private/audit/`, never in client assets.
+- Verify audit UI against existing local evidence: `task audit:ui`.
+- Product UI regression: `task ui:install` once, then `task ui:test`
+- Real email auth regression: `task auth:test` (isolated Docker/Go/Chromium)
+- Local identity services: `task auth:up`, `task auth:dev`, `task auth:down`
 - Install local Git hooks: `pnpm git:setup`
 - Check the Git index: `pnpm git:check`
 - Test Git policy: `pnpm test:git`

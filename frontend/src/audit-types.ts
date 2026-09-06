@@ -14,3 +14,12 @@ export type Screen = {
 };
 export type Journey = { title: string; note: string; nodes: string[] };
 export type Manifest = { name: string; screens: Screen[]; journeys: Journey[] };
+export type AuthAuditState = {
+  id: string; title: string; route: string; evidence: 'render' | 'real-kratos' | 'injected-response';
+  referenceId?: string; comparison: string; captures: Record<string, Capture>;
+};
+export type AuthManifest = {
+  name: string; scope: string; gaps: string[]; generatedAt: string;
+  run: { passed: number; duration: number; startedAt: string };
+  states: AuthAuditState[]; journeys: Journey[];
+};

@@ -27,6 +27,37 @@ tasks:
   web:preview:
     desc: Preview built Web client on loopback port 4173
     cmds: [pnpm --filter @tjuclaw/client preview]
+  ui:install:
+    desc: Install the Chromium browser used by UI regression tests
+    cmds: [pnpm exec playwright install chromium]
+  ui:test:
+    desc: Build and test appearance, keyboard access and four responsive sizes
+    cmds:
+      - task: web:build
+      - pnpm exec playwright test --config scripts/playwright.config.mjs
+  auth:up:
+    desc: Start isolated local Kratos, PostgreSQL and captured mail (no external email)
+    cmds: [docker compose -f ops/auth/compose.yaml up --detach]
+  auth:down:
+    desc: Stop local auth services without deleting identities
+    cmds: [docker compose -f ops/auth/compose.yaml down]
+  auth:dev:
+    desc: Run Go with local Kratos on port 14433 (use alongside web:dev)
+    dir: backend
+    env:
+      KRATOS_PUBLIC_URL: http://127.0.0.1:14433
+      APP_PUBLIC_URL: http://127.0.0.1:1420
+    cmds: [go run ./cmd/api]
+  auth:serve:
+    desc: Run API using ignored .env.auth.local (server-only configuration)
+    dir: backend
+    dotenv: ['../.env.auth.local']
+    cmds: [go run ./cmd/api]
+  auth:test:
+    desc: Test real Kratos email flows using the isolated local mailbox
+    cmds:
+      - task: web:build
+      - pnpm exec playwright test --config scripts/auth.playwright.config.mjs {{.CLI_ARGS}}
   docs:dev:
     desc: Run documentation on loopback port 3000
     cmds: [pnpm --filter @tjuclaw/docs dev]
@@ -39,6 +70,17 @@ tasks:
   audit:test:
     desc: Test local audit evidence boundaries using isolated fixtures
     cmds: [node --experimental-strip-types --test scripts/audit.test.mjs]
+  audit:auth:
+    desc: Run real auth regression and import four-size light/dark evidence locally
+    cmds:
+      - task: auth:test
+      - node scripts/audit-auth-import.mjs
+  audit:auth:import:
+    desc: Import a fully passing auth test run into the ignored local audit collection
+    cmds: [node scripts/audit-auth-import.mjs]
+  audit:ui:
+    desc: Verify the local audit UI with existing private evidence (no product build)
+    cmds: [pnpm exec playwright test --config scripts/audit.playwright.config.mjs]
   docs:build:
     desc: Build documentation
     cmds: [pnpm --filter @tjuclaw/docs build]

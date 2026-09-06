@@ -44,6 +44,34 @@ test('audit API only serves indexed evidence and rejects unsafe uploads', async 
     assert.match(await (await get('/__audit/description/GB-000')).text(), /Fixture description/);
     assert.equal((await get('/__audit/reference/GB-999')).status, 404);
     assert.equal((await get('/__audit/runtime/GB-000/phone')).status, 404);
+    assert.equal((await get('/__audit/auth')).status, 404);
+    await mkdir(join(root, 'runtime/auth/run-1'), { recursive: true });
+    const capturePNG = Buffer.from(png);
+    capturePNG.writeUInt32BE(390, 16);
+    capturePNG.writeUInt32BE(844, 20);
+    await writeFile(join(root, 'runtime/auth/run-1/login-phone-light.png'), capturePNG);
+    await writeFile(join(root, 'auth-manifest.json'), JSON.stringify({
+      states: [{ id: 'login', captures: {
+        'phone-light': { file: 'runtime/auth/run-1/login-phone-light.png', capturedAt: '2026-09-07T00:00:00Z' },
+        'desktop-light': { file: 'reference/sample.png', capturedAt: '2026-09-07T00:00:00Z' },
+        'tablet-light': { file: 'runtime/auth/run-1/missing.png' },
+      } }], generatedAt: '2026-09-07T00:00:00Z',
+    }));
+    const auth = await (await get('/__audit/auth')).json();
+    assert.equal(auth.states[0].captures['phone-light'].width, 390);
+    assert.equal(auth.states[0].captures['phone-light'].file, undefined);
+    assert.equal(auth.states[0].captures['desktop-light'], undefined);
+    assert.equal(auth.states[0].captures['tablet-light'], undefined);
+    const authPath = '/__audit/auth/login/phone-light';
+    assert.equal((await get(authPath)).headers.get('cache-control'), 'no-store');
+    assert.deepEqual(Buffer.from(await (await get(authPath)).arrayBuffer()), capturePNG);
+    assert.equal((await get('/__audit/auth/unknown/phone-light')).status, 404);
+    assert.equal((await get('/__audit/auth/login/desktop-light')).status, 404);
+    assert.equal((await get(authPath, { method: 'POST' })).status, 405);
+    assert.equal((await get('/__audit/auth', { headers: { Origin: 'https://attacker.invalid' } })).status, 403);
+    await rm(join(root, 'runtime/auth/run-1/login-phone-light.png'));
+    await symlink(join(root, '../outside-auth.png'), join(root, 'runtime/auth/run-1/login-phone-light.png'));
+    assert.equal((await get(authPath)).status, 404);
     assert.equal((await get('/__audit/manifest', { headers: { Origin: 'https://attacker.invalid' } })).status, 403);
     const endpoint = '/__audit/runtime/GB-000/phone';
     assert.equal((await get(endpoint, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png })).status, 403);

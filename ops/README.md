@@ -26,3 +26,8 @@ data or database. Rebuild from a known reviewed revision to roll back images.
 Real configuration, credentials and runtime state stay in ignored `ops/local/`
 or other private storage. Do not mount repository roots, Docker sockets or private
 research into build containers. Do not operate existing clusters without approval.
+
+`auth/` contains a separate local Kratos/PostgreSQL/Mailpit stack, identity policy,
+Chinese email templates and production/Resend instructions. Unlike root Compose,
+this stack has persistent development identities. See `auth/README.md`; real
+SMTP credentials and existing-cluster changes are never applied automatically.

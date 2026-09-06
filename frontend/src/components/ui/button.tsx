@@ -1,11 +1,18 @@
 import type { ComponentProps } from 'react';
-import { cva } from 'class-variance-authority';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex min-h-11 items-center justify-center rounded-md px-4 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:opacity-90',
+  'ui-button',
+  {
+    variants: {
+      variant: { solid: 'ui-button-solid', ghost: 'ui-button-ghost', floating: 'ui-button-floating' },
+      size: { default: 'ui-button-default', icon: 'ui-button-icon' },
+    },
+    defaultVariants: { variant: 'solid', size: 'default' },
+  },
 );
 
-export function Button({ className, type = 'button', ...props }: ComponentProps<'button'>) {
-  return <button type={type} className={cn(buttonVariants(), className)} {...props} />;
+export function Button({ className, variant, size, type = 'button', ...props }: ComponentProps<'button'> & VariantProps<typeof buttonVariants>) {
+  return <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }

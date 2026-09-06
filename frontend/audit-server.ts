@@ -42,6 +42,39 @@ export function auditServer(root: string): Plugin {
         }
         try {
           const manifest = await index();
+          if (url.pathname === '/__audit/auth' || url.pathname.startsWith('/__audit/auth/')) {
+            if (req.method !== 'GET') { res.writeHead(405).end(); return; }
+            const auth = JSON.parse(await readFile(await safeFile('auth-manifest.json'), 'utf8'));
+            if (url.pathname === '/__audit/auth') {
+              for (const state of auth.states) {
+                const captures: Record<string, object> = {};
+                for (const vp of viewports) for (const theme of ['light', 'dark']) {
+                  const key = `${vp.id}-${theme}`;
+                  const capture = state.captures[key];
+                  if (!capture) continue;
+                  try {
+                    if (!/^runtime\/auth\/run-\d+\/[a-z-]+\.png$/.test(capture.file)) continue;
+                    const path = await safeFile(capture.file);
+                    const size = pngSize(await readFile(path));
+                    if (size.width !== vp.width || size.height !== vp.height) continue;
+                    captures[key] = { ...size, updatedAt: capture.capturedAt,
+                      url: `/__audit/auth/${state.id}/${key}?v=${encodeURIComponent(auth.generatedAt)}` };
+                  } catch { /* Missing or invalid files remain explicit coverage gaps. */ }
+                }
+                state.captures = captures;
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(auth)); return;
+            }
+            const match = url.pathname.match(/^\/__audit\/auth\/([a-z-]+)\/((?:phone|compact|tablet|desktop)-(?:light|dark))$/);
+            const capture = match && auth.states.find((state: { id: string }) => state.id === match[1])?.captures[match[2]];
+            if (!capture || !/^runtime\/auth\/run-\d+\/[a-z-]+\.png$/.test(capture.file)) {
+              res.writeHead(404).end('Unknown auth evidence'); return;
+            }
+            const path = await safeFile(capture.file);
+            res.setHeader('Content-Type', 'image/png');
+            createReadStream(path).on('error', () => res.destroy()).pipe(res); return;
+          }
           if (url.pathname === '/__audit/manifest' && req.method === 'GET') {
             for (const screen of manifest.screens) {
               screen.reference = `/__audit/reference/${screen.id}`;

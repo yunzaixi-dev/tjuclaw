@@ -6,6 +6,8 @@ services:
       dockerfile: ../ops/images/api.Dockerfile
     environment:
       HTTP_ADDR: 0.0.0.0:8080
+      KRATOS_PUBLIC_URL: ${KRATOS_PUBLIC_URL:-}
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://127.0.0.1:8088}
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
     read_only: true

@@ -29,6 +29,20 @@ check:
     - task compose:config
     - task compose:context
 
+check:browser:
+  stage: check
+  tags: [$LINUX_RUNNER_TAG]
+  resource_group: local-auth-regression
+  script:
+    - task ui:install
+    - task ui:test
+    - task auth:test
+  artifacts:
+    when: on_failure
+    access: maintainer
+    expire_in: 1 day
+    paths: [test-results/]
+
 build:web:
   stage: build
   tags: [$LINUX_RUNNER_TAG]

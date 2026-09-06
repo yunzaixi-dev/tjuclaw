@@ -6,6 +6,8 @@ node_modules/
 
 # test & build
 coverage/
+test-results/
+playwright-report/
 .next/
 out/
 build/

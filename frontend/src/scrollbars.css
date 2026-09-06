@@ -1,0 +1,36 @@
+:root {
+  --scrollbar-thumb: rgb(0 0 0 / .28);
+  --scrollbar-thumb-hover: rgb(0 0 0 / .46);
+}
+
+:root[data-theme=dark] {
+  --scrollbar-thumb: rgb(255 255 255 / .30);
+  --scrollbar-thumb-hover: rgb(255 255 255 / .48);
+}
+
+/* Keep native scrolling and dragging; only change the visual treatment. */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-button { display: none; }
+
+/* Standard properties override WebKit geometry, so use them only as fallback. */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+}
+
+@media (forced-colors: active) {
+  * { scrollbar-width: auto; scrollbar-color: auto; }
+  ::-webkit-scrollbar,
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner,
+  ::-webkit-scrollbar-thumb,
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-button { all: revert; }
+}

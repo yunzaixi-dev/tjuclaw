@@ -1,0 +1,101 @@
+# Production-safe policy. Deployment injects database, origins and secrets.
+version: v1.3.0
+serve:
+  public:
+    base_url: https://tjuclaw.agentwego.com/api/kratos/
+    cors:
+      enabled: false
+  admin:
+    base_url: http://kratos:4434/
+selfservice:
+  default_browser_return_url: https://tjuclaw.agentwego.com/auth/complete
+  allowed_return_urls:
+    - https://tjuclaw.agentwego.com/auth/complete
+  methods:
+    password:
+      enabled: false
+    oidc:
+      enabled: false
+    totp:
+      enabled: false
+    webauthn:
+      enabled: false
+    lookup_secret:
+      enabled: false
+    link:
+      enabled: false
+    code:
+      enabled: true
+      passwordless_enabled: true
+      config:
+        lifespan: 10m
+        max_submissions: 5
+  flows:
+    error:
+      ui_url: https://tjuclaw.agentwego.com/auth/error
+    login:
+      ui_url: https://tjuclaw.agentwego.com/auth/login
+      lifespan: 10m
+    registration:
+      enabled: true
+      style: unified
+      ui_url: https://tjuclaw.agentwego.com/auth/registration
+      lifespan: 10m
+      after:
+        code:
+          hooks:
+            - hook: session
+    verification:
+      enabled: true
+      use: code
+      ui_url: https://tjuclaw.agentwego.com/auth/verification
+      lifespan: 10m
+    recovery:
+      enabled: false
+    logout:
+      after:
+        default_browser_return_url: https://tjuclaw.agentwego.com/auth/logged-out
+session:
+  lifespan: 720h
+  cookie:
+    persistent: true
+cookies:
+  path: /
+  same_site: Lax
+identity:
+  default_schema_id: tjuclaw-email-v1
+  schemas:
+    - id: tjuclaw-email-v1
+      url: file:///etc/config/kratos/identity.schema.json
+log:
+  level: warning
+  format: json
+  leak_sensitive_values: false
+courier:
+  smtp:
+    from_name: TJUClaw
+    from_address: login@agentwego.com
+  templates:
+    login_code:
+      valid:
+        email:
+          subject: file:///etc/config/kratos/mail/subject.gotmpl
+          body:
+            plaintext: file:///etc/config/kratos/mail/login.txt.gotmpl
+            html: file:///etc/config/kratos/mail/login.html.gotmpl
+    registration_code:
+      valid:
+        email:
+          subject: file:///etc/config/kratos/mail/subject.gotmpl
+          body:
+            plaintext: file:///etc/config/kratos/mail/registration.txt.gotmpl
+            html: file:///etc/config/kratos/mail/registration.html.gotmpl
+    verification_code:
+      valid:
+        email:
+          subject: file:///etc/config/kratos/mail/subject.gotmpl
+          body:
+            plaintext: file:///etc/config/kratos/mail/verification.txt.gotmpl
+            html: file:///etc/config/kratos/mail/verification.html.gotmpl
+feature_flags:
+  use_continue_with_transitions: true

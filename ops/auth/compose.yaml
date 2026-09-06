@@ -1,0 +1,58 @@
+# Isolated development identities and local-only captured mail. Never production.
+name: tjuclaw-auth-dev
+x-kratos-environment: &kratos-environment
+  DSN: postgres://kratos:local-development-only@db:5432/kratos?sslmode=disable
+  SERVE_PUBLIC_BASE_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/api/kratos/
+  SELFSERVICE_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/complete
+  SELFSERVICE_ALLOWED_RETURN_URLS: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/complete
+  SELFSERVICE_FLOWS_LOGIN_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/login
+  SELFSERVICE_FLOWS_REGISTRATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/registration
+  SELFSERVICE_FLOWS_VERIFICATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/verification
+  SELFSERVICE_FLOWS_ERROR_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/error
+  SELFSERVICE_FLOWS_LOGOUT_AFTER_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/logged-out
+  COURIER_SMTP_CONNECTION_URI: smtp://mail:1025/?disable_starttls=true
+  SECRETS_COOKIE: local-development-cookie-secret-not-for-production
+  SECRETS_CIPHER: 0123456789abcdef0123456789abcdef
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kratos
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: kratos
+    volumes: [identity-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U kratos]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  migrate:
+    image: oryd/kratos:v26.2.0
+    command: migrate sql -e --yes
+    environment: *kratos-environment
+    depends_on:
+      db: { condition: service_healthy }
+  kratos:
+    image: oryd/kratos:v26.2.0
+    command: serve --dev --watch-courier -c /etc/config/kratos/kratos.yml
+    environment: *kratos-environment
+    volumes:
+      - ./kratos.yml:/etc/config/kratos/kratos.yml:ro
+      - ./identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./mail:/etc/config/kratos/mail:ro
+    ports: ["127.0.0.1:${AUTH_KRATOS_PORT:-14433}:4433"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      mail: { condition: service_started }
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  mail:
+    image: axllent/mailpit:v1.27.8
+    ports: ["127.0.0.1:${AUTH_MAIL_PORT:-18025}:8025"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+volumes:
+  identity-db:

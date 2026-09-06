@@ -6,7 +6,8 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 帮助完成任务并交付可查看的结果。
 
 本仓库用于产品开发，文档站是其中的辅助组件，不是产品本身。
-当前为跨平台工程初始化版本，校园服务、登录和 Agent 任务执行尚未接入。
+当前已实现 Web 邮箱验证码认证与 UI 基础；校园服务和 Agent 任务执行尚未接入。
+生产认证服务仍需配置并单独验收，不能把本地联调等同于上线。
 
 ## 当前状态
 
@@ -14,7 +15,7 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 | --- | --- |
 | 产品客户端 | React + Vite，共用界面；Tauri 原生端初始化 |
 | 构建目标 | Web、Android、Linux、Windows；不配置 Apple 平台 |
-| 产品后端 | Go HTTP 服务，仅实现健康检查 |
+| 产品后端 | Go HTTP 服务，健康检查、Kratos 流程边界与真实会话校验 |
 | 文档站 | 独立 Next.js + Fumadocs 应用 |
 | 本地容器 | Web + API Compose 开发栈，不是生产部署 |
 | CI | 校园 GitLab 已启用；推送构建配置并接入 Runner 后执行 |
@@ -75,6 +76,16 @@ CI 配置了检查及各客户端自动构建，但当前项目尚无 Runner，
 
 本地视觉审计使用 `rtk task audit:dev`，数据准备与验证见开发手册。
 审计素材只保存在被 Git 排除的本地目录，不进入正常客户端构建。
+
+产品入口为邮箱登录与注册；外观演示保留在 `/preview/appearance`。UI 组件与主题约定见
+[UI 基础规范](frontend/UI.md)；首次执行 `rtk task ui:install` 安装测试浏览器，
+之后用 `rtk task ui:test` 验证主题与四种响应式尺寸。
+
+邮箱认证开发先运行 `rtk task auth:up`，再分别启动 `rtk task auth:dev` 和
+`rtk task web:dev`。本地邮件查看地址为 `http://127.0.0.1:18025`，
+真实 Kratos 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
+接入说明见 [邮箱认证](ops/auth/README.md)，协作基准见
+[前后端开发基准](DEVELOPMENT.md)。原生端认证尚需独立适配。
 
 ## 访问与保密
 

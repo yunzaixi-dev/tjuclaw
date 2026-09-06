@@ -48,3 +48,28 @@ test('native launcher resolves the pinned CLI without platform-specific shell sc
   assert.ok(result.stdout.includes(JSON.parse(read('frontend/package.json')).devDependencies['@tauri-apps/cli']));
   assert.notEqual(spawnSync(process.execPath, [script, 'unknown'], { stdio: 'ignore' }).status, 0);
 });
+
+test('email auth policy keeps browser identity boundaries and local mail isolated', () => {
+  const config = parse(read('ops/auth/kratos.yml'));
+  assert.equal(config.selfservice.methods.code.passwordless_enabled, true);
+  assert.equal(config.selfservice.methods.password.enabled, false);
+  assert.equal(config.selfservice.methods.oidc.enabled, false);
+  assert.equal(config.serve.public.cors.enabled, false);
+  assert.equal(config.log.leak_sensitive_values, false);
+  assert.equal(config.cookies.domain, undefined);
+  assert.equal(config.cookies.same_site, 'Lax');
+  assert.deepEqual(config.selfservice.flows.registration.after.code.hooks, [{ hook: 'session' }]);
+  const local = parse(read('ops/auth/compose.yaml'));
+  for (const service of Object.values(local.services)) {
+    assert.ok((service.ports || []).every(port => port.startsWith('127.0.0.1:')));
+    assert.ok((service.volumes || []).every(path => !path.includes('docker.sock')));
+  }
+  assert.equal(local.services.db.ports, undefined);
+  assert.ok(local.services.kratos.ports.every(port => !port.endsWith(':4434')));
+  assert.match(read('ops/images/nginx.conf'), /limit_req_status 429/);
+  assert.match(read('ops/images/nginx.conf'), /access_log off/);
+  const browser = parse(read('.gitlab-ci.yml'))['check:browser'];
+  assert.equal(browser.resource_group, 'local-auth-regression');
+  assert.equal(browser.artifacts.access, 'maintainer');
+  assert.ok(browser.script.includes('task auth:test'));
+});
