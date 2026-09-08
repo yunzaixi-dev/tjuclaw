@@ -36,6 +36,10 @@ Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链�
 - GitLab main 保持与 GitHub 集成提交相同的 SHA。它包含 submodule 指针；完整源码另随
   Release 提供，不能把 GitLab 自动生成的源码 ZIP 当成已包含私有组件。
 
+首次 `v0.0.25` 的 GitLab 标签为轻量标签：checkout v4 的默认回退抓取丢失了附注，
+但指向的源码提交与 GitHub 完全一致。后续标签显式检出 tag ref，保留附注对象；
+已发布 `v0.0.25` 的引用和文件内容保持原样。
+
 ## 两步发布安装包
 
 在相关组件和集成 CI 全部通过后，由维护者明确选择版本发布。
@@ -47,7 +51,7 @@ gh workflow run packages.yml --repo yunzaixi-dev/tjuclaw-client --ref main \
 
 # 2. 第一步成功后，在集成 main 上发布当前集成版本。
 gh workflow run release.yml --repo yunzaixi-dev/tjuclaw --ref main \
-  -f version=0.0.25
+  -f version=<当前集成版本>
 ```
 
 第一步读取指定 SHA 最新且成功的 `CI` 与 `Windows Installer` 运行，校验 GitHub
