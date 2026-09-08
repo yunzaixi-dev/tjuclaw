@@ -11,6 +11,7 @@ tasks:
     desc: Install locked JS dependencies and local Git hooks
     cmds:
       - pnpm install --frozen-lockfile
+      - pnpm --dir frontend install --frozen-lockfile
       - pnpm git:setup
   doctor:
     desc: Check common development tools
@@ -20,21 +21,20 @@ tasks:
     deps: [web:dev, api:dev]
   web:dev:
     desc: Run Web client on loopback port 1420
-    cmds: [pnpm --filter @tjuclaw/client dev]
+    cmds: [pnpm --dir frontend dev]
   web:build:
     desc: Build Web client
-    cmds: [pnpm --filter @tjuclaw/client build]
+    cmds: [pnpm --dir frontend build]
   web:preview:
     desc: Preview built Web client on loopback port 4173
-    cmds: [pnpm --filter @tjuclaw/client preview]
+    cmds: [pnpm --dir frontend preview]
   ui:install:
     desc: Install the Chromium browser used by UI regression tests
     cmds: [pnpm exec playwright install chromium]
   ui:test:
     desc: Build and test appearance, keyboard access and four responsive sizes
     cmds:
-      - task: web:build
-      - pnpm exec playwright test --config scripts/playwright.config.mjs
+      - task --dir frontend ui:test
   auth:up:
     desc: Start isolated local Kratos, PostgreSQL and captured mail (no external email)
     cmds: [docker compose -f ops/auth/compose.yaml up --detach]
@@ -61,8 +61,7 @@ tasks:
   workspace:test:
     desc: Test task workspace client behavior using isolated mocks
     cmds:
-      - task: web:build
-      - pnpm exec playwright test --config scripts/workspace.playwright.config.mjs {{.CLI_ARGS}}
+      - task --dir frontend workspace:test -- {{.CLI_ARGS}}
   slides:install:
     desc: Install the standalone presentation dependencies
     dir: presentation
@@ -87,7 +86,7 @@ tasks:
     cmds: [node scripts/audit-index.mjs]
   audit:dev:
     desc: Run the local-only visual audit desk on loopback port 1421
-    cmds: [pnpm --filter @tjuclaw/client exec vite --mode audit]
+    cmds: [pnpm --dir frontend exec vite --mode audit]
   audit:test:
     desc: Test local audit evidence boundaries using isolated fixtures
     cmds: [node --experimental-strip-types --test scripts/audit.test.mjs]
@@ -117,17 +116,21 @@ tasks:
     dir: backend
     cmds: [go build -trimpath -o bin/ ./cmd/api]
   cli:build:
-    desc: Build tjucli with the repository version
-    dir: backend
+    desc: Build tjucli with its component version
+    dir: cli
     vars:
       CLI_VERSION:
-        sh: node -p "require('../package.json').version"
+        sh: node -p "require('./package.json').version"
     cmds:
       - go build -trimpath -ldflags="-X main.version={{.CLI_VERSION}}" -o bin/ ./cmd/tjucli
   cli:test:
     desc: Test the campus CLI and public course provider
-    dir: backend
+    dir: cli
     cmds: [go test -race ./internal/tjucli ./cmd/tjucli]
+  cli:lint:
+    desc: Check the independent CLI module
+    dir: cli
+    cmds: [go vet ./...]
   api:test:
     desc: Run Go tests
     dir: backend
@@ -145,6 +148,7 @@ tasks:
     cmds:
       - pnpm lint
       - task: api:lint
+      - task: cli:lint
   types:
     desc: Check client and docs types
     cmds: [pnpm types:check]
@@ -155,6 +159,8 @@ tasks:
       - pnpm test:tooling
       - task: audit:test
       - task: api:test
+      - task: cli:test
+      - go test ops/auth/mail_test.go
   check:
     desc: Run portable checks (no native SDK needed)
     cmds:
@@ -168,40 +174,41 @@ tasks:
       - task: web:build
       - task: docs:build
       - task: api:build
+      - task: cli:build
   native:info:
     desc: Inspect Tauri and native SDK requirements
-    cmds: [pnpm --filter @tjuclaw/client tauri info]
+    cmds: [pnpm --dir frontend tauri info]
   native:icons:
     desc: Regenerate platform icons from the source SVG
-    cmds: [pnpm --filter @tjuclaw/client tauri icon app-icon.svg]
+    cmds: [pnpm --dir frontend tauri icon app-icon.svg]
   native:check:
     desc: Check native Rust code on the current host
     dir: frontend/src-tauri
-    cmds: [node ../../scripts/native.mjs cargo check --locked]
+    cmds: [node ../scripts/native.mjs cargo check --locked]
   native:fmt:
     desc: Format native Rust code
     dir: frontend/src-tauri
-    cmds: [node ../../scripts/native.mjs cargo fmt]
+    cmds: [node ../scripts/native.mjs cargo fmt]
   desktop:dev:
     desc: Run native desktop development client
-    cmds: [pnpm --filter @tjuclaw/client tauri dev]
+    cmds: [pnpm --dir frontend tauri dev]
   linux:build:
     desc: Build Linux amd64 Debian package on Linux
     preconditions:
       - sh: >-
           node -e "process.exit(process.platform === 'linux' ? 0 : 1)"
         msg: This build requires a Linux host.
-    cmds: [pnpm --filter @tjuclaw/client tauri build --bundles deb -- --locked]
+    cmds: [pnpm --dir frontend tauri build --bundles deb -- --locked]
   windows:build:
     desc: Build unsigned Windows NSIS installer on Windows
     preconditions:
       - sh: >-
           node -e "process.exit(process.platform === 'win32' ? 0 : 1)"
         msg: This build requires a Windows host with MSVC.
-    cmds: [pnpm --filter @tjuclaw/client tauri build --bundles nsis -- --locked]
+    cmds: [pnpm --dir frontend tauri build --bundles nsis -- --locked]
   android:init:
     desc: Generate Android project after installing its SDK/NDK and Rust targets
-    cmds: [pnpm --filter @tjuclaw/client tauri android init --ci --skip-targets-install]
+    cmds: [pnpm --dir frontend tauri android init --ci --skip-targets-install]
     status:
       - test -f frontend/src-tauri/gen/android/gradlew
   android:sdk:
@@ -214,17 +221,17 @@ tasks:
     cmds: ['"${SDKMANAGER:-sdkmanager}" --licenses']
   android:targets:
     desc: Install Rust targets used by the generated Android project
-    cmds: [node scripts/native.mjs rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android]
+    cmds: [node frontend/scripts/native.mjs rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android]
   android:dev:
     desc: Run Android client on a connected device or emulator
     cmds:
       - task: android:init
-      - pnpm --filter @tjuclaw/client tauri android dev
+      - pnpm --dir frontend tauri android dev
   android:build:
     desc: Build installable debug APK for arm64 (not a production signed release)
     cmds:
       - task: android:init
-      - pnpm --filter @tjuclaw/client tauri android build --debug --apk --target aarch64 --ci
+      - pnpm --dir frontend tauri android build --debug --apk --target aarch64 --ci
   compose:config:
     desc: Validate sanitized local Compose configuration
     cmds: [docker compose --env-file ops/compose.env.example config --quiet]

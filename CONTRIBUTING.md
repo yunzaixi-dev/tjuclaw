@@ -2,6 +2,9 @@
 
 ## 工作流
 
+GitHub 为唯一开发主平台，GitLab 为比赛镜像。组件先在各自仓库提交、推送并通过检查，
+再在集成仓库暂存对应 submodule 指针并运行组合回归。禁止同时启用反向镜像。
+
 `main` 保持可交付。使用短期分支 `feat/<topic>`、`fix/<topic>`、
 `docs/<topic>`、`chore/<topic>`；不为当前规模增加长期 develop 分支。
 远端建立后由维护者开启 main 保护和合并检查，本地脚本不能代替服务端规则。
@@ -45,10 +48,10 @@ scope 可省略；建议使用 `wiki`、`frontend`、`backend`、`ops`、`repo`�
 
 ## 版本号
 
-唯一版本来源为根 `package.json` 的 `version`，当前保留 `0.0.25`。
+每个独立仓库以自己的根 `package.json` 的 `version` 为唯一版本来源，拆分基线为 `0.0.25`。
 这是仓库基线，不代表已经发布或承诺产品功能完成，不建立重复的 VERSION 文件。
-组件尚未独立发布，暂不维护多套产品版本。Tauri 配置直接读取根 package.json；
-Rust crate 的 0.0.0 仅为未发布内部元数据，不作为客户端安装包版本。
+集成仓库锁定组件 SHA，各组件可以独立演进。Tauri 读取客户端仓库 package.json；
+Rust crate 的 0.0.0 仅为内部元数据，不作为客户端安装包版本。
 
 采用 SemVer 的主 / 次 / 修订版本结构：
 
@@ -103,7 +106,8 @@ hooks 检查整个 Git 索引中的受限路径，防止通过强制添加绕开
 hooks 可以被绕过，也不会移除历史泄露。发现已泄露凭据先轮换，再处理仓库历史。
 Git 排除不能阻止文件被本地 Wiki、静态服务器、构建产物或容器镜像公开。
 
-远端保持 Private 可见性，禁止未经授权切换为 Internal/Public、启用 Pages、
+集成、服务端、CLI 与 GitLab 比赛镜像保持 Private；客户端已获授权公开。
+禁止未经授权扩大其他仓库的可见性、启用 Pages、
 邀请成员或发布带有内部材料的制品。推送只同步经过审查的提交，不同步本地私有归档。
 
 参考：[SemVer 2.0.0](https://semver.org/spec/v2.0.0.html)、

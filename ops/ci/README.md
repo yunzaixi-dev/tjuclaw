@@ -1,106 +1,90 @@
-# GitHub Actions CI
+# GitHub CI、GitLab 镜像与比赛 Release
 
-The source repository is `https://github.com/yunzaixi-dev/tjuclaw`.
-Hosted Ubuntu 24.04 and Windows 2022 runners execute the existing Task commands.
-No self-hosted Runner, Kubernetes cluster, private build image or integration VM
-is required. Workflow configuration alone does not establish successful execution;
-use the actual run URL, commit SHA and produced artifacts for acceptance.
+GitHub 是唯一开发主平台。GitLab 比赛项目接收单向源码镜像、外部 CI 状态和
+客户端安装包；不再运行旧 Kubernetes/Compose Runner 作业。
 
-## Checks and builds
+## 仓库职责
 
-`.github/workflows/ci.yml` runs on pushes, pull requests and manual dispatch:
+| 仓库 | 可见性 | 职责 |
+| --- | --- | --- |
+| `yunzaixi-dev/tjuclaw` | Private | 集成版本、精确组件指针、文档、真实认证/任务归属回归、GitLab 同步和 Release |
+| `yunzaixi-dev/tjuclaw-client` | Public | React/Tauri、UI/工作区回归、Web/Linux/Windows/Android 构建 |
+| `yunzaixi-dev/tjuclaw-server` | Private | Go API、静态检查、race tests 和 API 构建 |
+| `yunzaixi-dev/tjucli` | Private（暂定） | 校园 CLI、Skill、独立检查与构建 |
 
-| Job | Acceptance |
-| --- | --- |
-| Portable checks | `task check`, all Go packages with the race detector |
-| Browser | Appearance and task workspace browser regressions, run serially |
-| Integration | Compose configuration/context checks and real Kratos/email/task ownership regression |
-| Web/docs/API/CLI | Build each component; retain Web, API and CLI artifacts |
-| Linux | Build a Debian package |
-| Android | Build a debug arm64 APK |
+客户端和集成仓库分别使用自己的 pnpm workspace/lockfile，服务端与 CLI 使用独立
+Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链或自管 Runner。
 
-`.github/workflows/windows.yml` uses the same triggers to build an unsigned NSIS
-installer, recording its SHA-256 and source SHA. Native artifacts are test builds;
-build success does not establish installation, device compatibility or production
-signing. CI does not deploy, publish releases/Pages, or upload to application stores.
+## 开发与组合检查
 
-Actions are pinned to commit SHAs. Workflow tokens default to read-only.
-Public repository logs and artifacts are public: upload only named build outputs,
-never a broad `test-results/` directory, private audit evidence, environment files,
-credentials or signing keys. Artifacts expire after seven days. Fork PR builds use
-no campus credentials or status-reporting secret and never use `pull_request_target`.
+1. 在组件仓库实现并提交修改，通过该仓库 CI 后推送可访问的提交。
+2. 在集成仓库更新 `frontend/`、`backend/` 或 `cli/` 的 submodule SHA，并逐路径暂存。
+3. 运行 `task check` 和需要的组合回归。真实认证使用 `task auth:test`，不使用 mock 替代。
+4. 合并到 GitHub main。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab main。
 
-Node 24, pnpm from `packageManager`, Go from `backend/go.mod`, and Task 3.49.1 are
-installed by the workflows. Platform preflight runs before frozen dependency
-installation. Android uses Java 17, SDK 36, build-tools 35/36 and NDK 27.2.12479018.
-The integration job downloads its Docker images before starting the Playwright
-server timeout and always tears down its isolated Compose stack.
+客户端负责外观与工作区回归及原生打包。仅修改服务端不会重新构建四个平台客户端。
+集成仍会构建 Web 以验证实际认证/任务接口；这是组合回归的一部分。
 
-## GitLab competition repository
+## 源码与状态同步
 
-GitLab remains the private upstream competition repository. `.gitlab-ci.yml`
-disables the retired Runner jobs; it does not report a successful test pipeline.
-GitLab push mirroring runs in the GitLab service itself, without a CI Runner:
+- 旧 GitLab → GitHub Push Mirror 已停用，禁止与新方向同时启用。
+- `CI` 的 `mirror` job 只推送 main 或明确的版本标签，不使用 force、删除引用或全量 mirror。
+- `.gitlab-ci.yml` 停用原 Runner 作业。可信的 `GitLab Commit Status` 工作流在 CI 完成后
+  回写 `github-actions/ci`，保留 GitHub 运行链接。
+- 状态回写只处理本仓库 main 的 push；脚本检查准确提交、最新运行与受限 API 域名。
+  未保护的其他分支和 GitLab MR 合并结果不自动获得镜像主线的验收保证。
+- GitLab main 保持与 GitHub 集成提交相同的 SHA。它包含 submodule 指针；完整源码另随
+  Release 提供，不能把 GitLab 自动生成的源码 ZIP 当成已包含私有组件。
 
-```text
-GitLab protected branch push
-  -> GitLab SSH push mirror (same commit SHA)
-  -> GitHub push event
-  -> hosted CI + Windows workflows
-  -> trusted status reporter
-  -> GitLab commit status linking to the GitHub run
-```
+## 两步发布安装包
 
-Use a repository-scoped GitHub write deploy key for the mirror, with GitLab's
-mirror-generated SSH key and GitHub host keys verified from its HTTPS metadata
-API. Do not distribute a personal GitHub administrator token. Configure only
-protected branches and `keep_divergent_refs=true`; do not force-overwrite a
-divergent GitHub branch. The source of truth is GitLab. Avoid editing mirrored
-branches directly on GitHub; merge reviewed changes upstream, then mirror them.
-Only protected branches are mirrored: an unprotected GitLab topic branch or an
-MR merge-result ref does not automatically get a GitHub run. GitHub PR tests do
-not imply GitLab MR merge-result coverage. Tags should also be reviewed before
-publication because branch filtering is not a general private-ref filter.
-
-A mirror needs outbound SSH access from GitLab to GitHub (the configured SSH
-endpoint can use port 443). After setup or a new push, inspect mirror status and
-compare branch SHAs on both services. The mirror is asynchronous; configuring it
-is not proof of a successful transfer. No GitHub-to-GitLab code mirror is created,
-so status callbacks cannot create a source synchronization loop.
-
-## Status reporting
-
-The separate `.github/workflows/gitlab-status.yml` workflow receives CI/Windows
-lifecycle events. It runs trusted default-branch code only for pushes to `main`
-from this repository. It does not execute PR code, restore untrusted caches or
-consume build artifacts. The reporter reads the current GitHub run state and
-checks that the exact commit exists in GitLab before posting its status.
-CI and Windows have separate status contexts; neither can overwrite the other.
-Do not claim this alone provides a configured GitLab merge gate.
-
-Repository configuration:
-
-- Secret `GITLAB_STATUS_TOKEN`: project-scoped token with `api` scope. The current
-  protected `main` policy requires Maintainer access to post pipeline status;
-  a Developer token can read the commit but receives HTTP 403 when posting.
-  `read_api` cannot write status. Never use a personal administrator token here.
-- Variables `GITLAB_URL`, `GITLAB_PROJECT_ID`: approved GitLab endpoint/project.
-- Variable `GITLAB_STATUS_ENABLED`: set to `true` after provisioning the secret.
-
-Rotate the token before its expiration; callbacks failing or being disabled must
-not be interpreted as a passing build. Keep provisioning records and credentials
-in ignored local storage. Verify both a successful and a failed status mapping
-with tests, then inspect actual remote callbacks on the matching source SHA.
-
-## Local validation
+在相关组件和集成 CI 全部通过后，由维护者明确选择版本发布。
 
 ```bash
-rtk pnpm test:tooling
-rtk task check
-rtk git diff --check
+# 1. 在客户端 main 上执行，指定集成仓库锁定的 frontend SHA。
+gh workflow run packages.yml --repo yunzaixi-dev/tjuclaw-client --ref main \
+  -f source_sha=<40位客户端SHA>
+
+# 2. 第一步成功后，在集成 main 上发布当前集成版本。
+gh workflow run release.yml --repo yunzaixi-dev/tjuclaw --ref main \
+  -f version=0.0.25
 ```
 
-Use `actionlint` on all workflows before pushing. Public-source review covers the
-actual Git commits and history, not a copy of the dirty working directory.
-Ignored research, local plans, dependencies, runtime data and generated native
-projects must never be force-added or mirrored.
+第一步读取指定 SHA 最新且成功的 `CI` 与 `Windows Installer` 运行，校验 GitHub
+artifact ZIP 的 SHA-256，仅提取各一个 `.deb`、`.exe`、`.apk`，上传到 GitLab
+Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` 最后上传，
+作为该批产物上传完整的标记。
+
+第二步核对集成 CI、组件 gitlink、客户端清单和下载摘要。它仅从 Git 跟踪的准确提交
+生成包含所有组件的源码快照，再把安装包、源码快照、`SHA256SUMS.txt` 发布到 GitLab
+版本包与 Release。文件实际存于 GitLab，Release 资产提供稳定下载入口。
+
+- 同一版本同一文件内容可重试；摘要冲突、标签指向变化和资产链接冲突必须失败。
+- 评审下载 `TJUClaw-source-<version>.tar.gz` 可取得全部组件，包含 `SOURCE.json` 溯源信息。
+  源码归档不带 `.git` 或私有运行状态；可分别安装根目录与 `frontend/` 的锁定依赖后构建。
+- Windows 包未签名，Android 为 arm64 调试 APK。开发 Release 不代表签名、部署或真机验收。
+- 此流程不自动创建 GitHub Release、Pages、容器发布或生产部署。
+
+## 凭据边界
+
+| 所在仓库 | Secret | 权限与用途 |
+| --- | --- | --- |
+| 私有集成 | `SERVER_READ_KEY`、`CLI_READ_KEY` | 分别只能读取一个私有组件 |
+| 私有集成 | `GITLAB_SYNC_TOKEN` | 仅比赛项目的源码推送权限 |
+| 私有集成 | `GITLAB_STATUS_TOKEN` | 仅比赛项目的外部 CI 状态回写 |
+| 私有集成 | `GITLAB_RELEASE_TOKEN` | 仅比赛项目的包与 Release API |
+| 公开客户端 | `GITLAB_PACKAGE_TOKEN` | 部署令牌，仅 read/write_package_registry，无源码读取权限 |
+
+API 令牌使用项目级账号，不向 Actions 分发个人 GitLab PAT。受保护 main 的推送/状态
+操作需要相应项目角色。令牌和组件密钥保存在 Actions Secrets；本地备份只能在忽略目录。
+公开构建日志不得包含私有研究、审计截图、完整测试输出或临时签名下载 URL。
+
+## 比赛统计与可见性
+
+[比赛官网 FAQ](https://agent2026.tju.edu.cn/ai-competition/introduction/docs/faq.html)
+明确：私有项目影响 Star、下载量等记分，Internal 可向校内已登录用户开放。
+目前比赛项目仍为 Private，扩大可见性需要维护者明确决定；项目历史包含服务端源码。
+
+官网尚未给出本流程所用 Release/Generic Package 下载的具体计数口径。上传成功和
+鉴权下载成功只证明交付链路成立，不证明比赛计分已增长。完整源码快照是交付选择，
+不能把其他参赛项目的提交清单当成官方禁止 submodule 的规则。

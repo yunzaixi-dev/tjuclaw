@@ -10,11 +10,15 @@ them in tool-specific files.
 - Documentation: Next.js 16 with Fumadocs.
 - Package manager: pnpm.
 - Documentation app: `docs/`; content: `docs/content/docs/`; source: `docs/src/`.
-- Product frontend: `frontend/`; backend: `backend/`; operations: `ops/`.
+- Private integration repository: `tjuclaw`. Pinned Git submodules: `frontend/`
+  (`tjuclaw-client`, public), `backend/` (`tjuclaw-server`, private), `cli/`
+  (`tjucli`, private for now). Operations remain in `ops/`.
+- Each component owns its dependencies, lockfile, version metadata and CI.
+  Root pnpm workspace contains documentation; client and presentation are independent.
 - Slidev presentation: `presentation/`, with its own pnpm workspace and lockfile.
   Keep the deck's implementation status tied to real checks; exported PDFs stay
   under ignored `test-results/presentation/`.
-- Product CLI instructions: `skills/tjucli/`; these must be explicitly loaded
+- Product CLI instructions: `cli/skills/tjucli/`; these must be explicitly loaded
   into the product runtime, not merely installed in the developer's global Pi.
 - React + Vite + Tauri in `frontend/` share source across Web and native clients.
   The Go API is in `backend/`; Next.js is documentation only.
@@ -36,7 +40,7 @@ them in tool-specific files.
 - Documentation: `task docs:dev`
 - Presentation: `task slides:install`, `task slides:dev`, `task slides:build`,
   `task slides:export` (requires Playwright Chromium).
-- Campus CLI: `task cli:build`, `task cli:test`; binary: `backend/bin/tjucli`.
+- Campus CLI: `task cli:build`, `task cli:test`; binary: `cli/bin/tjucli`.
   It currently covers the public course-sharing provider only.
 - Checks: `task check`
 - Portable build: `task build`
@@ -72,17 +76,20 @@ them in tool-specific files.
   `frontend/src/` or any build input. Docker contexts use explicit allowlists.
   Historical internal Wiki material and UI references are archived under ignored
   `private/wiki-archive/`; never reintroduce them into build inputs.
-- GitHub Actions uses hosted Ubuntu runners for checks, real Compose/auth tests,
-  Web/docs/API/CLI and Linux/Android builds, plus a hosted Windows runner for NSIS.
-  GitLab remains the private competition repository; its old Runner jobs are disabled.
-- The user authorized public source on GitHub under `yunzaixi-dev`. Review the exact
-  Git commits before publication; ignored research, credentials and runtime state
-  remain local. Public workflow logs and artifacts must contain no private evidence.
-- CI migration and synchronization instructions: `ops/ci/README.md`.
-  Jobs validate their toolchain with `scripts/ci-preflight.mjs` before installation.
-  Actions do not deploy, publish releases/Pages, or upload signed packages.
-- Root package version also drives Tauri bundles; Cargo crate version is internal
-  metadata, not an independently released product version.
+- GitHub is the development authority. Push reviewed main/version tags one-way to
+  the private GitLab competition mirror; never enable reverse mirroring concurrently.
+- Client Actions own Web/Linux/Android/Windows builds and UI/workspace regressions.
+  Integration Actions own pinned-component checks and real Compose/auth regressions.
+  Do not rebuild native clients merely because the server changed.
+- Public client CI has only a package-scoped GitLab deploy token. Private component
+  checkout uses separate read-only deploy keys; project API tokens stay in integration.
+- Explicit manual workflows stage verified client packages, then publish GitLab
+  Releases with checksums and a complete tracked-source snapshot. Preserve immutable
+  version contents; validate source SHAs and passing CI before promotion.
+- CI and release instructions: `ops/ci/README.md`. No deployment, Pages or signed
+  production release is implied by packaging or by the development Release workflow.
+- Each repository's package.json owns its version. Tauri reads the client metadata;
+  integration locks component SHAs. Rust crate version is internal metadata.
 - Shell commands in agent sessions must be prefixed with `rtk`; use
   `rtk proxy` when unfiltered output is required.
 

@@ -8,9 +8,8 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const output = mkdtempSync(join(tmpdir(), 'tjuclaw-context-'));
 const allowed = new Set([
-  'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
   'frontend/package.json', 'frontend/index.html', 'frontend/app-icon.svg',
-  'frontend/tsconfig.json', 'frontend/vite.config.ts', 'frontend/audit-server.ts', 'docs/package.json',
+  'frontend/tsconfig.json', 'frontend/vite.config.ts', 'frontend/audit-server.ts', 'frontend/pnpm-lock.yaml', 'frontend/pnpm-workspace.yaml',
   'ops/images/web.Dockerfile', 'ops/images/nginx.conf',
 ]);
 
@@ -28,7 +27,7 @@ try {
   const unexpected = files.filter((path) => !allowed.has(path) && !path.startsWith('frontend/src/'));
   assert.deepEqual(unexpected, [], 'Unexpected files in actual Docker context');
   assert.ok(files.includes('frontend/src/main.tsx'), 'Client source missing from context');
-  assert.ok(files.includes('docs/package.json'), 'Workspace manifest missing from context');
+  assert.ok(files.includes('frontend/pnpm-lock.yaml'), 'Client lockfile missing from context');
   assert.ok(files.every((path) => !/(?:node_modules|target|\.next|\.env|\.private\.)/.test(path)));
   console.log(`Docker context verified: ${files.length} approved source/config files, no caches or private directories.`);
 } finally {

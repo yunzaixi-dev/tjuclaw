@@ -31,7 +31,8 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: 'pnpm --filter @tjuclaw/client exec vite preview --host 127.0.0.1 --port 1423 --strictPort',
+      cwd: '..',
+      command: 'pnpm --dir frontend exec vite preview --host 127.0.0.1 --port 1423 --strictPort',
       url: 'http://127.0.0.1:1423', env: { API_PROXY_TARGET: 'http://127.0.0.1:18089' }, reuseExistingServer: false,
     },
   ],

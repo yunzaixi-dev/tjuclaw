@@ -4,10 +4,7 @@ on:
   workflow_run:
     workflows:
       - 'CI'
-      - 'Windows Installer'
     types:
-      - requested
-      - in_progress
       - completed
 
 permissions:

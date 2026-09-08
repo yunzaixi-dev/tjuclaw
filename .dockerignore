@@ -1,11 +1,10 @@
 # Allowlist: never send local intelligence, credentials or native caches to Docker.
 **
-!package.json
-!pnpm-lock.yaml
-!pnpm-workspace.yaml
 !frontend/
 frontend/**
 !frontend/package.json
+!frontend/pnpm-lock.yaml
+!frontend/pnpm-workspace.yaml
 !frontend/index.html
 !frontend/app-icon.svg
 !frontend/tsconfig.json
@@ -13,9 +12,6 @@ frontend/**
 !frontend/audit-server.ts
 !frontend/src/
 !frontend/src/**
-!docs/
-docs/**
-!docs/package.json
 !ops/
 ops/**
 !ops/images/

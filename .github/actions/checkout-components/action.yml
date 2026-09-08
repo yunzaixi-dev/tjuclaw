@@ -1,0 +1,45 @@
+name: Checkout pinned components
+description: Checkout the exact gitlinks with separate read-only component keys
+inputs:
+  server-key:
+    description: Read-only deploy key for the server repository
+    required: true
+  cli-key:
+    description: Read-only deploy key for the CLI repository
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Read immutable component references
+      id: refs
+      shell: bash
+      run: |
+        for component in frontend backend cli; do
+          entry=$(git ls-tree HEAD "$component")
+          test "$(printf '%s' "$entry" | awk '{print $1}')" = 160000
+          sha=$(printf '%s' "$entry" | awk '{print $3}')
+          echo "$component=$sha" >> "$GITHUB_OUTPUT"
+        done
+    - name: Checkout public client
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: yunzaixi-dev/tjuclaw-client
+        ref: ${{ steps.refs.outputs.frontend }}
+        path: frontend
+        persist-credentials: false
+    - name: Checkout private server
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: yunzaixi-dev/tjuclaw-server
+        ref: ${{ steps.refs.outputs.backend }}
+        path: backend
+        ssh-key: ${{ inputs.server-key }}
+        persist-credentials: false
+    - name: Checkout private CLI and Skill
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: yunzaixi-dev/tjucli
+        ref: ${{ steps.refs.outputs.cli }}
+        path: cli
+        ssh-key: ${{ inputs.cli-key }}
+        persist-credentials: false

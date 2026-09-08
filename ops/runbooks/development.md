@@ -71,11 +71,16 @@ Windows builds an unsigned NSIS installer and records source SHA and SHA-256
 checksums. Building does not prove installation or login works on a real device.
 Public workflow logs and artifacts follow GitHub repository visibility; no broad
 `test-results/` upload, credentials, private audit evidence or signing keys belong
-there. CI does not deploy, publish Pages/releases, push images or upload to stores.
+there. Build/check workflows do not deploy, publish Pages, push images or upload
+ to stores. Separate manual workflows stage GitLab packages and publish a verified
+ development Release; see the CI guide for credentials and immutable version checks.
 
 ## Repository Changes
 
-The root orchestrates a pnpm workspace. The documentation app is under `docs/`.
+The private root integration repository pins frontend, backend and CLI submodules.
+Its pnpm workspace contains documentation under `docs/`; the frontend has its own
+workspace and lockfile. Initialize submodules before `task setup`; setup installs
+root and frontend dependencies separately.
 Use `task web:dev` for the product and `task docs:dev` for documentation.
 No Task command auto-commits, rewrites Git history, or deletes persistent data.
 Shell examples use RTK; tasks invoke tools directly, so CI does not need RTK.

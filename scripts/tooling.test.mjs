@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
-import { prependToolPath } from './native-env.mjs';
+import { prependToolPath } from '../frontend/scripts/native-env.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -17,8 +17,12 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   assert.equal(workflow.on.pull_request_target, undefined);
   assert.equal(workflow.permissions.contents, 'read');
 
-  // Verify all target builds exist in GitHub CI workflow
-  const jobs = workflow.jobs;
+  // Native jobs belong to the pinned client; integration keeps real auth.
+  const clientJobs = parse(read('frontend/.github/workflows/ci.yml')).jobs;
+  assert.equal(workflow.jobs['build-linux'], undefined);
+  assert.equal(workflow.jobs['build-android'], undefined);
+  assert.ok(workflow.jobs.mirror);
+  const jobs = { ...workflow.jobs, ...clientJobs };
   assert.ok(jobs['check']);
   assert.ok(jobs['browser']);
   assert.ok(jobs['integration']);
@@ -26,8 +30,8 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   assert.ok(jobs['build-linux']);
   assert.ok(jobs['build-android']);
 
-  const windowsWorkflow = parse(read('.github/workflows/windows.yml'));
-  const allJobs = [...Object.values(jobs), ...Object.values(windowsWorkflow.jobs)];
+  const windowsWorkflow = parse(read('frontend/.github/workflows/windows.yml'));
+  const allJobs = [...Object.values(workflow.jobs), ...Object.values(clientJobs), ...Object.values(windowsWorkflow.jobs)];
   const commands = allJobs.flatMap(job => job.steps.flatMap(step =>
     [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
   for (const command of ['check', 'ui:test', 'workspace:test', 'auth:test', 'compose:config',
@@ -57,7 +61,7 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
 });
 
 test('Windows workflow is configured with pinned actions and checksums', () => {
-  const workflow = parse(read('.github/workflows/windows.yml'));
+  const workflow = parse(read('frontend/.github/workflows/windows.yml'));
   assert.equal(workflow.permissions.contents, 'read');
   const job = workflow.jobs.windows;
   assert.equal(job['runs-on'], 'windows-2022');
@@ -70,12 +74,12 @@ test('Windows workflow is configured with pinned actions and checksums', () => {
   assert.equal(artifact.with['retention-days'], 7);
   assert.equal(artifact.with['if-no-files-found'], 'error');
   assert.ok(artifact.with.path.split('\n').filter(Boolean)
-    .every(path => path.startsWith('frontend/src-tauri/target/release/bundle/nsis/')));
+    .every(path => path.startsWith('src-tauri/target/release/bundle/nsis/')));
   assert.ok(job.steps.some(step => step.run === 'pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4'));
 });
 
 test('CI preflight selects the correct executor toolchain before dependency installation', () => {
-  const steps = parse(read('.github/workflows/windows.yml')).jobs.windows.steps;
+  const steps = parse(read('frontend/.github/workflows/windows.yml')).jobs.windows.steps;
   assert.ok(steps.findIndex(step => step.run === 'node scripts/ci-preflight.mjs windows') <
     steps.findIndex(step => step.run === 'pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4'));
 });
@@ -95,7 +99,7 @@ test('Compose exposes only loopback and never mounts repository or host control 
 
 test('native product version comes from root and default capability is minimal', () => {
   const config = JSON.parse(read('frontend/src-tauri/tauri.conf.json'));
-  assert.equal(config.version, '../../package.json');
+  assert.equal(config.version, '../package.json');
   assert.equal(config.build.frontendDist, '../dist');
   assert.match(config.app.security.csp, /default-src 'self'/);
   const capability = JSON.parse(read('frontend/src-tauri/capabilities/default.json'));
@@ -114,7 +118,7 @@ test('native launcher preserves Windows Path when adding rustup for child proces
 });
 
 test('native launcher resolves the pinned CLI without platform-specific shell scripts', () => {
-  const script = fileURLToPath(new URL('./native.mjs', import.meta.url));
+  const script = fileURLToPath(new URL('../frontend/scripts/native.mjs', import.meta.url));
   const result = spawnSync(process.execPath, [script, 'tauri', '--version'], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.stdout.includes(JSON.parse(read('frontend/package.json')).devDependencies['@tauri-apps/cli']));

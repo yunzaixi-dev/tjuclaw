@@ -8,16 +8,16 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "pnpm --filter @tjuclaw/client build",
-    "dev": "pnpm --filter @tjuclaw/client dev",
+    "build": "pnpm --dir frontend build",
+    "dev": "pnpm --dir frontend dev",
     "docs:dev": "pnpm --filter @tjuclaw/docs dev",
     "docs:build": "pnpm --filter @tjuclaw/docs build",
-    "types:check": "pnpm -r types:check",
-    "lint": "eslint scripts && pnpm -r lint",
+    "types:check": "pnpm -r types:check && pnpm --dir frontend types:check",
+    "lint": "eslint scripts && pnpm -r lint && pnpm --dir frontend lint",
     "git:setup": "node scripts/setup-git.mjs",
     "git:check": "node scripts/git-policy.mjs check-index",
     "test:git": "node --test scripts/git-policy.test.mjs",
-    "test:tooling": "node --test scripts/tooling.test.mjs scripts/gitlab-status.test.mjs"
+    "test:tooling": "node --test scripts/tooling.test.mjs scripts/gitlab-*.test.mjs scripts/prepare-gitlab-release.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

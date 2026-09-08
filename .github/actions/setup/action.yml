@@ -48,4 +48,6 @@ runs:
 
     - name: Install locked dependencies
       shell: bash
-      run: pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4
+      run: |
+        pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4
+        pnpm --dir frontend install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4

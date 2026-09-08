@@ -1,0 +1,49 @@
+name: GitLab Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Integration version, optionally with a prerelease suffix
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: gitlab-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'yunzaixi-dev/tjuclaw' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted integration source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/checkout-components
+        with:
+          server-key: ${{ secrets.SERVER_READ_KEY }}
+          cli-key: ${{ secrets.CLI_READ_KEY }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Verify CI, client packages and complete source snapshot
+        id: prepare
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          GITLAB_RELEASE_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/prepare-gitlab-release.mjs
+      - name: Publish verified files and Release on GitLab
+        env:
+          RELEASE_MANIFEST_PATH: ${{ steps.prepare.outputs.manifest }}
+          GITLAB_RELEASE_TOKEN: ${{ secrets.GITLAB_RELEASE_TOKEN }}
+          GITLAB_URL: https://gitlab.tju.edu.cn
+          GITLAB_PROJECT_ID: '145'
+        run: node scripts/gitlab-release.mjs "$RELEASE_MANIFEST_PATH"

@@ -1,0 +1,9 @@
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/yunzaixi-dev/tjuclaw-client.git
+[submodule "backend"]
+	path = backend
+	url = https://github.com/yunzaixi-dev/tjuclaw-server.git
+[submodule "cli"]
+	path = cli
+	url = https://github.com/yunzaixi-dev/tjucli.git
