@@ -90,6 +90,79 @@ test('real email registration, wrong code, reload, session, logout and login', a
   await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
 });
 
+test('real task creation, list reload, and cross-identity isolation', async ({ page, request }) => {
+  test.setTimeout(180000);
+
+  // 1. Create first user A
+  const emailA = `task-a-${Date.now()}@example.com`;
+  await page.goto('/auth/registration');
+  await page.getByLabel('邮箱地址', { exact: true }).fill(emailA);
+  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
+  const mailA = await latestCode(request, emailA);
+  await page.getByLabel('邮箱验证码', { exact: true }).fill(mailA.code);
+  await page.getByRole('button', { name: '验证并创建账号' }).click();
+  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
+
+  // 2. Navigate to /workspace and create task
+  await page.goto('/workspace');
+  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
+  const taskPromptA = `Task for User A ${Date.now()}\nDetailed description of task A`;
+  await page.getByLabel('任务目标', { exact: true }).fill(taskPromptA);
+  await page.getByRole('button', { name: '保存任务', exact: true }).click();
+
+  const taskTitleA = taskPromptA.split('\n')[0];
+  await expect(page.getByRole('heading', { level: 2, name: taskTitleA, exact: true })).toBeVisible();
+  await expect(page.locator('.workspace-detail-panel').getByText('Detailed description of task A')).toBeVisible();
+  const listAResponse = await page.request.get('/api/tasks');
+  expect(listAResponse.status()).toBe(200);
+  const { tasks: tasksA } = await listAResponse.json();
+  expect(tasksA).toHaveLength(1);
+  expect(tasksA[0].id).toMatch(/^[0-9a-f]{32}$/);
+  expect(tasksA[0].prompt).toBe(taskPromptA);
+
+  // 3. Reload page and verify persistence
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: taskTitleA, exact: true })).toBeVisible();
+  await expect(page.locator('.workspace-detail-panel').getByText('Detailed description of task A')).toBeVisible();
+
+  // 4. Logout user A
+  await page.getByRole('button', { name: '退出登录', exact: true }).click();
+  await expect(page).toHaveURL(/\/auth\/login/);
+
+  // 5. Create second user B
+  const emailB = `task-b-${Date.now()}@example.com`;
+  await page.goto('/auth/registration');
+  await page.getByLabel('邮箱地址', { exact: true }).fill(emailB);
+  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
+  const mailB = await latestCode(request, emailB);
+  await page.getByLabel('邮箱验证码', { exact: true }).fill(mailB.code);
+  await page.getByRole('button', { name: '验证并创建账号' }).click();
+  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
+
+  // 6. Navigate to /workspace as user B: verify user A's task is NOT visible
+  await page.goto('/workspace');
+  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
+  await expect(page.getByText(taskTitleA)).toHaveCount(0);
+  await expect(page.getByText('还没有保存的任务')).toBeVisible();
+  const foreignTask = await page.request.get(`/api/tasks/${tasksA[0].id}`);
+  const missingTask = await page.request.get(`/api/tasks/${'0'.repeat(32)}`);
+  expect(foreignTask.status()).toBe(404);
+  expect(missingTask.status()).toBe(404);
+  expect(await foreignTask.json()).toEqual(await missingTask.json());
+  expect(await (await page.request.get('/api/tasks')).json()).toEqual({ tasks: [] });
+  expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'tjuclaw.appearance.v1'))).toBe(true);
+
+  // 7. Create task for user B
+  const taskPromptB = `Task for User B ${Date.now()}`;
+  await page.getByLabel('任务目标', { exact: true }).fill(taskPromptB);
+  await page.getByRole('button', { name: '保存任务', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: taskPromptB })).toBeVisible();
+  await expect(page.getByText(taskTitleA)).toHaveCount(0);
+});
+
 test('protected page rejects guests and Kratos rejects missing CSRF', async ({ page, request }) => {
   await page.goto('/app');
   await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();

@@ -18,7 +18,7 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 | 产品后端 | Go HTTP 服务，健康检查、Kratos 流程边界与真实会话校验 |
 | 文档站 | 独立 Next.js + Fumadocs 应用 |
 | 本地容器 | Web + API Compose 开发栈，不是生产部署 |
-| CI | 校园 GitLab 已启用；推送构建配置并接入 Runner 后执行 |
+| CI | GitHub 托管 Actions 运行完整检查与各平台构建；GitLab 保留比赛源码 |
 
 ## 仓库结构
 
@@ -49,7 +49,14 @@ rtk task dev
 
 产品 Web：`http://127.0.0.1:1420`；API：`http://127.0.0.1:8080/healthz`。
 文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3000`。
+竞赛演示稿先运行 `rtk task slides:install`，再用 `rtk task slides:dev` 在
+`http://127.0.0.1:3030` 预览；构建和 PDF 导出见
+[Slidev 说明](presentation/README.md)。
 `task dev` 不启动外部认证或任务执行基础设施。
+
+校园 CLI 使用 `rtk task cli:build` 构建，输出到 `backend/bin/tjucli`；
+`rtk task cli:test` 运行针对性测试。目前支持公开课程目录、课程名检索和
+选定文件下载，命令及覆盖缺口见 [tjucli 说明](backend/TJUCLI.md)。
 
 ## 检查与构建
 
@@ -70,9 +77,11 @@ rtk task compose:down
 Linux 和 Windows 构建分别在对应系统运行。Android 默认生成 arm64 调试 APK，
 Windows 默认生成未签名安装程序；它们不是正式发布包。
 
-CI 配置了检查及各客户端自动构建，但当前项目尚无 Runner，
-因此不能把配置完成理解为云端已成功产出安装包。制品仅 Maintainer 可下载，
-七天后过期，不自动发布或部署。
+GitHub Actions 在托管 Ubuntu / Windows Runner 上执行检查、真实认证回归及
+Web、文档、API、CLI、Linux、Android、Windows 构建。GitLab 旧 Runner 作业已停用。
+CI 配置和同步方式见 [CI 手册](ops/ci/README.md)；以实际运行链接和提交 SHA
+判断远端验收是否通过。公开仓库的日志与构建制品可公开访问，因此不上传私有
+审计资料或完整测试输出目录。流水线不自动发布正式版本或部署。
 
 本地视觉审计使用 `rtk task audit:dev`，数据准备与验证见开发手册。
 审计素材只保存在被 Git 排除的本地目录，不进入正常客户端构建。
@@ -89,8 +98,8 @@ CI 配置了检查及各客户端自动构建，但当前项目尚无 Runner，
 
 ## 访问与保密
 
-GitLab 项目必须使用 **Private** 可见性，不得改成 Internal 或 Public。
-即使仓库私有，内部计划、研究原件、设计参考素材、实际部署配置和凭据也不提交。
+GitLab 比赛项目保持 **Private**；GitHub 源码在 `yunzaixi-dev` 下公开。
+内部计划、研究原件、设计参考素材、实际部署配置和凭据不提交或同步。
 
 部署前应审核 `docs/content/docs/`、`docs/public/`、客户端资源和构建产物，
 不能把 `.gitignore` 当成站点访问控制。

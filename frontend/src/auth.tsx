@@ -272,7 +272,7 @@ function SessionScreen({ complete = false }: { complete?: boolean }) {
         {session.email_verified && <Check size={18} />}
       </div>
       {complete ? <a className="auth-primary-link" href="/app">进入 TJUClaw<ArrowRight size={18} /></a>
-        : <div className="auth-account-note"><p>账号已连接。</p><p>校园任务与工作空间功能仍在开发中，不会在这里展示虚构的执行结果。</p><a href="/preview/appearance">查看外观设置<ChevronRight size={15} /></a></div>}
+        : <div className="auth-account-note"><p>账号已连接。</p><p>校园任务与工作空间功能仍在开发中，不会在这里展示虚构的执行结果。</p><a href="/workspace">打开任务工作区<ChevronRight size={15} /></a><a href="/preview/appearance">查看外观设置<ChevronRight size={15} /></a></div>}
       {!session.email_verified && <a className="auth-primary-link" href="/auth/verification">验证邮箱<ArrowRight size={18} /></a>}
       <Button variant="ghost" className="auth-logout" disabled={busy} onClick={signOut}>{busy ? '正在退出…' : '退出登录'}</Button>
     </>}

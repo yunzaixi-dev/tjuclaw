@@ -11,6 +11,11 @@ them in tool-specific files.
 - Package manager: pnpm.
 - Documentation app: `docs/`; content: `docs/content/docs/`; source: `docs/src/`.
 - Product frontend: `frontend/`; backend: `backend/`; operations: `ops/`.
+- Slidev presentation: `presentation/`, with its own pnpm workspace and lockfile.
+  Keep the deck's implementation status tied to real checks; exported PDFs stay
+  under ignored `test-results/presentation/`.
+- Product CLI instructions: `skills/tjucli/`; these must be explicitly loaded
+  into the product runtime, not merely installed in the developer's global Pi.
 - React + Vite + Tauri in `frontend/` share source across Web and native clients.
   The Go API is in `backend/`; Next.js is documentation only.
 - Root `Taskfile.yml` is the development command entry point. Keep CI tasks and
@@ -29,6 +34,10 @@ them in tool-specific files.
 
 - Development: `task dev`
 - Documentation: `task docs:dev`
+- Presentation: `task slides:install`, `task slides:dev`, `task slides:build`,
+  `task slides:export` (requires Playwright Chromium).
+- Campus CLI: `task cli:build`, `task cli:test`; binary: `backend/bin/tjucli`.
+  It currently covers the public course-sharing provider only.
 - Checks: `task check`
 - Portable build: `task build`
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`
@@ -38,6 +47,10 @@ them in tool-specific files.
   Reference mappings and captures stay under ignored `private/audit/`, never in client assets.
 - Verify audit UI against existing local evidence: `task audit:ui`.
 - Product UI regression: `task ui:install` once, then `task ui:test`
+- Task workspace regression: `task workspace:test` (mocked browser contract checks).
+  Real task ownership/persistence checks also run with `task auth:test`.
+- API task records use `TASK_DATA_DIR` (default `backend/data/` when run by Task).
+  Keep runtime data out of Git and build inputs; the file store supports one API process.
 - Real email auth regression: `task auth:test` (isolated Docker/Go/Chromium)
 - Local identity services: `task auth:up`, `task auth:dev`, `task auth:down`
 - Install local Git hooks: `pnpm git:setup`
@@ -59,8 +72,15 @@ them in tool-specific files.
   `frontend/src/` or any build input. Docker contexts use explicit allowlists.
   Historical internal Wiki material and UI references are archived under ignored
   `private/wiki-archive/`; never reintroduce them into build inputs.
-- CI artifacts are Maintainer-only. Do not publish releases, Pages, container
-  images or signed packages without authorization. Use isolated project runners.
+- GitHub Actions uses hosted Ubuntu runners for checks, real Compose/auth tests,
+  Web/docs/API/CLI and Linux/Android builds, plus a hosted Windows runner for NSIS.
+  GitLab remains the private competition repository; its old Runner jobs are disabled.
+- The user authorized public source on GitHub under `yunzaixi-dev`. Review the exact
+  Git commits before publication; ignored research, credentials and runtime state
+  remain local. Public workflow logs and artifacts must contain no private evidence.
+- CI migration and synchronization instructions: `ops/ci/README.md`.
+  Jobs validate their toolchain with `scripts/ci-preflight.mjs` before installation.
+  Actions do not deploy, publish releases/Pages, or upload signed packages.
 - Root package version also drives Tauri bundles; Cargo crate version is internal
   metadata, not an independently released product version.
 - Shell commands in agent sessions must be prefixed with `rtk`; use

@@ -76,3 +76,26 @@ not replace, the real email/cookie integration test.
 
 Production delivery and native WebView authentication require separate evidence.
 Never describe local Compose, a template, or CI configuration as a live deployment.
+
+## Task Workspace Acceptance
+
+The first workspace slice saves authenticated task goals. Saved tasks have status
+`draft`; display them as saved, without claiming that an Agent has started or
+completed execution. Keep `/app` as the account surface and `/workspace` as the
+separate task surface. Preserve the appearance preview and authentication routes.
+
+Task endpoints use the same-origin `/api/tasks` browser boundary. The API must
+validate the Kratos session for each request and derive ownership from its
+`Identity.ID`. A task owned by another identity must return the same 404 as a
+missing task. Never accept ownership, status or timestamps from the request body.
+
+`TASK_DATA_DIR` is server-only runtime configuration. The initial file store is
+for a single API process and must retain records across restarts. Do not share it
+between API replicas or treat it as the future workspace file service. Keep the
+container root read-only and mount only the designated data volume for writes.
+
+Run `task workspace:test` for the mocked browser contract, and `task auth:test`
+for real Kratos/API task acceptance. Mocked transport checks are not evidence of
+working persistence or identity isolation. Run `go test -race ./...` in `backend/`
+for concurrent storage behavior. Do not run browser suites concurrently against
+the shared `frontend/dist` output.

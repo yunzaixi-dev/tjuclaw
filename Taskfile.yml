@@ -58,6 +58,27 @@ tasks:
     cmds:
       - task: web:build
       - pnpm exec playwright test --config scripts/auth.playwright.config.mjs {{.CLI_ARGS}}
+  workspace:test:
+    desc: Test task workspace client behavior using isolated mocks
+    cmds:
+      - task: web:build
+      - pnpm exec playwright test --config scripts/workspace.playwright.config.mjs {{.CLI_ARGS}}
+  slides:install:
+    desc: Install the standalone presentation dependencies
+    dir: presentation
+    cmds: [pnpm install --frozen-lockfile]
+  slides:dev:
+    desc: Preview the Slidev presentation on loopback port 3030
+    dir: presentation
+    cmds: [pnpm run dev]
+  slides:build:
+    desc: Build the Slidev presentation
+    dir: presentation
+    cmds: [pnpm run build]
+  slides:export:
+    desc: Export presentation PDF (requires Playwright Chromium)
+    dir: presentation
+    cmds: [pnpm run export]
   docs:dev:
     desc: Run documentation on loopback port 3000
     cmds: [pnpm --filter @tjuclaw/docs dev]
@@ -95,6 +116,18 @@ tasks:
     desc: Build Go API for the current host
     dir: backend
     cmds: [go build -trimpath -o bin/ ./cmd/api]
+  cli:build:
+    desc: Build tjucli with the repository version
+    dir: backend
+    vars:
+      CLI_VERSION:
+        sh: node -p "require('../package.json').version"
+    cmds:
+      - go build -trimpath -ldflags="-X main.version={{.CLI_VERSION}}" -o bin/ ./cmd/tjucli
+  cli:test:
+    desc: Test the campus CLI and public course provider
+    dir: backend
+    cmds: [go test -race ./internal/tjucli ./cmd/tjucli]
   api:test:
     desc: Run Go tests
     dir: backend
@@ -174,7 +207,7 @@ tasks:
   android:sdk:
     desc: Install Android SDK packages (review SDK licenses first)
     cmds:
-      - '"${SDKMANAGER:-sdkmanager}" "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.2.12479018"'
+      - '"${SDKMANAGER:-sdkmanager}" "platform-tools" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "ndk;27.2.12479018"'
   android:licenses:
     desc: Interactively review Android SDK licenses
     interactive: true

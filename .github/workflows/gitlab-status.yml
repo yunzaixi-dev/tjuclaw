@@ -1,0 +1,52 @@
+name: GitLab Commit Status
+
+on:
+  workflow_run:
+    workflows:
+      - 'CI'
+      - 'Windows Installer'
+    types:
+      - requested
+      - in_progress
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: gitlab-status-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Report status to GitLab
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: >-
+      vars.GITLAB_STATUS_ENABLED == 'true' &&
+      github.repository == 'yunzaixi-dev/tjuclaw' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    steps:
+      - name: Checkout trusted default script
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Sync status to GitLab
+        env:
+          GITLAB_STATUS_TOKEN: ${{ secrets.GITLAB_STATUS_TOKEN }}
+          GITLAB_URL: ${{ vars.GITLAB_URL || 'https://gitlab.tju.edu.cn' }}
+          GITLAB_PROJECT_ID: ${{ vars.GITLAB_PROJECT_ID || '145' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TARGET_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: node scripts/gitlab-status.mjs

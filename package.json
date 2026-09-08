@@ -17,7 +17,7 @@
     "git:setup": "node scripts/setup-git.mjs",
     "git:check": "node scripts/git-policy.mjs check-index",
     "test:git": "node --test scripts/git-policy.test.mjs",
-    "test:tooling": "node --test scripts/tooling.test.mjs"
+    "test:tooling": "node --test scripts/tooling.test.mjs scripts/gitlab-status.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

@@ -1,99 +1,12 @@
-stages: [check, build]
-
+# Builds and required tests run on GitHub-hosted Actions runners.
+# Keep GitLab as the competition repository; do not queue jobs on retired runners.
+# See ops/ci/README.md for source synchronization and commit status integration.
 workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
-      when: never
-    - if: '$CI_COMMIT_BRANCH'
-    - if: '$CI_COMMIT_TAG'
+    - when: never
 
-default:
-  interruptible: true
-  timeout: 45m
-  before_script:
-    - pnpm install --frozen-lockfile
-
-variables:
-  NEXT_TELEMETRY_DISABLED: "1"
-  # These tags select pre-provisioned, project-dedicated shell runners.
-  LINUX_RUNNER_TAG: tjuclaw-linux
-  ANDROID_RUNNER_TAG: tjuclaw-android
-  WINDOWS_RUNNER_TAG: tjuclaw-windows
-
-check:
+stages: [check]
+ci-moved-to-github:
   stage: check
-  tags: [$LINUX_RUNNER_TAG]
   script:
-    - task check
-    - task compose:config
-    - task compose:context
-
-check:browser:
-  stage: check
-  tags: [$LINUX_RUNNER_TAG]
-  resource_group: local-auth-regression
-  script:
-    - task ui:install
-    - task ui:test
-    - task auth:test
-  artifacts:
-    when: on_failure
-    access: maintainer
-    expire_in: 1 day
-    paths: [test-results/]
-
-build:web:
-  stage: build
-  tags: [$LINUX_RUNNER_TAG]
-  script: [task web:build]
-  artifacts:
-    access: maintainer
-    expire_in: 7 days
-    name: "web-$CI_COMMIT_SHORT_SHA"
-    paths: [frontend/dist/]
-
-build:docs:
-  stage: build
-  tags: [$LINUX_RUNNER_TAG]
-  script: [task docs:build]
-
-build:api:
-  stage: build
-  tags: [$LINUX_RUNNER_TAG]
-  script: [task api:build]
-  artifacts:
-    access: maintainer
-    expire_in: 7 days
-    name: "api-$CI_COMMIT_SHORT_SHA"
-    paths: [backend/bin/]
-
-build:linux:
-  stage: build
-  tags: [$LINUX_RUNNER_TAG]
-  script: [task linux:build]
-  artifacts:
-    access: maintainer
-    expire_in: 7 days
-    name: "linux-$CI_COMMIT_SHORT_SHA"
-    paths: [frontend/src-tauri/target/release/bundle/deb/*.deb]
-
-build:windows:
-  stage: build
-  tags: [$WINDOWS_RUNNER_TAG]
-  script: [task windows:build]
-  artifacts:
-    access: maintainer
-    expire_in: 7 days
-    name: "windows-unsigned-$CI_COMMIT_SHORT_SHA"
-    paths: [frontend/src-tauri/target/release/bundle/nsis/*.exe]
-
-build:android:
-  stage: build
-  tags: [$ANDROID_RUNNER_TAG]
-  script: [task android:build]
-  artifacts:
-    access: maintainer
-    expire_in: 7 days
-    name: "android-debug-$CI_COMMIT_SHORT_SHA"
-    paths: [frontend/src-tauri/gen/android/app/build/outputs/apk/**/*.apk]
+    - echo "CI runs on GitHub Actions; see ops/ci/README.md"

@@ -1,0 +1,6 @@
+packages:
+  - .
+
+allowBuilds:
+  # Install the browser explicitly; dependency installation must not download it.
+  playwright-chromium: false

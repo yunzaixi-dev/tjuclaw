@@ -10,13 +10,20 @@ import (
 	"syscall"
 	"time"
 
-	"gitlab.tju.edu.cn/3023244020/tjuclaw/backend/internal/auth"
+	"gitlab.tju.edu.cn/3023244020/agent2026-tjuclaw/backend/internal/auth"
+	"gitlab.tju.edu.cn/3023244020/agent2026-tjuclaw/backend/internal/task"
 )
 
 func handler(gateway ...*auth.Gateway) http.Handler {
+	return handlerWithStore(nil, gateway...)
+}
+
+func handlerWithStore(store *task.Store, gateway ...*auth.Gateway) http.Handler {
 	mux := http.NewServeMux()
+	var g *auth.Gateway
 	if len(gateway) > 0 && gateway[0] != nil {
-		gateway[0].Register(mux)
+		g = gateway[0]
+		g.Register(mux)
 	} else {
 		for _, path := range []string{"/auth/", "/kratos/"} {
 			mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
@@ -27,6 +34,29 @@ func handler(gateway ...*auth.Gateway) http.Handler {
 			})
 		}
 	}
+
+	if store != nil {
+		task.NewHandler(store, g).Register(mux)
+	} else if g == nil {
+		for _, path := range []string{"/tasks", "/tasks/"} {
+			mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"error":{"id":"auth_not_configured"}}`))
+			})
+		}
+	} else {
+		for _, path := range []string{"/tasks", "/tasks/"} {
+			mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Cache-Control", "no-store")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"error":{"id":"task_storage_unavailable"}}`))
+			})
+		}
+	}
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
@@ -44,12 +74,22 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	taskDataDir := os.Getenv("TASK_DATA_DIR")
+	if taskDataDir == "" {
+		taskDataDir = "data"
+	}
+	taskStore, err := task.NewStore(taskDataDir)
+	if err != nil {
+		log.Fatalf("failed to initialize task store at %q: %v", taskDataDir, err)
+	}
+	defer taskStore.Close()
+
 	addr := os.Getenv("HTTP_ADDR")
 	if addr == "" {
 		addr = "127.0.0.1:8080"
 	}
 	server := &http.Server{
-		Addr: addr, Handler: handler(gateway),
+		Addr: addr, Handler: handlerWithStore(taskStore, gateway),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second,
 	}

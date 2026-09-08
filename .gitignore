@@ -61,7 +61,9 @@ next-env.d.ts
 kubeconfig
 talosconfig
 
-# Private exports and local databases.
+# Private exports, task records and local databases.
+/backend/data/
+/data/
 *.sqlite
 *.sqlite3
 *.db

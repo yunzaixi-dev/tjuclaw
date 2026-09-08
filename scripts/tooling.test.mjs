@@ -7,24 +7,85 @@ import { parse } from 'yaml';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('CI builds every requested client via a defined Task command with private artifacts', () => {
-  const ci = parse(read('.gitlab-ci.yml'));
+test('hosted CI retains every build and mandatory regression with bounded artifacts', () => {
   const tasks = parse(read('Taskfile.yml')).tasks;
-  for (const platform of ['web', 'android', 'linux', 'windows']) {
-    const job = ci[`build:${platform}`];
-    assert.ok(job);
-    assert.equal(job.artifacts.access, 'maintainer');
-    assert.ok(tasks[job.script[0].replace('task ', '')]);
-    assert.ok(job.artifacts.paths.every((path) => !/private|research|\.env/.test(path)));
+  const workflow = parse(read('.github/workflows/ci.yml'));
+  assert.ok(workflow.on.push);
+  assert.ok(workflow.on.pull_request);
+  assert.ok(workflow.on.workflow_dispatch !== undefined);
+  assert.equal(workflow.on.pull_request_target, undefined);
+  assert.equal(workflow.permissions.contents, 'read');
+
+  // Verify all target builds exist in GitHub CI workflow
+  const jobs = workflow.jobs;
+  assert.ok(jobs['check']);
+  assert.ok(jobs['browser']);
+  assert.ok(jobs['integration']);
+  assert.ok(jobs['build-artifacts']);
+  assert.ok(jobs['build-linux']);
+  assert.ok(jobs['build-android']);
+
+  const windowsWorkflow = parse(read('.github/workflows/windows.yml'));
+  const allJobs = [...Object.values(jobs), ...Object.values(windowsWorkflow.jobs)];
+  const commands = allJobs.flatMap(job => job.steps.flatMap(step =>
+    [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
+  for (const command of ['check', 'ui:test', 'workspace:test', 'auth:test', 'compose:config',
+    'compose:context', 'web:build', 'docs:build', 'api:build', 'cli:build',
+    'linux:build', 'android:build', 'windows:build']) {
+    assert.ok(tasks[command], `Task ${command} is defined`);
+    assert.ok(commands.includes(command), `CI runs ${command}`);
   }
+  for (const job of allJobs) {
+    assert.ok(!String(job['runs-on']).includes('self-hosted'));
+    assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 60);
+    for (const step of job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
+      assert.equal(step.with['if-no-files-found'], 'error');
+      assert.ok(!step.with.path.includes('test-results'));
+    }
+  }
+  const integrationSteps = jobs.integration.steps;
+  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('compose.yaml pull'));
+  assert.ok(pullIndex >= 0 && pullIndex < integrationSteps.findIndex(step => step.run === 'task auth:test'));
+  assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run?.includes('down --volumes')));
+  assert.deepEqual(parse(read('.gitlab-ci.yml')).workflow.rules, [{ when: 'never' }]);
+  assert.ok(windowsWorkflow.on.push);
+  assert.ok(windowsWorkflow.on.pull_request);
+  assert.ok(windowsWorkflow.on.workflow_dispatch !== undefined);
+  assert.equal(windowsWorkflow.on.pull_request_target, undefined);
+  assert.equal(windowsWorkflow.permissions.contents, 'read');
+});
+
+test('Windows workflow is configured with pinned actions and checksums', () => {
+  const workflow = parse(read('.github/workflows/windows.yml'));
+  assert.equal(workflow.permissions.contents, 'read');
+  const job = workflow.jobs.windows;
+  assert.equal(job['runs-on'], 'windows-2022');
+  for (const step of job.steps.filter(step => step.uses)) {
+    assert.match(step.uses, /@[a-f0-9]{40}$/);
+  }
+  const checkout = job.steps.find(step => step.uses?.startsWith('actions/checkout@'));
+  assert.equal(checkout.with['persist-credentials'], false);
+  const artifact = job.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
+  assert.equal(artifact.with['retention-days'], 7);
+  assert.equal(artifact.with['if-no-files-found'], 'error');
+  assert.ok(artifact.with.path.split('\n').filter(Boolean)
+    .every(path => path.startsWith('frontend/src-tauri/target/release/bundle/nsis/')));
+  assert.ok(job.steps.some(step => step.run === 'pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4'));
+});
+
+test('CI preflight selects the correct executor toolchain before dependency installation', () => {
+  const steps = parse(read('.github/workflows/windows.yml')).jobs.windows.steps;
+  assert.ok(steps.findIndex(step => step.run === 'node scripts/ci-preflight.mjs windows') <
+    steps.findIndex(step => step.run === 'pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4'));
 });
 
 test('Compose exposes only loopback and never mounts repository or host control sockets', () => {
   const compose = parse(read('compose.yaml'));
-  for (const service of Object.values(compose.services)) {
+  assert.deepEqual(compose.volumes, { 'task-data': null });
+  for (const [name, service] of Object.entries(compose.services)) {
     assert.ok(service.ports.every((port) => port.startsWith('127.0.0.1:')));
     assert.equal(service.privileged, undefined);
-    assert.equal(service.volumes, undefined);
+    assert.deepEqual(service.volumes, name === 'api' ? ['task-data:/var/lib/tjuclaw/tasks'] : undefined);
     assert.equal(service.env_file, undefined);
     assert.equal(service.read_only, true);
   }
@@ -68,8 +129,4 @@ test('email auth policy keeps browser identity boundaries and local mail isolate
   assert.ok(local.services.kratos.ports.every(port => !port.endsWith(':4434')));
   assert.match(read('ops/images/nginx.conf'), /limit_req_status 429/);
   assert.match(read('ops/images/nginx.conf'), /access_log off/);
-  const browser = parse(read('.gitlab-ci.yml'))['check:browser'];
-  assert.equal(browser.resource_group, 'local-auth-regression');
-  assert.equal(browser.artifacts.access, 'maintainer');
-  assert.ok(browser.script.includes('task auth:test'));
 });

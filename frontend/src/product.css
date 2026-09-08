@@ -1,6 +1,7 @@
 @import "tailwindcss" source(none);
 @source "./product.tsx";
 @source "./auth.tsx";
+@source "./workspace.tsx";
 @source "./components/ui/";
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 

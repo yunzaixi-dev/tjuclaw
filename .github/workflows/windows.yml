@@ -1,0 +1,80 @@
+name: Windows Installer
+
+on:
+  push: {}
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Set up pinned pnpm from package.json
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          run_install: false
+      - name: Set up Go for Task installation
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Install Task
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.49.1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$(go env GOPATH)\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Set up Rust MSVC
+        run: |
+          rustup toolchain install stable-x86_64-pc-windows-msvc --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup default stable-x86_64-pc-windows-msvc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check build toolchain
+        run: node scripts/ci-preflight.mjs windows
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4
+      - name: Build unsigned installer
+        run: task windows:build
+      - name: Record source and installer checksums
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          $files = @(Get-ChildItem frontend/src-tauri/target/release/bundle/nsis/*.exe -ErrorAction Stop)
+          if ($files.Count -eq 0) { throw 'No NSIS installer was produced.' }
+          $manifest = @("source=$env:SOURCE_SHA")
+          foreach ($file in $files) {
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower()
+            $manifest += "$hash  $($file.Name)"
+          }
+          $manifest | Out-File frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt -Encoding utf8
+      - name: Upload unsigned build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-unsigned-${{ github.sha }}
+          path: |
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
