@@ -80,9 +80,10 @@ Do not claim this alone provides a configured GitLab merge gate.
 
 Repository configuration:
 
-- Secret `GITLAB_STATUS_TOKEN`: project-scoped token with `api` scope and Developer
-  access for posting commit status. `read_api` cannot write status. Never use a
-  personal administrator token here.
+- Secret `GITLAB_STATUS_TOKEN`: project-scoped token with `api` scope. The current
+  protected `main` policy requires Maintainer access to post pipeline status;
+  a Developer token can read the commit but receives HTTP 403 when posting.
+  `read_api` cannot write status. Never use a personal administrator token here.
 - Variables `GITLAB_URL`, `GITLAB_PROJECT_ID`: approved GitLab endpoint/project.
 - Variable `GITLAB_STATUS_ENABLED`: set to `true` after provisioning the secret.
 

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
+import { prependToolPath } from './native-env.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -100,6 +101,16 @@ test('native product version comes from root and default capability is minimal',
   const capability = JSON.parse(read('frontend/src-tauri/capabilities/default.json'));
   assert.deepEqual(capability.permissions, ['core:app:allow-version']);
   assert.deepEqual(parse(read('Taskfile.yml')).dotenv, ['.env.toolchain.local']);
+});
+
+test('native launcher preserves Windows Path when adding rustup for child processes', () => {
+  const source = { Path: 'C:\\pnpm;C:\\Windows\\System32', OTHER: 'preserved' };
+  const child = prependToolPath(source, 'C:\\cargo\\bin', 'win32');
+  assert.equal(child.PATH, 'C:\\cargo\\bin;C:\\pnpm;C:\\Windows\\System32');
+  assert.deepEqual(Object.keys(child).filter(key => key.toLowerCase() === 'path'), ['PATH']);
+  assert.equal(source.Path, 'C:\\pnpm;C:\\Windows\\System32');
+  assert.equal(child.OTHER, source.OTHER);
+  assert.equal(prependToolPath({ PATH: '/usr/bin' }, '/cargo/bin', 'linux').PATH, '/cargo/bin:/usr/bin');
 });
 
 test('native launcher resolves the pinned CLI without platform-specific shell scripts', () => {
