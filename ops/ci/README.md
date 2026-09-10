@@ -3,6 +3,14 @@
 GitHub 是唯一开发主平台。GitLab 比赛项目接收单向源码镜像、外部 CI 状态和
 客户端安装包；不再运行旧 Kubernetes/Compose Runner 作业。
 
+## 自动部署与 Actions 白名单
+
+`release` 发布的运行配置、回滚方式及验证范围见 [Ansible 部署说明](../ansible/DEPLOY.md)。
+仓库 Actions 白名单须包含所有使用的固定动作 SHA。新增的部署动作是
+`actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093`，集成运维检查还使用
+`astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d`。
+本地 actionlint 不会检查 GitHub 服务端白名单；遗漏时即使部署任务在 dev 上跳过，整个工作流也会启动失败。
+
 ## 仓库职责
 
 | 仓库 | 可见性 | 职责 |
