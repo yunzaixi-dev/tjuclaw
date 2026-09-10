@@ -4,7 +4,12 @@ import { appName } from './shared';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: appName,
+      title: (
+        <span className="docs-brand">
+          <img src="/tjuclaw-icon.png" alt="" width="28" height="28" />
+          <span>{appName}</span>
+        </span>
+      ),
     },
     links: [
       {

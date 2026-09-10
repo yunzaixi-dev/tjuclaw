@@ -16,8 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   title: {
-    default: 'TJUClaw Engineering Wiki',
-    template: '%s | TJUClaw',
+    default: 'TJUClaw 2026',
+    template: '%s | TJUClaw 2026',
+  },
+  icons: {
+    icon: '/tjuclaw-icon.svg',
   },
   description: '从单端口公网入口到嵌套虚拟化的 TJUClaw 工程手册。',
 };
