@@ -95,7 +95,7 @@ Windows 默认生成未签名安装程序；它们不是正式发布包。
 
 GitHub Actions 在各组件仓库执行独立检查与构建；客户端负责各平台安装包，
 本仓库保留真实认证、任务归属及组合检查。服务端修改不会触发客户端原生打包。
-GitHub main 和版本标签单向同步到 GitLab；GitLab 旧 Runner 作业已停用。
+GitHub release 和版本标签单向同步到 GitLab；GitLab 旧 Runner 作业已停用。
 CI 配置和同步方式见 [CI 手册](ops/ci/README.md)；以实际运行链接和提交 SHA
 判断远端验收是否通过。公开仓库的日志与构建制品可公开访问，因此不上传私有
 审计资料或完整测试输出目录。安装包通过独立手动流程上传 GitLab，并与完整源码快照、SHA-256 一起挂到 Release。

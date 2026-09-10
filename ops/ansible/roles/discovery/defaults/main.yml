@@ -1,0 +1,8 @@
+---
+# Default variables for discovery role
+discovery_checked_tools:
+  - docker
+  - haproxy
+  - xray
+  - ss
+  - systemctl

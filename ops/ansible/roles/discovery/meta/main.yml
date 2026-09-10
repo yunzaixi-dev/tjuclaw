@@ -1,0 +1,7 @@
+---
+galaxy_info:
+  author: TJUClaw
+  description: Non-intrusive, read-only system and runtime discovery role
+  license: proprietary
+  min_ansible_version: "2.15"
+dependencies: []

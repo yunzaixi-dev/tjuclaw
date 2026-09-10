@@ -1,0 +1,6 @@
+---
+- name: Read-only host and service discovery
+  hosts: all
+  gather_facts: false
+  roles:
+    - role: discovery

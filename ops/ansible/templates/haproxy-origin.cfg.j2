@@ -1,0 +1,33 @@
+# Review candidate only. Never overwrite the existing HAProxy configuration.
+# The global/defaults sections make this file independently syntax-checkable.
+global
+    log stdout format raw local0
+
+defaults
+    mode http
+    log global
+    timeout connect 5s
+    timeout client 60s
+    timeout server 60s
+    timeout tunnel 1h
+
+frontend tjuclaw_origin
+    bind :{{ origin_port | default(8443) }} ssl crt {{ origin_tls_pem }} ssl-min-ver TLSv1.2
+    acl edgeone_source src {{ origin_allowed_cidrs | join(' ') }}
+    http-request deny deny_status 403 unless edgeone_source
+    acl product_host hdr(host) -i {{ origin_hostname }} {{ origin_hostname }}:443
+    http-request deny deny_status 403 unless product_host
+    # EdgeOne must preserve /api and the original public Host when forwarding.
+    acl api_root path /api
+    acl api_path path_beg /api/
+    http-request deny deny_status 404 if !api_root !api_path
+    http-request set-path / if api_root
+    http-request replace-path ^/api/(.*)$ /\1 if api_path
+    http-request set-header X-Forwarded-Proto https
+    http-request set-header X-Forwarded-Port 443
+    default_backend tjuclaw_api
+
+backend tjuclaw_api
+    option httpchk GET /healthz
+    http-check expect status 200
+    server api {{ origin_backend_address }}:{{ origin_backend_port }} check

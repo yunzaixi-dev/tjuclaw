@@ -1,0 +1,16 @@
+---
+# Example inputs only. Copy to ignored ops/local/ and replace every value.
+origin_hostname: app.example.invalid
+# Port 8443 is provisional: verify EdgeOne support and existing listeners first.
+origin_port: 8443
+# Certificate plus private key, provisioned separately on the source host.
+origin_tls_pem: /etc/haproxy/certs/app.example.invalid.pem
+# Direct Go API backend (example API loopback binding, not a live fact).
+# Host runs backend only; no Nginx, static web container, or app gateway on host.
+# Kratos admin, internal toolserver, and database endpoints are never exposed publicly.
+origin_backend_address: 127.0.0.1
+origin_backend_port: 18080
+# Documentation-only ranges. Replace with EdgeOne's verified origin source list.
+origin_allowed_cidrs:
+  - 192.0.2.0/24
+  - 2001:db8::/32

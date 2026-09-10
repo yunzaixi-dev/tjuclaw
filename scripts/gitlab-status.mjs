@@ -203,8 +203,8 @@ export async function syncGitLabStatus(env = process.env) {
       console.log(`Skipping status sync: run event is "${run.event}", only "push" is supported.`);
       return { skipped: true, reason: 'UNSUPPORTED_EVENT' };
     }
-    if (run.head_branch !== 'main') {
-      console.log(`Skipping status sync: head_branch is "${run.head_branch}", only "main" is supported.`);
+    if (run.head_branch !== 'release') {
+      console.log(`Skipping status sync: head_branch is "${run.head_branch}", only "release" is supported.`);
       return { skipped: true, reason: 'UNSUPPORTED_BRANCH' };
     }
 
@@ -219,7 +219,7 @@ export async function syncGitLabStatus(env = process.env) {
     }
 
     // 2. Query other runs for this workflow and SHA to avoid overwriting a newer run
-    const runsForCommitUrl = `${githubApiOrigin}/repos/${githubRepository}/actions/workflows/${run.workflow_id}/runs?head_sha=${headSha}&event=push&branch=main&per_page=10`;
+    const runsForCommitUrl = `${githubApiOrigin}/repos/${githubRepository}/actions/workflows/${run.workflow_id}/runs?head_sha=${headSha}&event=push&branch=release&per_page=10`;
     const listRes = await timedFetch(runsForCommitUrl, {
       headers: {
         'Accept': 'application/vnd.github+json',
@@ -272,7 +272,7 @@ export async function syncGitLabStatus(env = process.env) {
       },
       body: JSON.stringify({
         state: gitlabState,
-        ref: 'main',
+        ref: 'release',
         name: statusContext,
         context: statusContext,
         target_url: targetUrl,

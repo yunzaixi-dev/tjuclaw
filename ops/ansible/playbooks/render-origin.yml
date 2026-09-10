@@ -1,0 +1,56 @@
+---
+- name: Render a candidate origin configuration locally
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    candidate_dir: "{{ playbook_dir }}/../../local/ansible-origin"
+  tasks:
+    - name: Require explicit origin inputs
+      ansible.builtin.assert:
+        that:
+          - origin_hostname is defined
+          - origin_tls_pem is defined
+          - origin_backend_address is defined
+          - origin_backend_port is defined
+          - origin_allowed_cidrs is defined
+        fail_msg: Supply private origin variables using -e @/absolute/path/origin.yml.
+
+    - name: Validate candidate values
+      ansible.builtin.assert:
+        that:
+          - origin_hostname is match('^[a-zA-Z0-9][a-zA-Z0-9.-]+$')
+          - origin_tls_pem is match('^/[a-zA-Z0-9_./-]+$')
+          - origin_backend_address is match('^[a-zA-Z0-9][a-zA-Z0-9.-]+$')
+          - origin_backend_port | int > 0
+          - origin_backend_port | int < 65536
+          - origin_port | default(8443) | int > 1024
+          - origin_port | default(8443) | int < 65536
+          - origin_allowed_cidrs is sequence
+          - origin_allowed_cidrs is not string
+          - origin_allowed_cidrs | length > 0
+        fail_msg: Invalid candidate configuration; no live configuration is changed.
+
+    - name: Validate source allowlist syntax
+      ansible.builtin.assert:
+        that:
+          - item is match('^[0-9a-fA-F:./]+$')
+          - item not in ['0.0.0.0/0', '::/0']
+        fail_msg: Use verified EdgeOne origin source CIDRs; universal allowlists are not accepted.
+      loop: "{{ origin_allowed_cidrs }}"
+
+    - name: Create private local candidate directory
+      ansible.builtin.file:
+        path: "{{ candidate_dir }}"
+        state: directory
+        mode: '0700'
+
+    - name: Render standalone candidate for syntax review
+      ansible.builtin.template:
+        src: ../templates/haproxy-origin.cfg.j2
+        dest: "{{ candidate_dir }}/haproxy-origin.cfg"
+        mode: '0600'
+
+    - name: Explain candidate boundary
+      ansible.builtin.debug:
+        msg: "Candidate written to {{ candidate_dir }}. It is NOT a replacement for an existing HAProxy config. Validate with the target HAProxy version and merge only the frontend/backend sections after discovery."

@@ -20,7 +20,7 @@ Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链�
 1. 在组件仓库实现并提交修改，通过该仓库 CI 后推送可访问的提交。
 2. 在集成仓库更新 `frontend/`、`backend/` 或 `cli/` 的 submodule SHA，并逐路径暂存。
 3. 运行 `task check` 和需要的组合回归。真实认证使用 `task auth:test`，不使用 mock 替代。
-4. 合并到 GitHub main。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab main。
+4. 合并到 GitHub release（日常集成与开发在 dev）。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab release。
 
 客户端负责外观与工作区回归及原生打包。仅修改服务端不会重新构建四个平台客户端。
 集成仍会构建 Web 以验证实际认证/任务接口；这是组合回归的一部分。
@@ -28,12 +28,12 @@ Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链�
 ## 源码与状态同步
 
 - 旧 GitLab → GitHub Push Mirror 已停用，禁止与新方向同时启用。
-- `CI` 的 `mirror` job 只推送 main 或明确的版本标签，不使用 force、删除引用或全量 mirror。
+- `CI` 的 `mirror` job 只推送 release 或明确的版本标签，不使用 force、删除引用或全量 mirror。
 - `.gitlab-ci.yml` 停用原 Runner 作业。可信的 `GitLab Commit Status` 工作流在 CI 完成后
   回写 `github-actions/ci`，保留 GitHub 运行链接。
-- 状态回写只处理本仓库 main 的 push；脚本检查准确提交、最新运行与受限 API 域名。
+- 状态回写只处理本仓库 release 的 push；脚本检查准确提交、最新运行与受限 API 域名。
   未保护的其他分支和 GitLab MR 合并结果不自动获得镜像主线的验收保证。
-- GitLab main 保持与 GitHub 集成提交相同的 SHA。它包含 submodule 指针；完整源码另随
+- GitLab release 保持与 GitHub 集成提交相同的 SHA。它包含 submodule 指针；完整源码另随
   Release 提供，不能把 GitLab 自动生成的源码 ZIP 当成已包含私有组件。
 
 首次 `v0.0.25` 的 GitLab 标签为轻量标签：checkout v4 的默认回退抓取丢失了附注，
@@ -45,12 +45,12 @@ Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链�
 在相关组件和集成 CI 全部通过后，由维护者明确选择版本发布。
 
 ```bash
-# 1. 在客户端 main 上执行，指定集成仓库锁定的 frontend SHA。
-gh workflow run packages.yml --repo yunzaixi-dev/tjuclaw-client --ref main \
+# 1. 在客户端 release 上执行，指定集成仓库锁定的 frontend SHA。
+gh workflow run packages.yml --repo yunzaixi-dev/tjuclaw-client --ref release \
   -f source_sha=<40位客户端SHA>
 
-# 2. 第一步成功后，在集成 main 上发布当前集成版本。
-gh workflow run release.yml --repo yunzaixi-dev/tjuclaw --ref main \
+# 2. 第一步成功后，在集成 release 上发布当前集成版本。
+gh workflow run release.yml --repo yunzaixi-dev/tjuclaw --ref release \
   -f version=<当前集成版本>
 ```
 
@@ -79,7 +79,7 @@ Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` �
 | 私有集成 | `GITLAB_RELEASE_TOKEN` | 仅比赛项目的包与 Release API |
 | 公开客户端 | `GITLAB_PACKAGE_TOKEN` | 部署令牌，仅 read/write_package_registry，无源码读取权限 |
 
-API 令牌使用项目级账号，不向 Actions 分发个人 GitLab PAT。受保护 main 的推送/状态
+API 令牌使用项目级账号，不向 Actions 分发个人 GitLab PAT。受保护 release 的推送/状态
 操作需要相应项目角色。令牌和组件密钥保存在 Actions Secrets；本地备份只能在忽略目录。
 公开构建日志不得包含私有研究、审计截图、完整测试输出或临时签名下载 URL。
 

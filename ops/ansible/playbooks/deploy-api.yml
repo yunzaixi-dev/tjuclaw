@@ -1,0 +1,8 @@
+---
+- name: Deploy tjuclaw-api Go backend release
+  hosts: all
+  gather_facts: false
+  serial: 1
+  become: "{{ api_deploy_become | default(true) }}"
+  roles:
+    - role: api_deploy

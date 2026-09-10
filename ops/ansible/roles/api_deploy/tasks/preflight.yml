@@ -1,0 +1,147 @@
+---
+# Preflight validations before making ANY target modifications
+
+- name: Validate caller input variables
+  ansible.builtin.assert:
+    that:
+      - api_release_sha is defined
+      - (api_release_sha | string) is match('^[0-9a-fA-F]{40}$')
+      - api_artifact_path is defined
+      - (api_artifact_path | length) > 0
+      - api_artifact_sha256 is defined
+      - (api_artifact_sha256 | string) is match('^[0-9a-fA-F]{64}$')
+      - api_listen_addr is match('^127\\.0\\.0\\.1:[0-9]{1,5}$')
+      - api_base_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - api_data_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - api_env_file is match('^/[a-zA-Z0-9/_.-]+$')
+      - api_service_name is match('^[a-z][a-z0-9-]+$')
+      - api_user is match('^[a-z][a-z0-9-]+$')
+      - api_group is match('^[a-z][a-z0-9-]+$')
+    fail_msg: >-
+      Invalid deployment variables. api_release_sha must be a 40-hex Git commit SHA,
+      api_artifact_path must be provided, and api_artifact_sha256 must be a 64-hex SHA256.
+
+- name: Verify controller-side artifact exists and checksum matches
+  delegate_to: localhost
+  become: false
+  block:
+    - name: Stat controller artifact file
+      ansible.builtin.stat:
+        path: "{{ api_artifact_path }}"
+        checksum_algorithm: sha256
+      register: api_controller_artifact_stat
+
+    - name: Assert controller artifact is present and checksum matches
+      ansible.builtin.assert:
+        that:
+          - api_controller_artifact_stat.stat.exists
+          - api_controller_artifact_stat.stat.isreg
+          - api_controller_artifact_stat.stat.checksum == (api_artifact_sha256 | lower)
+        fail_msg: >-
+          Controller artifact at {{ api_artifact_path }} is missing or its SHA256
+          ({{ api_controller_artifact_stat.stat.checksum | default('none') }}) does not match expected ({{ api_artifact_sha256 | lower }}).
+
+- name: Gather target host facts if not already present
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - architecture
+      - service_mgr
+  when: ansible_architecture is not defined or ansible_service_mgr is not defined
+
+- name: Validate target host architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_architecture in api_supported_architectures
+    fail_msg: >-
+      Host architecture '{{ ansible_architecture }}' is not supported.
+      Must be one of: {{ api_supported_architectures | join(', ') }}.
+
+- name: Validate systemd is the init manager on target host
+  ansible.builtin.assert:
+    that:
+      - ansible_service_mgr == 'systemd'
+    fail_msg: "Target host init manager is '{{ ansible_service_mgr }}', but systemd is required."
+
+- name: Check existence of /etc/tjuclaw-api.env
+  ansible.builtin.stat:
+    path: "{{ api_env_file }}"
+  register: api_env_file_stat
+
+- name: Fail immediately if /etc/tjuclaw-api.env is missing
+  ansible.builtin.assert:
+    that:
+      - api_env_file_stat.stat.exists
+      - api_env_file_stat.stat.isreg
+    fail_msg: >-
+      Environment file {{ api_env_file }} is ABSENT on target host.
+      Deployment cannot proceed without root-managed configuration.
+      Create {{ api_env_file }} defining APP_PUBLIC_URL and KRATOS_PUBLIC_URL before deploying.
+
+- name: Require root-only production environment configuration
+  ansible.builtin.assert:
+    that:
+      - api_env_file_stat.stat.uid == 0
+      - api_env_file_stat.stat.mode == '0600'
+    fail_msg: Production environment file must be root-owned with mode 0600.
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Read /etc/tjuclaw-api.env content for preflight contract verification
+  ansible.builtin.slurp:
+    path: "{{ api_env_file }}"
+  register: api_env_file_slurp
+  no_log: true
+
+- name: Parse environment variables from env file
+  ansible.builtin.set_fact:
+    api_target_app_public_url: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^APP_PUBLIC_URL=(.+)$') | first | default('') | trim }}
+    api_target_kratos_public_url: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^KRATOS_PUBLIC_URL=(.+)$') | first | default('') | trim }}
+  no_log: true
+
+- name: Assert required environment variables conform to production contract
+  ansible.builtin.assert:
+    that:
+      - (api_target_app_public_url | length) > 0
+      - api_target_app_public_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - (api_target_kratos_public_url | length) > 0
+      - api_target_kratos_public_url is match('^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+    fail_msg: >-
+      Environment file {{ api_env_file }} must define APP_PUBLIC_URL (starting with https://)
+      and KRATOS_PUBLIC_URL (HTTP or HTTPS origin), using unquoted assignments.
+
+- name: Verify Kratos readiness endpoint is reachable if configured
+  ansible.builtin.uri:
+    url: "{{ api_target_kratos_public_url | regex_replace('/+$', '') }}/admin/health/ready"
+    method: GET
+    status_code: 200
+    timeout: 5
+    use_proxy: false
+  register: api_kratos_ready_check
+  when: api_verify_kratos_ready | bool
+  failed_when: false
+
+- name: Fallback check Kratos public health endpoint if admin is not directly reachable
+  ansible.builtin.uri:
+    url: "{{ api_target_kratos_public_url | regex_replace('/+$', '') }}/health/ready"
+    method: GET
+    status_code: 200
+    timeout: 5
+    use_proxy: false
+  register: api_kratos_public_ready_check
+  when:
+    - api_verify_kratos_ready | bool
+    - (api_kratos_ready_check.status | default(0)) != 200
+  failed_when: false
+
+- name: Assert Kratos is reachable and ready
+  ansible.builtin.assert:
+    that:
+      - ((api_kratos_ready_check.status | default(0)) == 200) or ((api_kratos_public_ready_check.status | default(0)) == 200)
+    fail_msg: >-
+      Kratos is not ready at {{ api_target_kratos_public_url }}.
+      Both /admin/health/ready and /health/ready failed or returned non-200.
+      Deploy will not proceed without a healthy identity provider upstream.
+  when: api_verify_kratos_ready | bool

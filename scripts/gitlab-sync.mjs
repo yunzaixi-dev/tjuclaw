@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 export const mirrorUrl = 'https://gitlab.tju.edu.cn/3023244020/agent2026-tjuclaw.git';
 
 export function validateMirrorRef(ref) {
-  if (ref !== 'refs/heads/main' && !/^refs\/tags\/v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(ref ?? '')) {
-    throw new Error('Only main and version tags may be mirrored');
+  if (ref !== 'refs/heads/release' && !/^refs\/tags\/v\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(ref ?? '')) {
+    throw new Error('Only release and version tags may be mirrored');
   }
   return ref;
 }

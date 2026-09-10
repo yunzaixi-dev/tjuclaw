@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.repository == 'yunzaixi-dev/tjuclaw' && github.ref == 'refs/heads/main'
+    if: github.repository == 'yunzaixi-dev/tjuclaw' && github.ref == 'refs/heads/release'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

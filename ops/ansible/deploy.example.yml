@@ -1,0 +1,22 @@
+---
+# Example variables for deploying tjuclaw-api via deploy-api.yml
+# Copy this file to a local secure location (e.g. ops/local/deploy.yml) or pass via -e
+
+# Controller-side path to the built Go API binary artifact
+api_artifact_path: /path/to/built/tjuclaw-api
+
+# SHA256 checksum (64 hex characters) of the artifact on the controller
+api_artifact_sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+
+# 40-hex integration commit SHA identifying this release
+api_release_sha: '0123456789abcdef0123456789abcdef01234567'
+
+# Optional overrides (defaults shown)
+# api_service_name: tjuclaw-api
+# api_user: tjuclaw-api
+# api_group: tjuclaw-api
+# api_base_dir: /opt/tjuclaw-api
+# api_data_dir: /var/lib/tjuclaw-api
+# api_listen_addr: 127.0.0.1:18080
+# api_env_file: /etc/tjuclaw-api.env
+# api_health_timeout_seconds: 15

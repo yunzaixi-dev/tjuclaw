@@ -31,8 +31,13 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   assert.ok(jobs['build-android']);
 
   const windowsWorkflow = parse(read('frontend/.github/workflows/windows.yml'));
-  const allJobs = [...Object.values(workflow.jobs), ...Object.values(clientJobs), ...Object.values(windowsWorkflow.jobs)];
-  const commands = allJobs.flatMap(job => job.steps.flatMap(step =>
+  const expandJobs = (source, prefix = '') => Object.values(source).flatMap(job => {
+    if (!job.uses) return [job];
+    assert.match(job.uses, /^\.\/\.github\/workflows\/[a-z-]+\.yml$/);
+    return Object.values(parse(read(prefix + job.uses.slice(2))).jobs);
+  });
+  const allJobs = [...expandJobs(workflow.jobs), ...expandJobs(clientJobs, 'frontend/'), ...expandJobs(windowsWorkflow.jobs, 'frontend/')];
+  const commands = allJobs.flatMap(job => (job.steps ?? []).flatMap(step =>
     [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
   for (const command of ['check', 'ui:test', 'workspace:test', 'auth:test', 'compose:config',
     'compose:context', 'web:build', 'docs:build', 'api:build', 'cli:build',
@@ -43,7 +48,7 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   for (const job of allJobs) {
     assert.ok(!String(job['runs-on']).includes('self-hosted'));
     assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 60);
-    for (const step of job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
+    for (const step of (job.steps ?? []).filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
       assert.equal(step.with['if-no-files-found'], 'error');
       assert.ok(!step.with.path.includes('test-results'));
     }
@@ -65,7 +70,7 @@ test('Windows workflow is configured with pinned actions and checksums', () => {
   assert.equal(workflow.permissions.contents, 'read');
   const job = workflow.jobs.windows;
   assert.equal(job['runs-on'], 'windows-2022');
-  for (const step of job.steps.filter(step => step.uses)) {
+  for (const step of (job.steps ?? []).filter(step => step.uses)) {
     assert.match(step.uses, /@[a-f0-9]{40}$/);
   }
   const checkout = job.steps.find(step => step.uses?.startsWith('actions/checkout@'));

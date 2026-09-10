@@ -1,0 +1,315 @@
+---
+# Tasks for deploying tjuclaw-api release
+
+- name: Run preflight validations
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Inspect current deployment state
+  block:
+    - name: Stat current symlink
+      ansible.builtin.stat:
+        path: "{{ api_base_dir }}/current"
+      register: api_current_symlink_stat
+
+    - name: Record previous release path if current symlink exists
+      ansible.builtin.set_fact:
+        api_previous_release_target: "{{ api_current_symlink_stat.stat.lnk_target }}"
+      when:
+        - api_current_symlink_stat.stat.exists
+        - api_current_symlink_stat.stat.islnk
+
+    - name: Record no previous release if current symlink does not exist
+      ansible.builtin.set_fact:
+        api_previous_release_target: ""
+      when: not (api_current_symlink_stat.stat.exists and api_current_symlink_stat.stat.islnk)
+
+    - name: Stat existing systemd service unit
+      ansible.builtin.stat:
+        path: "{{ api_unit_file_path | default('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+      register: api_unit_stat
+
+    - name: Read previous systemd service unit content if present
+      ansible.builtin.slurp:
+        path: "{{ api_unit_file_path | default('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+      register: api_unit_slurp
+      when: api_unit_stat.stat.exists
+
+    - name: Set previous unit content
+      ansible.builtin.set_fact:
+        api_previous_unit_content: "{{ api_unit_slurp.content | b64decode if (api_unit_stat.stat.exists and api_unit_slurp.content is defined) else '' }}"
+        api_unit_existed_before: "{{ api_unit_stat.stat.exists | default(false) }}"
+
+- name: Ensure service group exists
+  ansible.builtin.group:
+    name: "{{ api_group }}"
+    system: true
+    state: present
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Ensure service user exists
+  ansible.builtin.user:
+    name: "{{ api_user }}"
+    group: "{{ api_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ api_data_dir }}"
+    create_home: false
+    state: present
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Ensure directory layout exists with strict permissions (production)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ api_base_dir }}", owner: "root", group: "root", mode: "0755" }
+    - { path: "{{ api_base_dir }}/releases", owner: "root", group: "root", mode: "0755" }
+    - { path: "{{ api_base_dir }}/releases/{{ api_release_sha }}", owner: "root", group: "root", mode: "0755" }
+    - { path: "{{ api_data_dir }}", owner: "{{ api_user }}", group: "{{ api_group }}", mode: "0700" }
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Ensure directory layout exists (simulation mode)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ api_base_dir }}"
+    - "{{ api_base_dir }}/releases"
+    - "{{ api_base_dir }}/releases/{{ api_release_sha }}"
+    - "{{ api_data_dir }}"
+  when: api_deploy_simulate_systemd | bool
+
+- name: Check if binary for this release already exists
+  ansible.builtin.stat:
+    path: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
+    checksum_algorithm: sha256
+  register: api_target_binary_stat
+
+- name: Fail if binary exists under this release SHA but checksum differs (binary drift / SHA collision)
+  ansible.builtin.assert:
+    that:
+      - api_target_binary_stat.stat.checksum == (api_artifact_sha256 | lower)
+    fail_msg: >-
+      Release directory {{ api_base_dir }}/releases/{{ api_release_sha }}/api already exists,
+      but its SHA256 checksum ({{ api_target_binary_stat.stat.checksum }}) does not match
+      the expected artifact checksum ({{ api_artifact_sha256 | lower }}).
+      Refusing to overwrite an existing release directory with different binary contents.
+  when: api_target_binary_stat.stat.exists
+
+- name: Copy artifact binary to target release directory (production)
+  ansible.builtin.copy:
+    src: "{{ api_artifact_path }}"
+    dest: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  register: api_binary_copy
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Copy artifact binary to target release directory (simulation mode)
+  ansible.builtin.copy:
+    src: "{{ api_artifact_path }}"
+    dest: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
+    mode: "0755"
+  register: api_binary_copy_sim
+  when: api_deploy_simulate_systemd | bool
+
+- name: Verify copied binary matches expected SHA256 on target
+  ansible.builtin.stat:
+    path: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
+    checksum_algorithm: sha256
+  register: api_copied_binary_stat
+
+- name: Assert copied binary checksum on target matches expected
+  ansible.builtin.assert:
+    that:
+      - api_copied_binary_stat.stat.exists
+      - api_copied_binary_stat.stat.checksum == (api_artifact_sha256 | lower)
+    fail_msg: >-
+      Copied binary at {{ api_base_dir }}/releases/{{ api_release_sha }}/api checksum
+      ({{ api_copied_binary_stat.stat.checksum }}) does not match expected ({{ api_artifact_sha256 | lower }}).
+
+- name: Deploy systemd unit template (production)
+  ansible.builtin.template:
+    src: tjuclaw-api.service.j2
+    dest: "{{ api_unit_file_path | default('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  register: api_unit_template
+  when: not (api_deploy_simulate_systemd | bool)
+
+- name: Deploy systemd unit template (simulation mode)
+  ansible.builtin.template:
+    src: tjuclaw-api.service.j2
+    dest: "{{ api_unit_file_path | default(api_base_dir ~ '/' ~ api_service_name ~ '.service') }}"
+    mode: "0644"
+  register: api_unit_template_sim
+  when: api_deploy_simulate_systemd | bool
+
+- name: Track whether unit was modified
+  ansible.builtin.set_fact:
+    api_switch_performed: false
+    api_unit_modified: >-
+      {{
+        (api_unit_template.changed | default(false)) or
+        (api_unit_template_sim.changed | default(false))
+      }}
+
+- name: Check whether active symlink already points to this release
+  ansible.builtin.set_fact:
+    api_already_on_target_release: >-
+      {{
+        api_current_symlink_stat.stat.exists | default(false) and
+        api_current_symlink_stat.stat.islnk | default(false) and
+        api_current_symlink_stat.stat.lnk_target == (api_base_dir ~ '/releases/' ~ api_release_sha)
+      }}
+
+- name: Switch symlink and verify service health
+  block:
+    - name: Switch current symlink atomically
+      ansible.builtin.file:
+        src: "{{ api_base_dir }}/releases/{{ api_release_sha }}"
+        dest: "{{ api_base_dir }}/current"
+        state: link
+      register: api_symlink_switch
+
+    - name: Mark symlink switch performed
+      ansible.builtin.set_fact:
+        api_switch_performed: true
+      when: api_symlink_switch.changed | default(false)
+
+    - name: Reload systemd daemon if unit changed
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - api_unit_template.changed | default(false)
+
+    - name: Determine if restart is required
+      ansible.builtin.set_fact:
+        api_restart_needed: >-
+          {{
+            api_symlink_switch.changed or
+            (api_unit_template.changed | default(false)) or
+            (api_unit_template_sim.changed | default(false)) or
+            (api_binary_copy.changed | default(false)) or
+            (api_binary_copy_sim.changed | default(false)) or
+            not (api_already_on_target_release | bool)
+          }}
+
+    - name: Enable and restart systemd service
+      ansible.builtin.systemd:
+        name: "{{ api_service_name }}"
+        enabled: true
+        state: restarted
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - api_restart_needed | bool
+
+    - name: Ensure unchanged release is running
+      ansible.builtin.systemd:
+        name: "{{ api_service_name }}"
+        enabled: true
+        state: started
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - not (api_restart_needed | bool)
+
+    - name: Verify API readiness check (/healthz)
+      ansible.builtin.uri:
+        url: "http://{{ api_listen_addr }}/healthz"
+        method: GET
+        status_code: 200
+        timeout: 2
+        use_proxy: false
+      register: api_health_check
+      until: api_health_check.status | default(0) == 200
+      retries: "{{ ((api_health_timeout_seconds | int) / (api_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ api_health_delay_seconds }}"
+
+  rescue:
+    - name: Stop failed process before restoring or removing its unit
+      ansible.builtin.systemd:
+        name: "{{ api_service_name }}"
+        state: stopped
+        enabled: "{{ api_previous_release_target | length > 0 }}"
+      when: not (api_deploy_simulate_systemd | bool)
+
+    - name: Health check failed or restart failed - trigger rollback
+      ansible.builtin.debug:
+        msg: "Deployment failed readiness check. Initiating automated rollback..."
+
+    - name: Rollback systemd unit if it was modified
+      ansible.builtin.copy:
+        content: "{{ api_previous_unit_content }}"
+        dest: "{{ api_unit_file_path | default('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+        mode: "0644"
+      when:
+        - api_unit_modified | bool
+        - api_unit_existed_before | bool
+
+    - name: Remove systemd unit if it did not exist before
+      ansible.builtin.file:
+        path: "{{ api_unit_file_path | default('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+        state: absent
+      when:
+        - api_unit_modified | bool
+        - not (api_unit_existed_before | bool)
+
+    - name: Reload systemd daemon after unit rollback
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - api_unit_modified | bool
+
+    - name: Rollback symlink to previous release if one existed
+      ansible.builtin.file:
+        src: "{{ api_previous_release_target }}"
+        dest: "{{ api_base_dir }}/current"
+        state: link
+      when:
+        - api_switch_performed | bool
+        - api_previous_release_target | length > 0
+
+    - name: Remove current symlink if this was a first-time deployment
+      ansible.builtin.file:
+        path: "{{ api_base_dir }}/current"
+        state: absent
+      when:
+        - api_switch_performed | bool
+        - api_previous_release_target | length == 0
+
+    - name: Restart previous service if rolling back to a previous release
+      ansible.builtin.systemd:
+        name: "{{ api_service_name }}"
+        state: restarted
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - api_previous_release_target | length > 0
+
+    - name: Verify restored previous service readiness
+      ansible.builtin.uri:
+        url: "http://{{ api_listen_addr }}/healthz"
+        status_code: 200
+        timeout: 2
+        use_proxy: false
+      register: api_rollback_health
+      until: api_rollback_health.status | default(0) == 200
+      retries: 10
+      delay: 1
+      when:
+        - not (api_deploy_simulate_systemd | bool)
+        - api_previous_release_target | length > 0
+
+    - name: Fail deployment task with explicit error
+      ansible.builtin.fail:
+        msg: >-
+          Deployment of release {{ api_release_sha }} failed readiness check (/healthz did not return 200).
+          Rollback completed. Target restored to:
+          {{ api_previous_release_target if (api_previous_release_target | length > 0) else 'stopped/uninstalled state' }}.

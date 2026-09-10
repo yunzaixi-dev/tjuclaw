@@ -155,7 +155,7 @@ test('syncGitLabStatus full mocked flow succeeds and posts correct payload', asy
           id: 12345,
           name: 'CI',
           event: 'push',
-          head_branch: 'main',
+          head_branch: 'release',
           head_sha: validSha,
           status: 'completed',
           conclusion: 'success',
@@ -232,7 +232,7 @@ test('syncGitLabStatus full mocked flow succeeds and posts correct payload', asy
     assert.equal(postReq.headers['PRIVATE-TOKEN'], 'glpat-test-token');
     const postBody = JSON.parse(postReq.body);
     assert.equal(postBody.state, 'success');
-    assert.equal(postBody.ref, 'main');
+    assert.equal(postBody.ref, 'release');
     assert.equal(postBody.name, STATUS_CONTEXT_CI);
     assert.equal(postBody.context, STATUS_CONTEXT_CI);
     assert.equal(postBody.target_url, 'https://github.com/yunzaixi-dev/tjuclaw/actions/runs/12345');

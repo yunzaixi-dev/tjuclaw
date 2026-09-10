@@ -1,0 +1,28 @@
+---
+# Default variables for api_deploy role
+
+api_service_name: tjuclaw-api
+api_user: tjuclaw-api
+api_group: tjuclaw-api
+api_base_dir: /opt/tjuclaw-api
+api_data_dir: /var/lib/tjuclaw-api
+api_listen_addr: 127.0.0.1:18080
+api_unit_file_path: "{{ (api_base_dir ~ '/' ~ api_service_name ~ '.service') if (api_deploy_simulate_systemd | bool) else ('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
+api_env_file: /etc/tjuclaw-api.env
+api_health_timeout_seconds: 15
+api_health_delay_seconds: 1
+
+# Supported architectures
+api_supported_architectures:
+  - x86_64
+
+# Kratos health check
+api_verify_kratos_ready: true
+
+# Test / simulation mode: skips real systemd / chown / user operations for unprivileged local unit testing
+api_deploy_simulate_systemd: false
+
+# Artifact inputs (must be provided by playbook / caller)
+# api_artifact_path: ""
+# api_artifact_sha256: ""
+# api_release_sha: ""

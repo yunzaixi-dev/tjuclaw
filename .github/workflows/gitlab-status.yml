@@ -24,13 +24,13 @@ jobs:
       vars.GITLAB_STATUS_ENABLED == 'true' &&
       github.repository == 'yunzaixi-dev/tjuclaw' &&
       github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_branch == 'release' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     steps:
       - name: Checkout trusted default script
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: main
+          ref: release
           persist-credentials: false
 
       - name: Set up Node 24

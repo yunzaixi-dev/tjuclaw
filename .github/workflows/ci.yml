@@ -1,12 +1,16 @@
 name: CI
 
 on:
-  push: {}
-  pull_request: {}
+  push:
+    branches: [dev, release]
+    tags: ['v*']
+  pull_request:
+    branches: [dev, release]
   workflow_dispatch: {}
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: integration-${{ github.ref }}
@@ -22,7 +26,7 @@ jobs:
     if: >-
       github.repository == 'yunzaixi-dev/tjuclaw' &&
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -66,6 +70,46 @@ jobs:
           task docs:build
           task api:build
           task cli:build
+      - name: Build immutable API deployment artifact
+        run: |
+          mkdir -p backend/bin/deploy
+          (cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/deploy/api ./cmd/api)
+          node scripts/deploy-release.mjs --manifest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: api-${{ github.sha }}
+          path: backend/bin/deploy/
+          if-no-files-found: error
+          retention-days: 14
+
+  ops:
+    name: Ansible deployment checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: '3.13'
+      - name: Check playbooks and rollback regressions
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/ops/ansible/ansible.cfg
+        run: |
+          for play in discover render-origin deploy-api; do
+            uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
+          done
+          node --test ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
+
+  deploy:
+    needs: [check, integration, ops]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
 
   integration:
     name: Real Kratos authentication and task ownership

@@ -1,0 +1,30 @@
+[Unit]
+Description=TJUClaw Go API Backend
+Documentation=https://github.com/yunzaixi-dev/tjuclaw
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User={{ api_user }}
+Group={{ api_group }}
+WorkingDirectory={{ api_base_dir }}/current
+EnvironmentFile={{ api_env_file }}
+ExecStart=/usr/bin/env HTTP_ADDR={{ api_listen_addr }} TASK_DATA_DIR={{ api_data_dir }} {{ api_base_dir }}/current/api
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+KillMode=control-group
+
+# Sandboxing and security hardening
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ api_data_dir }}
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

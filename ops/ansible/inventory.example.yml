@@ -1,0 +1,16 @@
+---
+# Example inventory for TJUClaw target host discovery and management.
+# Notice: Hostkey checking is enabled.
+# Placeholder uses RFC 2606 / RFC 6761 .invalid domain and non-routable dummy configuration.
+# DO NOT store real production secrets, SSH keys, or live credentials in this example.
+
+all:
+  children:
+    edge_nodes:
+      hosts:
+        tjuclaw-node-01.invalid:
+          ansible_host: target-node.invalid
+          ansible_user: deploy
+          ansible_port: 22
+  vars:
+    ansible_python_interpreter: auto_silent

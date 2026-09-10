@@ -110,10 +110,48 @@ tasks:
   docs:serve:
     desc: Serve built documentation
     cmds: [pnpm --filter @tjuclaw/docs start]
+  ops:check:
+    desc: Validate Ansible playbook syntax without contacting hosts
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/discover.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i localhost, ops/ansible/playbooks/render-origin.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-api.yml --syntax-check
+  ops:test:
+    desc: Verify origin rendering and API deployment regressions locally
+    cmds: [node --test ops/ansible/tests/*.test.mjs]
+  ops:discover:
+    desc: Read-only inventory of the explicitly configured origin host
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - sh: test -f ops/local/ansible-inventory.yml
+        msg: Copy ops/ansible/inventory.example.yml to ops/local/ansible-inventory.yml and configure the confirmed host first.
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/discover.yml
+  ops:origin:render:
+    desc: Render an origin candidate locally without modifying live HAProxy
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - sh: test -f ops/local/origin.yml
+        msg: Copy ops/ansible/origin.example.yml to ops/local/origin.yml and fill verified origin settings first.
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i localhost, ops/ansible/playbooks/render-origin.yml -e @ops/local/origin.yml
   api:dev:
     desc: Run Go API on loopback port 8080
     dir: backend
     cmds: [go run ./cmd/api]
+  ops:api:deploy:
+    desc: Deploy a verified API artifact using the explicit local production configuration
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - sh: test -f ops/local/ansible-inventory.yml && test -f ops/local/deploy.yml
+        msg: Configure the ignored inventory and deploy.yml with a verified artifact and release SHA first.
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-api.yml -e @ops/local/deploy.yml
   api:build:
     desc: Build Go API for the current host
     dir: backend

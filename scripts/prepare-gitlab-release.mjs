@@ -45,7 +45,7 @@ async function boundedJson(response, limit = 1024 * 1024) {
 }
 
 async function requirePassingIntegration(sha, token) {
-  const url = `https://api.github.com/repos/yunzaixi-dev/tjuclaw/actions/runs?head_sha=${sha}&event=push&branch=main&per_page=30`;
+  const url = `https://api.github.com/repos/yunzaixi-dev/tjuclaw/actions/runs?head_sha=${sha}&event=push&branch=release&per_page=30`;
   const data = await boundedJson(await request(url, token, 'Authorization'));
   const run = data.workflow_runs?.filter(item => item.name === 'CI' && item.head_sha === sha
     && item.head_repository?.full_name === 'yunzaixi-dev/tjuclaw')
@@ -54,7 +54,7 @@ async function requirePassingIntegration(sha, token) {
 }
 
 export async function prepareRelease(env = process.env) {
-  if (env.GITHUB_REPOSITORY !== 'yunzaixi-dev/tjuclaw' || env.GITHUB_REF !== 'refs/heads/main') throw new Error('Publish from trusted integration main only');
+  if (env.GITHUB_REPOSITORY !== 'yunzaixi-dev/tjuclaw' || env.GITHUB_REF !== 'refs/heads/release') throw new Error('Publish from trusted integration release only');
   const ref = validateSha(env.GITHUB_SHA);
   if (git('rev-parse', 'HEAD') !== ref) throw new Error('Integration checkout mismatch');
   const version = env.RELEASE_VERSION;

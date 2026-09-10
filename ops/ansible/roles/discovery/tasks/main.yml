@@ -1,0 +1,75 @@
+---
+# Read-only discovery tasks
+# All tasks use check_mode: false and changed_when: false so they run safely in --check mode
+
+- name: Gather minimal system facts
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - distribution
+      - kernel
+      - architecture
+  check_mode: false
+
+- name: Gather service facts
+  ansible.builtin.service_facts:
+  check_mode: false
+
+- name: Check existence of key CLI tools
+  ansible.builtin.command:
+    argv: ['/bin/sh', '-c', 'command -v "$1"', '--', '{{ item }}']
+  loop: "{{ discovery_checked_tools }}"
+  register: discovery_tool_check_raw
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Inspect listening TCP ports (ss -ltn)
+  ansible.builtin.command:
+    cmd: ss -ltn
+  register: discovery_listening_ports_raw
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Inspect running Docker containers (restricted fields only)
+  ansible.builtin.command:
+    cmd: "docker ps --format 'table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Image{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}\t{{ '{{' }}.Ports{{ '}}' }}'"
+  register: discovery_docker_ps_raw
+  when: >
+    (discovery_tool_check_raw.results | selectattr('item', 'equalto', 'docker') | map(attribute='rc') | first | default(1)) == 0
+  failed_when: false
+  changed_when: false
+  check_mode: false
+
+- name: Format tool discovery summary
+  ansible.builtin.set_fact:
+    discovery_tool_summary: >-
+      {{
+        discovery_tool_summary | default({}) | combine({
+          item.item: {
+            'found': (item.rc == 0),
+            'path': (item.stdout | default('') | trim if item.rc == 0 else 'not installed')
+          }
+        })
+      }}
+  loop: "{{ discovery_tool_check_raw.results }}"
+  check_mode: false
+
+- name: Print sanitized discovery report
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      os_distribution: "{{ ansible_distribution | default('unknown') }} {{ ansible_distribution_version | default('') }}"
+      kernel: "{{ ansible_kernel | default('unknown') }}"
+      architecture: "{{ ansible_architecture | default('unknown') }}"
+      installed_tools: "{{ discovery_tool_summary | default({}) }}"
+      system_services:
+        haproxy: "{{ ansible_facts.services['haproxy.service'].state | default('not found') if ansible_facts.services is defined else 'n/a' }}"
+        xray: "{{ ansible_facts.services['xray.service'].state | default('not found') if ansible_facts.services is defined else 'n/a' }}"
+        docker: "{{ ansible_facts.services['docker.service'].state | default('not found') if ansible_facts.services is defined else 'n/a' }}"
+      tcp_probe_rc: "{{ discovery_listening_ports_raw.rc | default(-1) }}"
+      docker_probe_rc: "{{ discovery_docker_ps_raw.rc | default(-1) }}"
+      tcp_listeners: "{{ (discovery_listening_ports_raw.stdout_lines | default([])) | reject('match', '^State') | list }}"
+      docker_containers: "{{ (discovery_docker_ps_raw.stdout_lines | default([])) if (discovery_docker_ps_raw.skipped is not defined or not discovery_docker_ps_raw.skipped) else ['docker not available or skipped'] }}"

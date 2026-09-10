@@ -48,6 +48,12 @@ them in tool-specific files.
 - Checks: `task check`
 - Portable build: `task build`
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`
+- Ansible adoption: `task ops:check` validates syntax and `task ops:test` verifies
+  local rendering and deployment rollback; `task ops:discover` reads
+  an explicitly configured host; `task ops:origin:render` writes a local HAProxy
+  candidate only. `task ops:api:deploy` updates the isolated API service using an
+  explicitly configured artifact; see `ops/ansible/DEPLOY.md`. Inventories and generated configs
+  stay under ignored `ops/local/`. Existing proxy/VPN services are not auto-adopted.
 - Local containers: `task compose:up`, `task compose:down`
 - Local visual audit: `task audit:index`, `task audit:dev`, `task audit:test`
 - Refresh local auth audit evidence: `task audit:auth` (real tests, then private import).
@@ -69,8 +75,11 @@ them in tool-specific files.
 - Follow `CONTRIBUTING.md`; root `package.json#version` is the repository version.
 - Commit subjects must use `EMOJI [vVERSION] type(scope): summary`.
   The emoji must match the type and VERSION must match the staged package.json.
-- Use short-lived topic branches and explicit-path staging. Never stage another
-  agent's unfinished work or create a commit/tag/push without task authorization.
+- Long-lived branches: `dev` is the default integration and development branch
+  (direct commits allowed); `release` is the stable production branch, auto-deployed
+  after passing CI. Develop directly on `dev`; version tags are optional. Commit subjects and
+  package versions continue to follow `CONTRIBUTING.md`. Use explicit-path staging
+  and never stage another agent's unfinished work or create a commit/tag/push without task authorization.
 - Keep research, local context, credentials, and runtime state out of Git.
 - Keep the GitLab project Private, never Internal or Public without explicit approval.
 - Internal plans and archived Wiki material remain local even for a private remote.
@@ -79,12 +88,13 @@ them in tool-specific files.
   `frontend/src/` or any build input. Docker contexts use explicit allowlists.
   Historical internal Wiki material and UI references are archived under ignored
   `private/wiki-archive/`; never reintroduce them into build inputs.
-- GitHub is the development authority. Push reviewed main/version tags one-way to
+- GitHub is the development authority. Push reviewed release/version tags one-way to
   the private GitLab competition mirror; never enable reverse mirroring concurrently.
 - Client Actions own Web/Linux/Android/Windows builds and UI/workspace regressions.
   Integration Actions own pinned-component checks and real Compose/auth regressions.
   Do not rebuild native clients merely because the server changed.
-- Public client CI has only a package-scoped GitLab deploy token. Private component
+- Public client CI has a package-scoped GitLab deploy token; its release-only
+  production environment may hold an EdgeOne deployment token. Private component
   checkout uses separate read-only deploy keys; project API tokens stay in integration.
 - Explicit manual workflows stage verified client packages, then publish GitLab
   Releases with checksums and a complete tracked-source snapshot. Preserve immutable

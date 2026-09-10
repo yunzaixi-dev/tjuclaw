@@ -6,11 +6,12 @@ import { syncSource, validateMirrorRef, mirrorUrl } from './gitlab-sync.mjs';
 
 const sha = 'a'.repeat(40);
 const env = { GITHUB_REPOSITORY: 'yunzaixi-dev/tjuclaw', GITHUB_SHA: sha,
-  GITHUB_REF: 'refs/heads/main', GITLAB_SYNC_TOKEN: 'fake-test-token' };
+  GITHUB_REF: 'refs/heads/release', GITLAB_SYNC_TOKEN: 'fake-test-token' };
 
-test('mirror accepts only main and selected version tags', () => {
+test('mirror accepts only release and selected version tags', () => {
   assert.equal(validateMirrorRef('refs/tags/v0.0.25'), 'refs/tags/v0.0.25');
-  for (const ref of ['refs/heads/feature', '--mirror', 'refs/tags/other', '', undefined]) {
+  assert.equal(validateMirrorRef('refs/heads/release'), 'refs/heads/release');
+  for (const ref of ['refs/heads/main', 'refs/heads/feature', '--mirror', 'refs/tags/other', '', undefined]) {
     assert.throws(() => validateMirrorRef(ref));
   }
 });
@@ -28,7 +29,7 @@ test('source synchronization preserves annotated ref objects without force or cr
   const args = calls.at(-1).args;
   assert.ok(args.includes('--atomic'));
   assert.ok(args.includes(mirrorUrl));
-  assert.equal(args.at(-1), `${object}:refs/heads/main`);
+  assert.equal(args.at(-1), `${object}:refs/heads/release`);
   assert.ok(!args.some(value => /fake-test-token|--force|--mirror/.test(value)));
 });
 
