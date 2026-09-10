@@ -37,11 +37,14 @@ them in tool-specific files.
 ## Common Commands
 
 - Development: `task dev`
-- Documentation: `task docs:dev`
+- Documentation: `task docs:dev` starts Docs on 3030 and Slidev on 3031.
+  Occupied ports are reported without terminating unrelated processes.
+  `task docs:build` includes static slides under ignored `docs/public/presentation/`.
 - Presentation: `task slides:install`, `task slides:dev`, `task slides:build`,
   `task slides:export` (requires Playwright Chromium).
-- Campus CLI: `task cli:build`, `task cli:test`; binary: `cli/bin/tjucli`.
-  It currently covers the public course-sharing provider only.
+- Campus tools: `task cli:build` builds `cli/bin/tjucli` and `cli/bin/tjucli-server`;
+  `task cli:test` tests all CLI/service packages. `task cli:server:dev` requires
+  `TJUCLI_GRANTS_FILE`; see `cli/TOOL_SERVER.md`. Current provider scope remains public courses.
 - Checks: `task check`
 - Portable build: `task build`
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`
@@ -90,8 +93,6 @@ them in tool-specific files.
   production release is implied by packaging or by the development Release workflow.
 - Each repository's package.json owns its version. Tauri reads the client metadata;
   integration locks component SHAs. Rust crate version is internal metadata.
-- Shell commands in agent sessions must be prefixed with `rtk`; use
-  `rtk proxy` when unfiltered output is required.
 
 ## Instruction Management
 

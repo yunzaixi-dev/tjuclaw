@@ -79,8 +79,8 @@ tasks:
     dir: presentation
     cmds: [pnpm run export]
   docs:dev:
-    desc: Run documentation on loopback port 3000
-    cmds: [pnpm --filter @tjuclaw/docs dev]
+    desc: Run Fumadocs on port 3030 with embedded Slidev on port 3031
+    cmds: [node scripts/docs-dev.mjs]
   audit:index:
     desc: Validate local screenshot descriptions and generate the private audit index
     cmds: [node scripts/audit-index.mjs]
@@ -102,8 +102,11 @@ tasks:
     desc: Verify the local audit UI with existing private evidence (no product build)
     cmds: [pnpm exec playwright test --config scripts/audit.playwright.config.mjs]
   docs:build:
-    desc: Build documentation
-    cmds: [pnpm --filter @tjuclaw/docs build]
+    desc: Build documentation with the embedded presentation
+    cmds:
+      - task: slides:install
+      - pnpm --dir presentation exec slidev build --base /presentation/ --out ../docs/public/presentation
+      - pnpm --filter @tjuclaw/docs build
   docs:serve:
     desc: Serve built documentation
     cmds: [pnpm --filter @tjuclaw/docs start]
@@ -123,10 +126,15 @@ tasks:
         sh: node -p "require('./package.json').version"
     cmds:
       - go build -trimpath -ldflags="-X main.version={{.CLI_VERSION}}" -o bin/ ./cmd/tjucli
+      - go build -trimpath -o bin/ ./cmd/tjucli-server
+  cli:server:dev:
+    desc: Run internal tool server with TJUCLI_GRANTS_FILE configured
+    dir: cli
+    cmds: [go run ./cmd/tjucli-server]
   cli:test:
     desc: Test the campus CLI and public course provider
     dir: cli
-    cmds: [go test -race ./internal/tjucli ./cmd/tjucli]
+    cmds: [go test -race ./...]
   cli:lint:
     desc: Check the independent CLI module
     dir: cli

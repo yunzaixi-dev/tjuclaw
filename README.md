@@ -28,7 +28,7 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 | `frontend/src/` | Web 与原生客户端共用 React 界面 |
 | `frontend/src-tauri/` | Tauri 原生宿主、权限与打包配置 |
 | `backend/cmd/api/` | 私有服务端子仓库：Go API 入口及测试 |
-| `cli/` | 独立校园 CLI 与 `skills/tjucli/` |
+| `cli/` | 校园 CLI、内部工具 HTTP 服务与 `skills/tjucli/` |
 | `docs/` | 文档站源码与经审核的站点内容 |
 | `ops/images/`、`ops/runbooks/` | 容器定义与开发 / CI 操作说明 |
 | `scripts/`、`.githooks/` | 仓库检查与 Git hooks |
@@ -66,9 +66,12 @@ rtk task dev
 [Slidev 说明](presentation/README.md)。
 `task dev` 不启动外部认证或任务执行基础设施。
 
-校园 CLI 使用 `rtk task cli:build` 构建，输出到 `cli/bin/tjucli`；
-`rtk task cli:test` 运行针对性测试。目前支持公开课程目录、课程名检索和
-选定文件下载，命令及覆盖缺口见 [tjucli 说明](cli/TJUCLI.md)。
+校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和
+`cli/bin/tjucli-server`；`rtk task cli:test` 覆盖全部CLI与服务端包。
+目前支持公开课程目录、课程名检索和选定文件下载，命令及覆盖缺口见
+[tjucli 说明](cli/TJUCLI.md)。配置受限授权文件后可用 `rtk task cli:server:dev`
+启动本地工具服务，协议与凭据边界见 [工具服务说明](cli/TOOL_SERVER.md)。
+这一服务不代表产品 Pi 或云沙箱执行已经接通。
 
 ## 检查与构建
 

@@ -7,6 +7,12 @@ const withMDX = createMDX();
 const config = {
   agentRules: false,
   reactStrictMode: true,
+  async rewrites() {
+    if (process.env.NODE_ENV === 'development') return [];
+    return {
+      afterFiles: [{ source: '/presentation/:path*', destination: '/presentation/index.html' }],
+    };
+  },
   turbopack: {
     root: fileURLToPath(new URL('..', import.meta.url)),
   },
