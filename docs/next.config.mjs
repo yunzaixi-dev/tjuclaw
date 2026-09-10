@@ -7,6 +7,10 @@ const withMDX = createMDX();
 const config = {
   agentRules: false,
   reactStrictMode: true,
+  async redirects() {
+    if (process.env.NODE_ENV !== 'development') return [];
+    return [{ source: '/presentation', destination: '/docs/presentation', permanent: false }];
+  },
   async rewrites() {
     if (process.env.NODE_ENV === 'development') return [];
     return {

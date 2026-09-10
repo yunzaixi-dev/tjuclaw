@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 
 const productionSource = '/presentation/';
+const initialSource = process.env.NODE_ENV === 'development' ? 'about:blank' : productionSource;
 const subscribe = () => () => {};
 
 function getBrowserSource() {
@@ -14,7 +15,7 @@ function getBrowserSource() {
 }
 
 export function PresentationFrame() {
-  const source = useSyncExternalStore(subscribe, getBrowserSource, () => productionSource);
+  const source = useSyncExternalStore(subscribe, getBrowserSource, () => initialSource);
 
   return (
     <iframe
