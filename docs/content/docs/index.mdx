@@ -39,6 +39,7 @@ TJUClaw 是由我个人独立设计并开发的天津大学专属通用智能体
 | **客户端仓库 (tjuclaw-client)** | 完全开源 (Public) | TypeScript / React 19.2<br />Vite 6 / Tauri v2 (Rust 1.97) | **多端原生客户端与 Web 工作空间**<br />构建 Web (EdgeOne 加速)、Windows (`.exe`)、Linux (`.deb`) 与 Android (`.apk`) | [github.com/yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)<br />对应路径：`frontend/` |
 | **服务端仓库 (tjuclaw-server)** | 竞赛私有 (Private) | Go 1.27.0 | **核心业务 API、任务状态与安全网关**<br />对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索 | [github.com/yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server)<br />对应路径：`backend/` |
 | **校园能力 CLI (tjucli)** | 竞赛私有 (Private) | Go 1.27.0 | **确定性校园工具协议与 Tool Server**<br />自包含 Go CLI，将课程平台、空闲教室等抽象为 Agent 标准工具 | [github.com/yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli)<br />对应路径：`cli/` |
+| **情报采集服务 (tjuclaw-crawler)** | 竞赛私有 (Private) | TypeScript / Bun 1.3.14<br />SQLite / RSS 2.0 | **校园动态情报摄取与 RSS 事件流**<br />输出标准化增量事件与资料库变更流，供智能体检索与文件系统持续同步 | [github.com/yunzaixi-dev/tjuclaw-crawler](https://github.com/yunzaixi-dev/tjuclaw-crawler)<br />对应路径：`crawler/` |
 
 ---
 
