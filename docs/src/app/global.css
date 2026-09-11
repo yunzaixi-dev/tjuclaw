@@ -7,7 +7,7 @@
   --wiki-paper: #f0f1ec;
   --wiki-muted: #686c6a;
   --wiki-line: #c7cac3;
-  --wiki-accent: #e64b2f;
+  --wiki-accent: #003366;
   color-scheme: light;
 }
 
@@ -18,7 +18,7 @@
   --wiki-surface-raised: #1a1f20;
   --wiki-muted: #9ba19d;
   --wiki-line: #262c2a;
-  --wiki-accent: #ff6a55;
+  --wiki-accent: #3388ff;
   color-scheme: dark;
 }
 
@@ -30,7 +30,7 @@
     --wiki-surface-raised: #1a1f20;
     --wiki-muted: #9ba19d;
     --wiki-line: #262c2a;
-    --wiki-accent: #ff6a55;
+    --wiki-accent: #3388ff;
     color-scheme: dark;
   }
 }
@@ -73,8 +73,8 @@ html > body[data-scroll-locked] {
 .dark .wiki-home,
 :root:not(.light) .wiki-home {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -15%, rgb(255 106 85 / 0.08), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 90% 30%, rgb(40 55 60 / 0.16), transparent 60%),
+    radial-gradient(ellipse 80% 50% at 50% -15%, rgb(51 136 255 / 0.12), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 90% 30%, rgb(0 51 102 / 0.25), transparent 60%),
     linear-gradient(180deg, rgba(20, 24, 25, 0.75) 0%, rgba(14, 17, 18, 0.95) 100%),
     linear-gradient(90deg, rgb(255 255 255 / 0.032) 1px, transparent 1px),
     linear-gradient(rgb(255 255 255 / 0.032) 1px, transparent 1px),
@@ -262,7 +262,7 @@ html > body[data-scroll-locked] {
   height: 8px;
   border-radius: 50%;
   background: var(--wiki-accent);
-  box-shadow: 0 0 0 5px rgb(230 75 47 / 0.14);
+  box-shadow: 0 0 0 5px rgb(51 136 255 / 0.18);
 }
 
 .wiki-platforms {
@@ -333,7 +333,7 @@ html > body[data-scroll-locked] {
 }
 
 .dark .wiki-platform-card.is-primary {
-  background: radial-gradient(circle at top right, rgba(255, 106, 85, 0.08), transparent 70%), rgba(22, 26, 28, 0.75);
+  background: radial-gradient(circle at top right, rgba(51, 136, 255, 0.12), transparent 70%), rgba(22, 26, 28, 0.75);
 }
 
 .wiki-platform-tag {
@@ -486,7 +486,7 @@ html > body[data-scroll-locked] {
 .wiki-facts strong {
   display: block;
   margin: 1.2rem 0 0.35rem;
-  color: #ff684b;
+  color: var(--wiki-accent);
   font: 620 clamp(2.1rem, 4vw, 4.5rem)/1 var(--font-geist), sans-serif;
   letter-spacing: -0.055em;
 }

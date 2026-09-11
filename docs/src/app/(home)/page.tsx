@@ -2,9 +2,9 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
 const chapters = [
-  ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs/dev/quickstart'],
-  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs/dev/architecture'],
-  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/user/guide'],
+  ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs/quickstart'],
+  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs/architecture'],
+  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/guide'],
 ];
 
 const platforms = [
@@ -13,7 +13,7 @@ const platforms = [
     tag: '无需安装 · 浏览器即用',
     desc: '基于 EdgeOne 全球加速与 Kratos 会话管理，提供完整的任务工作空间。',
     action: '立即访问',
-    href: 'https://tjuclaw.cloud',
+    href: 'https://app.tjuclaw.cloud',
     external: true,
     primary: true,
   },
@@ -50,9 +50,9 @@ export default function HomePage() {
         <div className="wiki-hero-copy">
           <p className="wiki-kicker">天津大学 AI 智能体大赛 · 2026</p>
           <h1><span>面向天津大学校园场景优化的</span><span>通用智能体平台</span></h1>
-          <p className="wiki-lead">参赛选手：TJUClaw 项目团队</p>
+          <p className="wiki-lead">让整个校园，成为 Agent 可编程的世界。</p>
           <div className="wiki-actions">
-            <a className="wiki-primary" href="https://tjuclaw.cloud" target="_blank" rel="noreferrer">访问 Web 端 (tjuclaw.cloud) <span>↗</span></a>
+            <a className="wiki-primary" href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">进入应用 <span>↗</span></a>
             <Link className="wiki-secondary" href="/docs">进入工程 Wiki <span>→</span></Link>
           </div>
         </div>

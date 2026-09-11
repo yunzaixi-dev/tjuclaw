@@ -1,7 +1,7 @@
----
-title: 介绍 TJUClaw
-description: 平台设计初衷、快速开始、极简架构哲学、面向天大场景的实践与长期愿景。
----
+<!-- AUTO-GENERATED from docs/content/docs/index.mdx. DO NOT EDIT DIRECTLY. -->
+<!-- Run `task docs:design` to regenerate. -->
+
+> **提示**：本文档同步自 [tjuclaw.cloud](https://tjuclaw.cloud/) 官方文档。如需保持最佳阅读体验，请访问官方网站：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)
 
 # 介绍 TJUClaw
 

@@ -89,6 +89,9 @@ tasks:
     desc: Build documentation
     cmds:
       - pnpm --filter @tjuclaw/docs build
+  docs:design:
+    desc: Export docs homepage to DESIGN.md at repository root
+    cmds: [node scripts/generate-design-doc.mjs]
   docs:serve:
     desc: Serve built documentation
     cmds: [pnpm --filter @tjuclaw/docs start]

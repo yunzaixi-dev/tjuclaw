@@ -2,9 +2,14 @@
   "title": "TJUClaw 2026",
   "pages": [
     "index",
-    "---开发与架构---",
-    "dev",
-    "---用户指南---",
-    "user"
+    "quickstart",
+    "architecture",
+    "storage-compute",
+    "client-matrix",
+    "sandbox-security",
+    "memory-system",
+    "campus-protocols",
+    "deployment-ops",
+    "guide"
   ]
 }
