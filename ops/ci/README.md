@@ -20,7 +20,7 @@ Bun 1.3.14 安装使用 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c6242185
 | `yunzaixi-dev/tjuclaw-client` | Public | React/Tauri、UI/工作区回归、Web/Linux/Windows/Android 构建 |
 | `yunzaixi-dev/tjuclaw-server` | Private | Go API、静态检查、race tests 和 API 构建 |
 | `yunzaixi-dev/tjucli` | Private（暂定） | 校园 CLI、Skill、独立检查与构建 |
-| `yunzaixi-dev/tjuclaw-crawler` | Private | Bun RSS、SQLite 更新回放、独立检查；集成锁定 `crawler/` SHA |
+| `yunzaixi-dev/tjuclaw-crawler` | Private | Bun RSS、PostgreSQL 更新回放、独立检查；集成锁定 `crawler/` SHA |
 
 客户端和集成仓库分别使用自己的 pnpm workspace/lockfile，服务端与 CLI 使用独立
 Go module；crawler 使用独立 Bun 依赖和 `bun.lock`。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链或自管 Runner。

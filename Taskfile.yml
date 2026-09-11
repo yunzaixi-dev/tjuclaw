@@ -210,7 +210,7 @@ tasks:
     dir: crawler
     cmds: [bun run dev]
   crawler:import:
-    desc: Import fixture intelligence events into crawler SQLite database
+    desc: Import fixture intelligence events into crawler database
     dir: crawler
     cmds: [bun run fixture:import]
   crawler:check:

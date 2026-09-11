@@ -47,9 +47,9 @@ const repositories = [
   {
     name: 'tjuclaw-crawler',
     status: '竞赛私有',
-    lang: 'TypeScript · Bun 1.3 · SQLite',
+    lang: 'TypeScript · Bun 1.3 · PostgreSQL',
     scope: '校园情报摄取 / RSS 管道',
-    desc: '基于轻量 Bun 运行时构建的高性能情报采集与重放服务，持续输出标准化校园动态与资料库事件流。',
+    desc: '基于轻量 Bun 运行时构建的高性能情报采集与重放服务，统一汇聚至 PostgreSQL，持续输出标准化校园动态与资料库事件流。',
     path: 'crawler/',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-crawler',
   },
