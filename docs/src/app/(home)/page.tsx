@@ -64,6 +64,7 @@ const platforms = [
     href: 'https://app.tjuclaw.cloud',
     external: true,
     primary: true,
+    available: true,
   },
   {
     name: 'Windows 桌面端',
@@ -72,6 +73,7 @@ const platforms = [
     action: '下载 EXE',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-windows-x64-setup.exe',
     external: true,
+    available: true,
   },
   {
     name: 'Linux 桌面端',
@@ -80,6 +82,7 @@ const platforms = [
     action: '下载 DEB',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-linux-amd64.deb',
     external: true,
+    available: true,
   },
   {
     name: 'Android 移动端',
@@ -88,6 +91,43 @@ const platforms = [
     action: '下载 APK',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-android-arm64-debug.apk',
     external: true,
+    available: true,
+  },
+  {
+    name: 'iOS 移动端',
+    tag: '规划适配 · TestFlight 筹备中',
+    desc: '为 iPhone 与 iPad 打造的原生移动端体验，深度适配 iOS 原生交互与离线会话缓存。',
+    action: '筹备中',
+    href: '#',
+    external: false,
+    available: false,
+  },
+  {
+    name: 'macOS 桌面端',
+    tag: '规划适配 · Apple Silicon 原生',
+    desc: '基于 Tauri v2 适配 macOS，支持 Menu Bar 快捷常驻、Raycast 联动与本地终端工作区穿透。',
+    action: '筹备中',
+    href: '#',
+    external: false,
+    available: false,
+  },
+  {
+    name: 'HarmonyOS 鸿蒙',
+    tag: '规划适配 · ArkUI 原生形态',
+    desc: '面向华为鸿蒙生态设备优化，支持分布式跨端流转、智慧多窗协同与端侧即时情报卡片。',
+    action: '筹备中',
+    href: '#',
+    external: false,
+    available: false,
+  },
+  {
+    name: 'CLI 终端工具',
+    tag: '架构对接 · tjucli 独立命令',
+    desc: '面向极客开发者的纯终端工作流，支持一键在 Shell 中下发任务、管道过滤资料与自动化脚本集成。',
+    action: '即将开放',
+    href: '#',
+    external: false,
+    available: false,
   },
 ];
 
@@ -114,21 +154,30 @@ export default function HomePage() {
           </div>
           <div className="wiki-platforms-grid">
             {platforms.map((p) => (
-              <div className={`wiki-platform-card ${p.primary ? 'is-primary' : ''}`} key={p.name}>
+              <div
+                className={`wiki-platform-card ${p.primary ? 'is-primary' : ''} ${!p.available ? 'is-disabled' : ''}`}
+                key={p.name}
+              >
                 <div className="wiki-platform-top">
                   <span className="wiki-platform-tag">{p.tag}</span>
                   <h3>{p.name}</h3>
                   <p>{p.desc}</p>
                 </div>
                 <div className="wiki-platform-bottom">
-                  <a
-                    className={`wiki-platform-btn ${p.primary ? 'is-btn-primary' : ''}`}
-                    href={p.href}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {p.action} <span>{p.external ? '↗' : '→'}</span>
-                  </a>
+                  {p.available ? (
+                    <a
+                      className={`wiki-platform-btn ${p.primary ? 'is-btn-primary' : ''}`}
+                      href={p.href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {p.action} <span>{p.external ? '↗' : '→'}</span>
+                    </a>
+                  ) : (
+                    <span className="wiki-platform-btn is-btn-disabled" aria-disabled="true">
+                      {p.action} <span className="wiki-platform-btn-lock">🔒</span>
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
