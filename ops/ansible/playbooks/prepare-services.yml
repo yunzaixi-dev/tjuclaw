@@ -1,0 +1,39 @@
+---
+- name: Prepare the dedicated TJUClaw service host
+  hosts: edge_nodes
+  become: true
+  gather_facts: true
+  serial: 1
+  tasks:
+    - name: Require the supported Ubuntu host
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == 'Ubuntu'
+          - ansible_distribution_version == '24.04'
+
+    - name: Verify Docker is already available
+      ansible.builtin.command: docker version --format '{{ '{{' }}.Server.Version{{ '}}' }}'
+      changed_when: false
+
+    - name: Install the Compose CLI plugin without upgrading existing services
+      ansible.builtin.apt:
+        name: docker-compose-v2
+        state: present
+        install_recommends: false
+      environment:
+        NEEDRESTART_MODE: l
+
+    - name: Verify Docker Compose is available
+      ansible.builtin.command: docker compose version
+      changed_when: false
+
+    - name: Configure the API's same-origin production boundary
+      ansible.builtin.copy:
+        dest: /etc/tjuclaw-api.env
+        owner: root
+        group: root
+        mode: '0600'
+        force: false
+        content: |
+          APP_PUBLIC_URL=https://tjuclaw.cloud
+          KRATOS_PUBLIC_URL=http://127.0.0.1:4433

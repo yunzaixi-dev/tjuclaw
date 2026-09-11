@@ -1,8 +1,7 @@
-import { rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 
-const ports = [3030, 3031];
+const ports = [3030];
 
 function probePort(port, host, ipv6Only = false) {
   return new Promise((resolve, reject) => {
@@ -35,11 +34,8 @@ try {
   process.exit(1);
 }
 
-rmSync(new URL('../docs/public/presentation', import.meta.url), { recursive: true, force: true });
-
 const commands = [
   ['docs', 'pnpm', ['--dir', 'docs', 'exec', 'next', 'dev', '--hostname', '127.0.0.1', '--port', '3030']],
-  ['slides', 'pnpm', ['--dir', 'presentation', 'exec', 'slidev', '--port', '3031', '--base', '/presentation/']],
 ];
 const children = [];
 let stopping = false;

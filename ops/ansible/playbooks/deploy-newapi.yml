@@ -1,0 +1,8 @@
+---
+- name: Deploy tjuclaw-newapi NewAPI and PostgreSQL stack
+  hosts: all
+  gather_facts: false
+  serial: 1
+  become: "{{ newapi_become | default(true) }}"
+  roles:
+    - role: newapi_stack

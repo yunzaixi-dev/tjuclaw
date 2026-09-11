@@ -2,9 +2,9 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
 const chapters = [
-  ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs'],
-  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs'],
-  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs'],
+  ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs/dev/quickstart'],
+  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs/dev/architecture'],
+  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/user/guide'],
 ];
 
 export default function HomePage() {
@@ -17,7 +17,6 @@ export default function HomePage() {
           <p className="wiki-lead">参赛选手：TJUClaw 项目团队</p>
           <div className="wiki-actions">
             <Link className="wiki-primary" href="/docs">进入工程 Wiki <span>→</span></Link>
-            <Link className="wiki-secondary" href="/docs/presentation">查看项目演示 <span>↗</span></Link>
           </div>
         </div>
         <div className="wiki-stack" aria-label="TJUClaw 平台能力层">

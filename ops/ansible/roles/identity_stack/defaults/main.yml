@@ -1,0 +1,31 @@
+---
+# Production identity stack defaults
+
+identity_base_dir: /opt/tjuclaw-identity
+identity_project_name: tjuclaw-identity
+identity_app_url: https://tjuclaw.cloud
+identity_smtp_env_file: /etc/tjuclaw-identity-smtp.env
+identity_listen_addr: "127.0.0.1:4433"
+identity_admin_listen_addr: "127.0.0.1:4434"
+
+# Pinned images
+identity_postgres_image: "postgres:16.14-alpine"
+identity_kratos_image: "oryd/kratos:v26.2.0"
+
+# Resource limits (modest limits for single-host production)
+identity_postgres_mem_limit: "384m"
+identity_kratos_mem_limit: "256m"
+
+# Log limits
+identity_logging_max_size: "10m"
+identity_logging_max_file: "3"
+
+# Health check settings
+identity_health_timeout_seconds: 30
+identity_health_delay_seconds: 2
+
+# Directory for source auth templates and assets on controller
+identity_source_auth_dir: "{{ playbook_dir }}/../../auth"
+
+# Simulation / testing mode flag
+identity_simulate: false

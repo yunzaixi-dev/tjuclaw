@@ -1,0 +1,67 @@
+# Production compose configuration for tjuclaw-newapi
+# Managed by Ansible. Single-host deployment.
+name: {{ newapi_project_name }}
+
+services:
+  db:
+    image: {{ newapi_postgres_image }}
+    restart: unless-stopped
+    env_file:
+      - .env.db
+    volumes:
+      - newapi-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U newapi"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: {{ newapi_db_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ newapi_logging_max_size }}"
+        max-file: "{{ newapi_logging_max_file }}"
+    networks:
+      - newapi-internal
+
+  app:
+    image: {{ newapi_image }}
+    restart: unless-stopped
+    env_file:
+      - .env.newapi
+    ports:
+      - "{{ newapi_listen_addr }}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: {{ newapi_app_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ newapi_logging_max_size }}"
+        max-file: "{{ newapi_logging_max_file }}"
+    networks:
+      - newapi-internal
+{% if newapi_vpn_network | default('') | length > 0 %}
+      - vpn
+{% endif %}
+
+volumes:
+  newapi-db:
+    name: {{ newapi_project_name }}-db
+
+networks:
+  newapi-internal:
+    name: {{ newapi_project_name }}-net
+    internal: false
+{% if newapi_vpn_network | default('') | length > 0 %}
+  vpn:
+    name: {{ newapi_vpn_network }}
+    external: true
+{% endif %}

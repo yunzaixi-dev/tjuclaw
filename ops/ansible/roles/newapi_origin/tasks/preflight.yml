@@ -1,0 +1,65 @@
+---
+# Preflight validation for newapi_origin role
+
+- name: Validate variable inputs
+  ansible.builtin.assert:
+    that:
+      - newapi_origin_hostname is defined
+      - (newapi_origin_hostname | length) > 0
+      - (newapi_origin_hostname | string) is match('^[a-zA-Z0-9.-]+$')
+      - newapi_origin_port is defined
+      - (newapi_origin_port | int) > 0
+      - (newapi_origin_port | int) < 65536
+      - newapi_origin_backend_address is defined
+      - (newapi_origin_backend_address | length) > 0
+      - newapi_origin_backend_port is defined
+      - (newapi_origin_backend_port | int) > 0
+      - (newapi_origin_backend_port | int) < 65536
+      - newapi_origin_tls_pem is defined
+      - (newapi_origin_tls_pem | length) > 0
+      - newapi_origin_service_name is defined
+      - (newapi_origin_service_name | string) is match('^[a-zA-Z0-9_-]+$')
+      - newapi_origin_config_dir is defined
+      - (newapi_origin_config_dir | string) is match('^/[a-zA-Z0-9_.-]+(/.*)?$')
+      - newapi_origin_config_file is defined
+      - (newapi_origin_config_file | string) is match('^/[a-zA-Z0-9_.-]+(/.*)?$')
+      - newapi_origin_unit_file is defined
+      - (newapi_origin_unit_file | string) is match('^/[a-zA-Z0-9_.-]+(/.*)?$')
+    fail_msg: "Invalid configuration variables for newapi_origin role."
+
+- name: Check target TLS PEM file existence
+  ansible.builtin.stat:
+    path: "{{ newapi_origin_tls_pem }}"
+  register: newapi_origin_tls_stat
+
+- name: Assert TLS PEM file exists, is a regular file, and is not empty
+  ansible.builtin.assert:
+    that:
+      - newapi_origin_tls_stat.stat.exists
+      - newapi_origin_tls_stat.stat.isreg
+      - newapi_origin_tls_stat.stat.size > 0
+    fail_msg: >-
+      TLS PEM file {{ newapi_origin_tls_pem }} is missing, not a regular file, or empty.
+      A valid TLS certificate bundle containing cert and private key must be prepared before deploying origin.
+
+- name: Validate TLS PEM format with openssl
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ newapi_origin_tls_pem }}"
+      - -noout
+  changed_when: false
+  register: newapi_origin_x509_check
+
+- name: Validate TLS PEM private key with openssl
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - pkey
+      - -in
+      - "{{ newapi_origin_tls_pem }}"
+      - -noout
+  changed_when: false
+  register: newapi_origin_pkey_check

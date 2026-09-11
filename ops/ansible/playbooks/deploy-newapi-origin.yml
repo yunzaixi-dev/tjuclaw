@@ -1,0 +1,8 @@
+---
+- name: Deploy isolated HAProxy TLS origin for NewAPI
+  hosts: all
+  gather_facts: false
+  serial: 1
+  become: "{{ newapi_origin_become | default(true) }}"
+  roles:
+    - role: newapi_origin

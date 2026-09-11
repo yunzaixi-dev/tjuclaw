@@ -1,0 +1,27 @@
+---
+# Preflight validations for newapi_stack
+
+- name: Validate caller input variables
+  ansible.builtin.assert:
+    that:
+      - newapi_base_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - newapi_project_name is match('^[a-z0-9_-]+$')
+      - newapi_listen_addr is match('^127\\.0\\.0\\.1:[0-9]{1,5}$')
+      - newapi_postgres_image is match('^postgres:[a-zA-Z0-9_.-]+$')
+      - newapi_image is match('^calciumion/new-api:v[0-9a-zA-Z_.-]+$')
+      - newapi_admin_username | length > 0
+      - newapi_admin_username | length <= 12
+      - (newapi_vpn_network | default('') | length == 0) or (newapi_vpn_network is match('^[a-zA-Z0-9][a-zA-Z0-9_.-]*$'))
+    fail_msg: >-
+      Invalid newapi_stack configuration variables. Check newapi_base_dir,
+      newapi_listen_addr (must be loopback 127.0.0.1:port), admin username (max 12 chars),
+      VPN network name, or image pins.
+
+- name: Inspect external VPN network when configured
+  ansible.builtin.command:
+    cmd: docker network inspect "{{ newapi_vpn_network }}"
+  register: newapi_vpn_network_inspect
+  changed_when: false
+  when:
+    - not (newapi_simulate | bool)
+    - (newapi_vpn_network | default('') | length) > 0

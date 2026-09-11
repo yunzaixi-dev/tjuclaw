@@ -1,4 +1,10 @@
 {
   "title": "TJUClaw 2026",
-  "pages": ["index", "presentation"]
+  "pages": [
+    "index",
+    "---开发与架构---",
+    "dev",
+    "---用户指南---",
+    "user"
+  ]
 }

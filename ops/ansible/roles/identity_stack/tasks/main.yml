@@ -1,0 +1,133 @@
+---
+# Main tasks for identity_stack role
+
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Manage durable secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Ensure target directory structure exists (production)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ identity_base_dir }}", mode: "0700" }
+    - { path: "{{ identity_base_dir }}/config", mode: "0755" }
+    - { path: "{{ identity_base_dir }}/config/mail", mode: "0755" }
+  when: not (identity_simulate | bool)
+
+- name: Ensure target directory structure exists (simulation mode)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ identity_base_dir }}", mode: "0700" }
+    - { path: "{{ identity_base_dir }}/config", mode: "0755" }
+    - { path: "{{ identity_base_dir }}/config/mail", mode: "0755" }
+  when: identity_simulate | bool
+
+- name: Render .env.db file with strict permissions
+  ansible.builtin.template:
+    src: env.db.j2
+    dest: "{{ identity_base_dir }}/.env.db"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render .env.kratos file with strict permissions
+  ansible.builtin.template:
+    src: env.kratos.j2
+    dest: "{{ identity_base_dir }}/.env.kratos"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render .env.smtp file with strict permissions
+  ansible.builtin.template:
+    src: env.smtp.j2
+    dest: "{{ identity_base_dir }}/.env.smtp"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render Kratos policy configuration
+  ansible.builtin.template:
+    src: kratos.yml.j2
+    dest: "{{ identity_base_dir }}/config/kratos.yml"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Copy identity schema read-only
+  ansible.builtin.copy:
+    src: "{{ identity_source_auth_dir }}/identity.schema.json"
+    dest: "{{ identity_base_dir }}/config/identity.schema.json"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Copy mail templates read-only
+  ansible.builtin.copy:
+    src: "{{ identity_source_auth_dir }}/mail/"
+    dest: "{{ identity_base_dir }}/config/mail/"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Render docker compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ identity_base_dir }}/compose.yaml"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Execute compose deployment and health checks
+  when: not (identity_simulate | bool)
+  block:
+    - name: Start PostgreSQL service first
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ identity_project_name }}" -f "{{ identity_base_dir }}/compose.yaml" up -d db
+      register: identity_db_up
+      changed_when: "'Started' in identity_db_up.stdout or 'Created' in identity_db_up.stdout"
+
+    - name: Wait for PostgreSQL container to become healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format={% raw %}'{{.State.Health.Status}}'{% endraw %} "{{ identity_project_name }}-db-1"
+      register: identity_db_health
+      until: identity_db_health.stdout | trim == 'healthy'
+      retries: 25
+      delay: 2
+      changed_when: false
+
+    - name: Run Kratos migration explicitly
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ identity_project_name }}" -f "{{ identity_base_dir }}/compose.yaml" run --rm migrate
+      register: identity_migrate_result
+      changed_when: "'Applying' in identity_migrate_result.stdout or 'Migration' in identity_migrate_result.stdout"
+
+    - name: Start Kratos service
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ identity_project_name }}" -f "{{ identity_base_dir }}/compose.yaml" up -d kratos
+      register: identity_kratos_up
+      changed_when: "'Started' in identity_kratos_up.stdout or 'Created' in identity_kratos_up.stdout"
+
+    - name: Verify Kratos readiness endpoint (http://127.0.0.1:4433/health/ready)
+      ansible.builtin.uri:
+        url: "http://{{ identity_listen_addr }}/health/ready"
+        method: GET
+        status_code: 200
+        timeout: 3
+        use_proxy: false
+      register: identity_health_check
+      until: identity_health_check.status | default(0) == 200
+      retries: "{{ ((identity_health_timeout_seconds | int) / (identity_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ identity_health_delay_seconds }}"

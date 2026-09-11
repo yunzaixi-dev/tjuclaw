@@ -1,0 +1,87 @@
+# Production compose configuration for tjuclaw-identity
+# Managed by Ansible. Single-host deployment.
+name: {{ identity_project_name }}
+
+services:
+  db:
+    image: {{ identity_postgres_image }}
+    restart: unless-stopped
+    env_file:
+      - .env.db
+    volumes:
+      - identity-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kratos"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: {{ identity_postgres_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ identity_logging_max_size }}"
+        max-file: "{{ identity_logging_max_file }}"
+    networks:
+      - identity-internal
+
+  migrate:
+    image: {{ identity_kratos_image }}
+    command: migrate sql -e --yes
+    env_file:
+      - .env.kratos
+      - .env.smtp
+    volumes:
+      - ./config/kratos.yml:/etc/config/kratos/kratos.yml:ro
+      - ./config/identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./config/mail:/etc/config/kratos/mail:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - identity-internal
+
+  kratos:
+    image: {{ identity_kratos_image }}
+    command: serve --watch-courier -c /etc/config/kratos/kratos.yml
+    env_file:
+      - .env.kratos
+      - .env.smtp
+    volumes:
+      - ./config/kratos.yml:/etc/config/kratos/kratos.yml:ro
+      - ./config/identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./config/mail:/etc/config/kratos/mail:ro
+    ports:
+      - "{{ identity_listen_addr }}:4433"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: {{ identity_kratos_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ identity_logging_max_size }}"
+        max-file: "{{ identity_logging_max_file }}"
+    networks:
+      - identity-internal
+
+volumes:
+  identity-db:
+    name: {{ identity_project_name }}-db
+
+networks:
+  identity-internal:
+    name: {{ identity_project_name }}-net
+    internal: false

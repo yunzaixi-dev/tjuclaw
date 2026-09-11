@@ -1,0 +1,32 @@
+---
+# Default variables for newapi_origin role
+
+# Hostname and network configuration
+newapi_origin_hostname: "newapi.tjuclaw.cloud"
+newapi_origin_port: 8443
+newapi_origin_backend_address: "127.0.0.1"
+newapi_origin_backend_port: 3000
+
+# TLS certificate bundle containing both certificate chain and private key in PEM format
+newapi_origin_tls_pem: "/etc/tjuclaw-newapi-origin/tls.pem"
+
+# Dedicated systemd service and directories
+newapi_origin_service_name: "tjuclaw-newapi-origin"
+newapi_origin_config_dir: "/etc/tjuclaw-newapi-origin"
+newapi_origin_config_file: "/etc/tjuclaw-newapi-origin/haproxy.cfg"
+newapi_origin_unit_file: "/etc/systemd/system/{{ newapi_origin_service_name }}.service"
+
+# Memory limit for systemd unit
+newapi_origin_memory_limit: "96M"
+
+# Timeouts
+newapi_origin_timeout_connect: "5s"
+newapi_origin_timeout_client: "300s"
+newapi_origin_timeout_server: "300s"
+newapi_origin_timeout_tunnel: "1h"
+
+# Privilege escalation
+newapi_origin_become: true
+
+# Simulation / testing mode (skips real systemctl and package installs in unprivileged test runs)
+newapi_origin_simulate: false

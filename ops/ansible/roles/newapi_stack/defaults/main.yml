@@ -1,0 +1,24 @@
+---
+# Pinned images and ports for NewAPI stack
+newapi_base_dir: /opt/tjuclaw-newapi
+newapi_project_name: tjuclaw-newapi
+newapi_listen_addr: "127.0.0.1:3000"
+
+newapi_image: "calciumion/new-api:v1.0.0-rc.36"
+newapi_postgres_image: "postgres:16.14-alpine"
+
+newapi_app_mem_limit: "384m"
+newapi_db_mem_limit: "256m"
+
+newapi_logging_max_size: "10m"
+newapi_logging_max_file: "3"
+
+newapi_sql_max_idle_conns: 2
+newapi_sql_max_open_conns: 10
+
+newapi_health_timeout_seconds: 40
+newapi_health_delay_seconds: 2
+
+newapi_admin_username: "tjuadmin"
+newapi_vpn_network: ""
+newapi_simulate: false

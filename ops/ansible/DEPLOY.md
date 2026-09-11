@@ -35,4 +35,4 @@ For a deliberate manual deployment, prepare ignored `ops/local/deploy.yml` from 
 
 The client repository's release CI publishes its verified Web artifact using pinned `edgeone@1.6.37 makers deploy`. Configure its `production` environment with secret `EDGEONE_TOKEN`, variable `EDGEONE_PROJECT_NAME`, and optional `EDGEONE_AREA` (`global` or `external`). Use an existing direct-upload project and validate SPA fallback and `/api` origin routing. Do not simultaneously enable a separate Git auto-deployment for the same production Web project, which would bypass the CI gate.
 
-Docs currently build as a Next.js server application with embedded Slidev assets. They cannot be uploaded as an assumed `docs/out` static export. EdgeOne's framework deployment and Next.js 16 compatibility require project-side validation; this change does not claim a working docs deployment.
+Docs use Next.js static export (`docs/out`) and Fumadocs static search. Run `task docs:build` before deploying that directory to the dedicated EdgeOne Makers project `tjuclaw-docs`. Dynamic server-side features require a new deployment design; this static deployment does not provide a Next.js server runtime.

@@ -1,0 +1,95 @@
+---
+# Preflight validations for identity_stack
+
+- name: Validate caller input variables
+  ansible.builtin.assert:
+    that:
+      - identity_base_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - identity_project_name is match('^[a-z0-9_-]+$')
+      - identity_app_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - identity_listen_addr is match('^127\\.0\\.0\\.1:[0-9]{1,5}$')
+      - identity_smtp_env_file is match('^/[a-zA-Z0-9/_.-]+$')
+      - identity_postgres_image is match('^postgres:[a-zA-Z0-9_.-]+$')
+      - identity_kratos_image is match('^oryd/kratos:[a-zA-Z0-9_.-]+$')
+    fail_msg: >-
+      Invalid identity_stack configuration variables. Check identity_app_url (must start with https://),
+      identity_base_dir, identity_listen_addr, or image pins.
+
+- name: Verify source auth files exist on controller
+  delegate_to: localhost
+  become: false
+  block:
+    - name: Check source kratos schema file
+      ansible.builtin.stat:
+        path: "{{ identity_source_auth_dir }}/identity.schema.json"
+      register: identity_source_schema_stat
+
+    - name: Check source mail templates directory
+      ansible.builtin.stat:
+        path: "{{ identity_source_auth_dir }}/mail"
+      register: identity_source_mail_stat
+
+    - name: Assert source auth assets are present
+      ansible.builtin.assert:
+        that:
+          - identity_source_schema_stat.stat.exists
+          - identity_source_schema_stat.stat.isreg
+          - identity_source_mail_stat.stat.exists
+          - identity_source_mail_stat.stat.isdir
+        fail_msg: >-
+          Source auth assets missing in {{ identity_source_auth_dir }}.
+          identity.schema.json or mail/ directory not found.
+
+- name: Check existence of remote SMTP env file
+  ansible.builtin.stat:
+    path: "{{ identity_smtp_env_file }}"
+  register: identity_smtp_stat
+
+- name: Fail immediately if remote SMTP env file is missing
+  ansible.builtin.assert:
+    that:
+      - identity_smtp_stat.stat.exists
+      - identity_smtp_stat.stat.isreg
+    fail_msg: >-
+      Remote SMTP env file {{ identity_smtp_env_file }} is ABSENT on target host.
+      Deployment cannot proceed without pre-provisioned SMTP configuration.
+      Create {{ identity_smtp_env_file }} defining COURIER_SMTP_CONNECTION_URI
+      and COURIER_SMTP_FROM_ADDRESS with root:root mode 0600.
+
+- name: Validate SMTP env file permissions in production mode
+  ansible.builtin.assert:
+    that:
+      - identity_smtp_stat.stat.uid == 0
+      - identity_smtp_stat.stat.mode == '0600'
+    fail_msg: >-
+      SMTP configuration file {{ identity_smtp_env_file }} must be root-owned (uid 0)
+      and mode 0600. Current uid={{ identity_smtp_stat.stat.uid }}, mode={{ identity_smtp_stat.stat.mode }}.
+  when: not (identity_simulate | bool)
+
+- name: Read remote SMTP env file contents
+  ansible.builtin.slurp:
+    path: "{{ identity_smtp_env_file }}"
+  register: identity_smtp_slurp
+  no_log: true
+
+- name: Parse and validate SMTP configuration
+  ansible.builtin.set_fact:
+    identity_smtp_connection_uri: >-
+      {{ identity_smtp_slurp.content | b64decode | regex_findall('(?m)^COURIER_SMTP_CONNECTION_URI=(.+)$') | first | default('') | trim }}
+    identity_smtp_from_address: >-
+      {{ identity_smtp_slurp.content | b64decode | regex_findall('(?m)^COURIER_SMTP_FROM_ADDRESS=(.+)$') | first | default('') | trim }}
+  no_log: true
+
+- name: Assert SMTP configuration keys are valid
+  ansible.builtin.assert:
+    that:
+      - (identity_smtp_connection_uri | length) > 0
+      - identity_smtp_connection_uri is match('^smtps?://.+')
+      - "'skip_ssl_verify=true' not in identity_smtp_connection_uri"
+      - "'disable_starttls=true' not in identity_smtp_connection_uri"
+      - (identity_smtp_from_address | length) > 0
+      - identity_smtp_from_address is match('^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    fail_msg: >-
+      File {{ identity_smtp_env_file }} must define non-empty COURIER_SMTP_CONNECTION_URI (starting with smtp:// or smtps://)
+      and a valid COURIER_SMTP_FROM_ADDRESS.
+  no_log: true

@@ -14,10 +14,7 @@ them in tool-specific files.
   (`tjuclaw-client`, public), `backend/` (`tjuclaw-server`, private), `cli/`
   (`tjucli`, private for now). Operations remain in `ops/`.
 - Each component owns its dependencies, lockfile, version metadata and CI.
-  Root pnpm workspace contains documentation; client and presentation are independent.
-- Slidev presentation: `presentation/`, with its own pnpm workspace and lockfile.
-  Keep the deck's implementation status tied to real checks; exported PDFs stay
-  under ignored `test-results/presentation/`.
+  Root pnpm workspace contains documentation; the client is independent.
 - Product CLI instructions: `cli/skills/tjucli/`; these must be explicitly loaded
   into the product runtime, not merely installed in the developer's global Pi.
 - React + Vite + Tauri in `frontend/` share source across Web and native clients.
@@ -37,11 +34,9 @@ them in tool-specific files.
 ## Common Commands
 
 - Development: `task dev`
-- Documentation: `task docs:dev` starts Docs on 3030 and Slidev on 3031.
-  Occupied ports are reported without terminating unrelated processes.
-  `task docs:build` includes static slides under ignored `docs/public/presentation/`.
-- Presentation: `task slides:install`, `task slides:dev`, `task slides:build`,
-  `task slides:export` (requires Playwright Chromium).
+- Documentation: `task docs:dev` starts Docs on 3030.
+  An occupied port is reported without terminating unrelated processes.
+  `task docs:build` builds the documentation app.
 - Campus tools: `task cli:build` builds `cli/bin/tjucli` and `cli/bin/tjucli-server`;
   `task cli:test` tests all CLI/service packages. `task cli:server:dev` requires
   `TJUCLI_GRANTS_FILE`; see `cli/TOOL_SERVER.md`. Current provider scope remains public courses.
@@ -54,6 +49,9 @@ them in tool-specific files.
   candidate only. `task ops:api:deploy` updates the isolated API service using an
   explicitly configured artifact; see `ops/ansible/DEPLOY.md`. Inventories and generated configs
   stay under ignored `ops/local/`. Existing proxy/VPN services are not auto-adopted.
+- Service provisioning: `task ops:services:prepare` installs the Compose plugin and initializes the API environment without overwriting existing configuration. `task ops:identity:deploy` requires a real root-only `/etc/tjuclaw-identity-smtp.env`; `task ops:newapi:deploy` manages the internal model gateway. Both use isolated databases and durable secrets. Keep database/admin ports private; NewAPI is an operations service, never a second product identity authority.
+- NewAPI HTTPS origin: `task ops:newapi:origin:deploy` (pre-provisioned TLS PEM;
+  dedicated HAProxy 8443, preserves existing 443 service). See `ops/ansible/SERVICES.md`.
 - Local containers: `task compose:up`, `task compose:down`
 - Local visual audit: `task audit:index`, `task audit:dev`, `task audit:test`
 - Refresh local auth audit evidence: `task audit:auth` (real tests, then private import).

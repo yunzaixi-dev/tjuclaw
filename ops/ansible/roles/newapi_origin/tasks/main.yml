@@ -1,0 +1,103 @@
+---
+# Main tasks for newapi_origin role
+
+- name: Execute preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Check default system haproxy service status
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - haproxy
+  register: default_haproxy_status
+  failed_when: false
+  changed_when: false
+  when: not (newapi_origin_simulate | bool)
+
+- name: Refuse to proceed if default haproxy service is active
+  ansible.builtin.assert:
+    that:
+      - default_haproxy_status.rc != 0
+    fail_msg: >-
+      Default system haproxy service is currently active!
+      Refusing blind takeover. tjuclaw-newapi-origin requires dedicated, isolated operation
+      and must not collide with or hijack an active system haproxy service.
+  when: not (newapi_origin_simulate | bool)
+
+- name: Ensure haproxy binary package is installed
+  ansible.builtin.apt:
+    name: haproxy
+    state: present
+    update_cache: false
+    policy_rc_d: 101
+  when: not (newapi_origin_simulate | bool)
+
+- name: Ensure default system haproxy service is stopped and disabled
+  ansible.builtin.systemd:
+    name: haproxy
+    state: stopped
+    enabled: false
+  when: not (newapi_origin_simulate | bool)
+
+- name: Ensure dedicated config directory exists with strict permissions (production)
+  ansible.builtin.file:
+    path: "{{ newapi_origin_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: not (newapi_origin_simulate | bool)
+
+- name: Ensure dedicated config directory exists (simulation mode)
+  ansible.builtin.file:
+    path: "{{ newapi_origin_config_dir }}"
+    state: directory
+    mode: "0755"
+  when: newapi_origin_simulate | bool
+
+- name: Deploy dedicated HAProxy configuration file (production)
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ newapi_origin_config_file }}"
+    owner: root
+    group: root
+    mode: "0640"
+    validate: "haproxy -c -f %s"
+  notify: Reload dedicated NewAPI HAProxy service
+  when: not (newapi_origin_simulate | bool)
+
+- name: Deploy dedicated HAProxy configuration file (simulation mode)
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: "{{ newapi_origin_config_file }}"
+    mode: "0644"
+  when: newapi_origin_simulate | bool
+
+- name: Deploy dedicated systemd service unit (production)
+  ansible.builtin.template:
+    src: tjuclaw-newapi-origin.service.j2
+    dest: "{{ newapi_origin_unit_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart dedicated NewAPI HAProxy service
+  when: not (newapi_origin_simulate | bool)
+
+- name: Deploy dedicated systemd service unit (simulation mode)
+  ansible.builtin.template:
+    src: tjuclaw-newapi-origin.service.j2
+    dest: "{{ newapi_origin_unit_file }}"
+    mode: "0644"
+  when: newapi_origin_simulate | bool
+
+- name: Flush handlers to apply unit file changes immediately if needed
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure dedicated NewAPI origin service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ newapi_origin_service_name }}"
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: not (newapi_origin_simulate | bool)

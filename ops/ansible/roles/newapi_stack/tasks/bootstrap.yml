@@ -1,0 +1,36 @@
+---
+# Tasks for bootstrapping and verifying NewAPI instance
+
+- name: Wait for NewAPI service to respond on loopback
+  ansible.builtin.uri:
+    url: "http://{{ newapi_listen_addr }}/api/status"
+    method: GET
+    status_code: [200, 404]
+    timeout: 3
+    use_proxy: false
+  register: newapi_health_check
+  until: newapi_health_check.status | default(0) in [200, 404]
+  retries: "{{ ((newapi_health_timeout_seconds | int) / (newapi_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+  delay: "{{ newapi_health_delay_seconds }}"
+
+- name: Copy bootstrap helper script to target
+  ansible.builtin.copy:
+    src: bootstrap_newapi.py
+    dest: "{{ newapi_base_dir }}/bootstrap_newapi.py"
+    owner: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Run NewAPI bootstrap and security configuration via HTTP API
+  ansible.builtin.command:
+    cmd: python3 "{{ newapi_base_dir }}/bootstrap_newapi.py" "{{ newapi_base_dir }}/credentials.json"
+  environment:
+    NEWAPI_BASE_URL: "http://{{ newapi_listen_addr }}"
+  register: newapi_bootstrap_res
+  changed_when: "'Setup completed successfully' in newapi_bootstrap_res.stdout or 'Registration disabled successfully' in newapi_bootstrap_res.stdout"
+  no_log: true
+
+- name: Clean up bootstrap helper script
+  ansible.builtin.file:
+    path: "{{ newapi_base_dir }}/bootstrap_newapi.py"
+    state: absent

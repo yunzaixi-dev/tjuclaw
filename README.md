@@ -60,10 +60,7 @@ rtk task dev
 ```
 
 产品 Web：`http://127.0.0.1:1420`；API：`http://127.0.0.1:8080/healthz`。
-文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3000`。
-竞赛演示稿先运行 `rtk task slides:install`，再用 `rtk task slides:dev` 在
-`http://127.0.0.1:3030` 预览；构建和 PDF 导出见
-[Slidev 说明](presentation/README.md)。
+文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3030`。
 `task dev` 不启动外部认证或任务执行基础设施。
 
 校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和

@@ -13,9 +13,11 @@
 
 .dark {
   --wiki-ink: #f1f3f0;
-  --wiki-paper: #0b0d0e;
-  --wiki-muted: #a5aaa6;
-  --wiki-line: #303533;
+  --wiki-paper: #0e1112;
+  --wiki-surface: #141819;
+  --wiki-surface-raised: #1a1f20;
+  --wiki-muted: #9ba19d;
+  --wiki-line: #262c2a;
   --wiki-accent: #ff6a55;
   color-scheme: dark;
 }
@@ -23,9 +25,11 @@
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
     --wiki-ink: #f1f3f0;
-    --wiki-paper: #0b0d0e;
-    --wiki-muted: #a5aaa6;
-    --wiki-line: #303533;
+    --wiki-paper: #0e1112;
+    --wiki-surface: #141819;
+    --wiki-surface-raised: #1a1f20;
+    --wiki-muted: #9ba19d;
+    --wiki-line: #262c2a;
     --wiki-accent: #ff6a55;
     color-scheme: dark;
   }
@@ -55,6 +59,8 @@ html > body[data-scroll-locked] {
 .docs-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; }
 .docs-brand img { width: 34px; height: 34px; border-radius: 10px; background: transparent; padding: 0; object-fit: contain; transform: scale(1.22); }
 .wiki-home {
+  position: relative;
+  isolation: isolate;
   color: var(--wiki-ink);
   background:
     linear-gradient(90deg, rgb(21 23 25 / 0.045) 1px, transparent 1px),
@@ -62,6 +68,18 @@ html > body[data-scroll-locked] {
     var(--wiki-paper);
   background-size: 44px 44px;
   min-height: calc(100dvh - 64px);
+}
+
+.dark .wiki-home,
+:root:not(.light) .wiki-home {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -15%, rgb(255 106 85 / 0.08), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 90% 30%, rgb(40 55 60 / 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(20, 24, 25, 0.75) 0%, rgba(14, 17, 18, 0.95) 100%),
+    linear-gradient(90deg, rgb(255 255 255 / 0.032) 1px, transparent 1px),
+    linear-gradient(rgb(255 255 255 / 0.032) 1px, transparent 1px),
+    var(--wiki-paper);
+  background-size: auto, auto, auto, 48px 48px, 48px 48px, auto;
 }
 
 .wiki-hero {
@@ -255,9 +273,39 @@ html > body[data-scroll-locked] {
   color: var(--wiki-paper);
 }
 
+.dark .wiki-primary {
+  color: #0e1112;
+  background: var(--wiki-ink);
+  border-color: var(--wiki-ink);
+}
+
+.dark .wiki-primary:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+.dark .wiki-secondary {
+  color: var(--wiki-ink);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dark .wiki-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.dark .wiki-chapter:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .dark .wiki-facts,
 :root:not(.light) .wiki-facts {
-  background: #151918;
+  background: rgba(18, 22, 24, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .wiki-facts div {

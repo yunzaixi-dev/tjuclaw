@@ -1,0 +1,77 @@
+---
+# Main tasks for newapi_stack role
+
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Ensure target directory structure exists (production)
+  ansible.builtin.file:
+    path: "{{ newapi_base_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0700"
+  when: not (newapi_simulate | bool)
+
+- name: Ensure target directory structure exists (simulation mode)
+  ansible.builtin.file:
+    path: "{{ newapi_base_dir }}"
+    state: directory
+    mode: "0700"
+  when: newapi_simulate | bool
+
+- name: Manage durable secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Render .env.db file with strict permissions
+  ansible.builtin.template:
+    src: env.db.j2
+    dest: "{{ newapi_base_dir }}/.env.db"
+    owner: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render .env.newapi file with strict permissions
+  ansible.builtin.template:
+    src: env.newapi.j2
+    dest: "{{ newapi_base_dir }}/.env.newapi"
+    owner: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render docker compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ newapi_base_dir }}/compose.yaml"
+    owner: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (newapi_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Execute compose deployment and health checks
+  when: not (newapi_simulate | bool)
+  block:
+    - name: Start PostgreSQL database service
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ newapi_project_name }}" -f "{{ newapi_base_dir }}/compose.yaml" up -d db
+      register: newapi_db_up
+      changed_when: "'Started' in (newapi_db_up.stdout + newapi_db_up.stderr) or 'Created' in (newapi_db_up.stdout + newapi_db_up.stderr)"
+
+    - name: Wait for PostgreSQL container to become healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format={% raw %}'{{.State.Health.Status}}'{% endraw %} "{{ newapi_project_name }}-db-1"
+      register: newapi_db_health
+      until: newapi_db_health.stdout | trim == 'healthy'
+      retries: 25
+      delay: 2
+      changed_when: false
+
+    - name: Start NewAPI application service
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ newapi_project_name }}" -f "{{ newapi_base_dir }}/compose.yaml" up -d app
+      register: newapi_app_up
+      changed_when: "'Started' in (newapi_app_up.stdout + newapi_app_up.stderr) or 'Created' in (newapi_app_up.stdout + newapi_app_up.stderr)"
+
+    - name: Run bootstrap and verification tasks
+      ansible.builtin.import_tasks: bootstrap.yml

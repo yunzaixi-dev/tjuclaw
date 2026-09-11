@@ -1,0 +1,8 @@
+---
+- name: Deploy tjuclaw-identity Kratos and PostgreSQL stack
+  hosts: all
+  gather_facts: false
+  serial: 1
+  become: "{{ identity_become | default(true) }}"
+  roles:
+    - role: identity_stack

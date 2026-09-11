@@ -62,24 +62,8 @@ tasks:
     desc: Test task workspace client behavior using isolated mocks
     cmds:
       - task --dir frontend workspace:test -- {{.CLI_ARGS}}
-  slides:install:
-    desc: Install the standalone presentation dependencies
-    dir: presentation
-    cmds: [pnpm install --frozen-lockfile]
-  slides:dev:
-    desc: Preview the Slidev presentation on loopback port 3030
-    dir: presentation
-    cmds: [pnpm run dev]
-  slides:build:
-    desc: Build the Slidev presentation
-    dir: presentation
-    cmds: [pnpm run build]
-  slides:export:
-    desc: Export presentation PDF (requires Playwright Chromium)
-    dir: presentation
-    cmds: [pnpm run export]
   docs:dev:
-    desc: Run Fumadocs on port 3030 with embedded Slidev on port 3031
+    desc: Run Fumadocs on port 3030
     cmds: [node scripts/docs-dev.mjs]
   audit:index:
     desc: Validate local screenshot descriptions and generate the private audit index
@@ -102,10 +86,8 @@ tasks:
     desc: Verify the local audit UI with existing private evidence (no product build)
     cmds: [pnpm exec playwright test --config scripts/audit.playwright.config.mjs]
   docs:build:
-    desc: Build documentation with the embedded presentation
+    desc: Build documentation
     cmds:
-      - task: slides:install
-      - pnpm --dir presentation exec slidev build --base /presentation/ --out ../docs/public/presentation
       - pnpm --filter @tjuclaw/docs build
   docs:serve:
     desc: Serve built documentation
@@ -118,9 +100,47 @@ tasks:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/discover.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i localhost, ops/ansible/playbooks/render-origin.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-api.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/prepare-services.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-identity.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi-origin.yml --syntax-check
   ops:test:
-    desc: Verify origin rendering and API deployment regressions locally
-    cmds: [node --test ops/ansible/tests/*.test.mjs]
+    desc: Verify origin, API deployment and identity secret preservation locally
+    cmds:
+      - node --test ops/ansible/tests/*.test.mjs
+      - python3 ops/ansible/tests/identity.py
+  ops:services:prepare:
+    desc: Install Compose and initialize the API environment on the configured host
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/prepare-services.yml
+  ops:identity:deploy:
+    desc: Deploy isolated Kratos and PostgreSQL (requires production SMTP configuration)
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-identity.yml
+  ops:newapi:deploy:
+    desc: Deploy and initialize the internal NewAPI model gateway
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi.yml
+  ops:newapi:origin:deploy:
+    desc: Deploy the dedicated NewAPI HTTPS origin (requires a provisioned TLS PEM)
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi-origin.yml
   ops:discover:
     desc: Read-only inventory of the explicitly configured origin host
     env:

@@ -83,3 +83,8 @@ local.properties
 # Tauri's icon generator also emits unused Apple assets.
 /frontend/src-tauri/icons/ios/
 /frontend/src-tauri/icons/icon.icns
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+.tef_dist/*
