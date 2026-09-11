@@ -7,6 +7,42 @@ const chapters = [
   ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/user/guide'],
 ];
 
+const platforms = [
+  {
+    name: 'Web 云端版',
+    tag: '无需安装 · 浏览器即用',
+    desc: '基于 EdgeOne 全球加速与 Kratos 会话管理，提供完整的任务工作空间。',
+    action: '立即访问',
+    href: 'https://tjuclaw.cloud',
+    external: true,
+    primary: true,
+  },
+  {
+    name: 'Windows 桌面端',
+    tag: 'x64 · 未签名 NSIS 安装包 (.exe)',
+    desc: '集成 WebView2 容器，原生支持系统托盘与本地沙箱持久化。',
+    action: '下载 EXE',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-windows-x64-setup.exe',
+    external: true,
+  },
+  {
+    name: 'Linux 桌面端',
+    tag: 'amd64 · Debian 软件包 (.deb)',
+    desc: '面向 Ubuntu / Debian 深度优化，支持 Wayland 与原生通知交互。',
+    action: '下载 DEB',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-linux-amd64.deb',
+    external: true,
+  },
+  {
+    name: 'Android 移动端',
+    tag: 'arm64 · 调试版安装包 (.apk)',
+    desc: '专为学生移动场景定制，支持课程资料即时调取与端上任务通知。',
+    action: '下载 APK',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-android-arm64-debug.apk',
+    external: true,
+  },
+];
+
 export default function HomePage() {
   return (
     <main className="wiki-home">
@@ -16,16 +52,39 @@ export default function HomePage() {
           <h1><span>面向天津大学校园场景优化的</span><span>通用智能体平台</span></h1>
           <p className="wiki-lead">参赛选手：TJUClaw 项目团队</p>
           <div className="wiki-actions">
-            <Link className="wiki-primary" href="/docs">进入工程 Wiki <span>→</span></Link>
+            <a className="wiki-primary" href="https://tjuclaw.cloud" target="_blank" rel="noreferrer">访问 Web 端 (tjuclaw.cloud) <span>↗</span></a>
+            <Link className="wiki-secondary" href="/docs">进入工程 Wiki <span>→</span></Link>
           </div>
         </div>
-        <div className="wiki-stack" aria-label="TJUClaw 平台能力层">
-          <div className="wiki-stack-heading"><span>PLATFORM / 2026</span><span>ONLINE MODEL</span></div>
-          <div className="wiki-layer" style={{ '--layer': 1 } as CSSProperties}><span className="wiki-layer-id">01</span><strong>校园场景</strong><span>天津大学</span></div>
-          <div className="wiki-layer" style={{ '--layer': 2 } as CSSProperties}><span className="wiki-layer-id">02</span><strong>通用智能体</strong><span>Pi + Skill</span></div>
-          <div className="wiki-layer" style={{ '--layer': 3 } as CSSProperties}><span className="wiki-layer-id">03</span><strong>跨平台云端</strong><span>Web / Native</span></div>
-          <div className="wiki-layer" style={{ '--layer': 4 } as CSSProperties}><span className="wiki-layer-id">04</span><strong>可验证结果</strong><span>Trace / Artifact</span></div>
-          <p className="wiki-pulse"><span /> SYSTEM READY · DOCUMENTATION BASELINE</p>
+      </section>
+
+      <section className="wiki-platforms" aria-label="支持的平台与客户端">
+        <div className="wiki-platforms-inner">
+          <div className="wiki-platforms-header">
+            <h2>全平台客户端与服务入口</h2>
+            <p>一套代码跨端覆盖，随时随地接入天津大学专属校园智能体平台。</p>
+          </div>
+          <div className="wiki-platforms-grid">
+            {platforms.map((p) => (
+              <div className={`wiki-platform-card ${p.primary ? 'is-primary' : ''}`} key={p.name}>
+                <div className="wiki-platform-top">
+                  <span className="wiki-platform-tag">{p.tag}</span>
+                  <h3>{p.name}</h3>
+                  <p>{p.desc}</p>
+                </div>
+                <div className="wiki-platform-bottom">
+                  <a
+                    className={`wiki-platform-btn ${p.primary ? 'is-btn-primary' : ''}`}
+                    href={p.href}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {p.action} <span>{p.external ? '↗' : '→'}</span>
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
