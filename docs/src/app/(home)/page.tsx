@@ -10,6 +10,8 @@ const chapters = [
 const repositories = [
   {
     name: 'tjuclaw',
+    status: '评审公开',
+    lang: 'TypeScript (Node >=22) · Next.js 16.3',
     scope: '工程集成 / 文档 / 云边运维',
     desc: '系统总体集成仓库，包含 Next.js 16 静态文档站、Ansible 部署声明与 Taskfile 统一指令。',
     path: '根目录 (Root)',
@@ -17,6 +19,8 @@ const repositories = [
   },
   {
     name: 'tjuclaw-client',
+    status: '完全开源',
+    lang: 'TypeScript · React 19.2 · Tauri v2 (Rust 1.97)',
     scope: '多端客户端 / 工作空间',
     desc: '基于 React 19 + Vite + Tauri 构建，覆盖 Web (EdgeOne)、Windows、Linux 与 Android。',
     path: 'frontend/',
@@ -24,13 +28,17 @@ const repositories = [
   },
   {
     name: 'tjuclaw-server',
+    status: '竞赛私有',
+    lang: 'Go 1.27.0',
     scope: '核心后端 API / 存储 / 认证网关',
-    desc: '基于 Go 1.22 构建，对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索。',
+    desc: '基于 Go 1.27 构建，对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索。',
     path: 'backend/',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-server',
   },
   {
     name: 'tjucli',
+    status: '竞赛私有',
+    lang: 'Go 1.27.0',
     scope: '校园能力 CLI / Tool Server',
     desc: '独立自包含的 Go 工具管道与标准服务，将真实校园服务抽象为智能体确定性执行指令。',
     path: 'cli/',
@@ -146,10 +154,12 @@ export default function HomePage() {
             >
               <div className="wiki-repo-top">
                 <span className="wiki-repo-path">{repo.path}</span>
+                <span className="wiki-repo-status">{repo.status}</span>
                 <span className="wiki-repo-arrow">↗</span>
               </div>
               <strong className="wiki-repo-name">{repo.name}</strong>
               <div className="wiki-repo-scope">{repo.scope}</div>
+              <div className="wiki-repo-lang">{repo.lang}</div>
               <p className="wiki-repo-desc">{repo.desc}</p>
             </a>
           ))}

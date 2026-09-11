@@ -605,7 +605,7 @@ html > body[data-scroll-locked] {
 .wiki-repo-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.85rem;
 }
 
@@ -618,9 +618,19 @@ html > body[data-scroll-locked] {
   border: 1px solid color-mix(in srgb, var(--wiki-accent) 25%, transparent);
 }
 
+.wiki-repo-status {
+  font: 600 0.7rem/1 var(--font-geist-mono), monospace;
+  color: var(--wiki-muted);
+  border: 1px solid var(--wiki-line);
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wiki-paper) 80%, transparent);
+}
+
 .wiki-repo-arrow {
   font-size: 1.1rem;
   color: var(--wiki-muted);
+  margin-left: auto;
   transition: transform 0.2s ease, color 0.2s ease;
 }
 
@@ -640,6 +650,12 @@ html > body[data-scroll-locked] {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--wiki-accent);
+  margin-bottom: 0.35rem;
+}
+
+.wiki-repo-lang {
+  font: 500 0.74rem/1.3 var(--font-geist-mono), monospace;
+  color: var(--wiki-muted);
   margin-bottom: 0.75rem;
 }
 

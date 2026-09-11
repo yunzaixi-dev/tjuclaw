@@ -33,12 +33,12 @@ TJUClaw 是由我个人独立设计并开发的天津大学专属通用智能体
 
 为保持系统高内聚、低耦合与长期独立演进，TJUClaw 采用多仓协同与 Git Submodule 依赖锁定的现代化架构：
 
-| 仓库名称 / 职责 | 技术栈与定位 | 源码链接与 Submodule 路径 |
-| :--- | :--- | :--- |
-| **集成总仓 (tjuclaw)** | **工程集成、文档站与云边运维**<br />Next.js 16 + Fumadocs、Ansible 部署规范、Taskfile 统一调度 | [github.com/yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw)（根目录） |
-| **客户端仓库 (tjuclaw-client)** | **多端原生客户端与 Web 工作空间**<br />React 19 + Vite + Tauri，构建 Web、Windows、Linux 与 Android | [github.com/yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)<br />对应路径：`frontend/` |
-| **服务端仓库 (tjuclaw-server)** | **核心业务 API、任务状态与安全网关**<br />Go 1.22、Ory Kratos 认证桥接、PostgreSQL、MeiliSearch 检索驱动 | [github.com/yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server)<br />对应路径：`backend/` |
-| **校园能力 CLI (tjucli)** | **确定性校园工具协议与 Tool Server**<br />Go CLI + Unix Pipeline，将课程平台、空闲教室等抽象为 Agent 标准工具 | [github.com/yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli)<br />对应路径：`cli/` |
+| 仓库名称 / 职责 | 开源状态 | 语言与核心工具链 | 定位与说明 | 源码链接与 Submodule 路径 |
+| :--- | :--- | :--- | :--- | :--- |
+| **集成总仓 (tjuclaw)** | 评审受控公开 | TypeScript / Node.js `>= 22`<br />Next.js 16.3 / Fumadocs | **工程集成、文档站与云边运维**<br />包含全局 Taskfile 调度、Ansible 部署声明与 EdgeOne 部署规范 | [github.com/yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw)<br />对应路径：根目录 (`.`) |
+| **客户端仓库 (tjuclaw-client)** | 完全开源 (Public) | TypeScript / React 19.2<br />Vite 6 / Tauri v2 (Rust 1.97) | **多端原生客户端与 Web 工作空间**<br />构建 Web (EdgeOne 加速)、Windows (`.exe`)、Linux (`.deb`) 与 Android (`.apk`) | [github.com/yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)<br />对应路径：`frontend/` |
+| **服务端仓库 (tjuclaw-server)** | 竞赛私有 (Private) | Go 1.27.0 | **核心业务 API、任务状态与安全网关**<br />对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索 | [github.com/yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server)<br />对应路径：`backend/` |
+| **校园能力 CLI (tjucli)** | 竞赛私有 (Private) | Go 1.27.0 | **确定性校园工具协议与 Tool Server**<br />自包含 Go CLI，将课程平台、空闲教室等抽象为 Agent 标准工具 | [github.com/yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli)<br />对应路径：`cli/` |
 
 ---
 
