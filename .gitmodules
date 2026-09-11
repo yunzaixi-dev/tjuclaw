@@ -7,3 +7,7 @@
 [submodule "cli"]
 	path = cli
 	url = https://github.com/yunzaixi-dev/tjucli.git
+[submodule "crawler"]
+	path = crawler
+	url = https://github.com/yunzaixi-dev/tjuclaw-crawler.git
+	branch = release

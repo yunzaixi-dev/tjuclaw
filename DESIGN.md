@@ -67,9 +67,9 @@ TJUClaw 是由我个人独立设计并开发的天津大学专属通用智能体
 - **权威存储中心化**：持久化数据交由专业存储基础设施（PostgreSQL、对象存储 COS、轻量向量库），实现系统的高可用与弹性伸缩。
 - **详细设计请阅读**：[极简架构与存算分离 (Storage & Compute)](https://tjuclaw.cloud/docs/storage-compute) 与 [系统总体架构 (Architecture)](https://tjuclaw.cloud/docs/architecture)
 
-### 3. 确定性沙箱与执行安全：对齐云原生官方标准
+### 3. 确定性沙箱与执行安全：腾讯云 Agent Sandbox
 大模型不可信，必须在确定性的安全轨道内行动。
-- **工业级标准沙箱**：基于 Kubernetes 官方 SIG 孵化的 [kubernetes-sigs/agent-sandbox](https://github.com/kubernetes-sigs/agent-sandbox) 规范设计执行隔离；
+- **工业级托管沙箱**：基于腾讯云 Agent Sandbox 提供微隔离、秒级启动、用完即毁的安全执行环境；
 - **身份永不裸露**：区分公开数据与私有鉴权，敏感认证依托 Ory Kratos 企业级同源 Cookie，绝不让大模型接触密码凭据。
 - **详细设计请阅读**：[确定性沙箱与执行安全 (Sandbox Security)](https://tjuclaw.cloud/docs/sandbox-security)
 
