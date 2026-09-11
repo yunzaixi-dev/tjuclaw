@@ -50,6 +50,9 @@ them in tool-specific files.
   `task crawler:import` explicitly imports synthetic fixtures; `task crawler:dev`
   starts the loopback RSS/replay service on 3031. `task crawler:check` and
   `task crawler:test` run in `task check`. Bun 1.3.14 is the CI runtime.
+  Runtime/import require `CRAWLER_DATABASE_URL` pointing to a dedicated PostgreSQL
+  database and account. Tests use `CRAWLER_TEST_DATABASE_URL` or an ephemeral Docker
+  PostgreSQL instance; never reuse identity databases or runtime credentials for tests.
   Crawler owns source events only; no user-private libraries or production deployment
   are implied. CI checks out its pinned SHA with a separate read-only deploy key.
 - Checks: `task check`

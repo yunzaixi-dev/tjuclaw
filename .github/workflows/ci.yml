@@ -58,7 +58,7 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
-          --health-cmd "pg_isready -U crawler_test -d crawler_test"
+          --health-cmd "pg_isready -h 127.0.0.1 -U crawler_test -d crawler_test"
           --health-interval 2s
           --health-timeout 5s
           --health-retries 20
@@ -76,7 +76,7 @@ jobs:
           profile: portable
       - name: Check all pinned components
         env:
-          CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports[5432] }}/crawler_test
+          CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports['5432'] }}/crawler_test
         run: task check
       - name: Go race regressions
         run: |

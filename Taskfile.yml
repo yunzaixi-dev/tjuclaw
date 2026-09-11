@@ -210,7 +210,7 @@ tasks:
     dir: crawler
     cmds: [bun run dev]
   crawler:import:
-    desc: Import fixture intelligence events into crawler database
+    desc: Import synthetic events into the configured crawler PostgreSQL database
     dir: crawler
     cmds: [bun run fixture:import]
   crawler:check:
@@ -218,9 +218,9 @@ tasks:
     dir: crawler
     cmds: [bun run check]
   crawler:test:
-    desc: Run crawler test suite with Bun
+    desc: Run crawler regressions against isolated PostgreSQL (Docker or explicit test URL)
     dir: crawler
-    cmds: [bun test]
+    cmds: [bun run test:integration]
   api:test:
     desc: Run Go tests
     dir: backend
