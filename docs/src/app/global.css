@@ -557,6 +557,100 @@ html > body[data-scroll-locked] {
   font-size: 1.4rem;
 }
 
+/* Repositories Matrix Section */
+.wiki-repos {
+  border-top: 1px solid var(--wiki-line);
+  padding: clamp(3.5rem, 6vw, 6rem) clamp(1.25rem, 5vw, 5rem);
+  background: color-mix(in srgb, var(--wiki-paper) 97%, var(--wiki-ink));
+}
+
+.dark .wiki-repos,
+:root:not(.light) .wiki-repos {
+  background: rgba(14, 18, 19, 0.45);
+}
+
+.wiki-repos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  max-width: 1380px;
+  margin: 2.5rem auto 0;
+}
+
+.wiki-repo-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--wiki-line);
+  background: var(--wiki-card-bg);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.wiki-repo-card:hover {
+  border-color: var(--wiki-accent);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -10px rgba(0, 51, 102, 0.15);
+}
+
+.dark .wiki-repo-card:hover,
+:root:not(.light) .wiki-repo-card:hover {
+  box-shadow: 0 12px 28px -10px rgba(51, 136, 255, 0.22);
+}
+
+.wiki-repo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.wiki-repo-path {
+  font: 600 0.72rem/1 var(--font-geist-mono), monospace;
+  color: var(--wiki-accent);
+  background: color-mix(in srgb, var(--wiki-accent) 12%, transparent);
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--wiki-accent) 25%, transparent);
+}
+
+.wiki-repo-arrow {
+  font-size: 1.1rem;
+  color: var(--wiki-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.wiki-repo-card:hover .wiki-repo-arrow {
+  color: var(--wiki-accent);
+  transform: translate(2px, -2px);
+}
+
+.wiki-repo-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.wiki-repo-scope {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--wiki-accent);
+  margin-bottom: 0.75rem;
+}
+
+.wiki-repo-desc {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--wiki-muted);
+  margin: 0;
+  flex: 1;
+}
+
 @keyframes wiki-rise {
   from {
     opacity: 0;

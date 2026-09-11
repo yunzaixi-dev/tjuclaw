@@ -7,6 +7,37 @@ const chapters = [
   ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/guide'],
 ];
 
+const repositories = [
+  {
+    name: 'tjuclaw',
+    scope: '工程集成 / 文档 / 云边运维',
+    desc: '系统总体集成仓库，包含 Next.js 16 静态文档站、Ansible 部署声明与 Taskfile 统一指令。',
+    path: '根目录 (Root)',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw',
+  },
+  {
+    name: 'tjuclaw-client',
+    scope: '多端客户端 / 工作空间',
+    desc: '基于 React 19 + Vite + Tauri 构建，覆盖 Web (EdgeOne)、Windows、Linux 与 Android。',
+    path: 'frontend/',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-client',
+  },
+  {
+    name: 'tjuclaw-server',
+    scope: '核心后端 API / 存储 / 认证网关',
+    desc: '基于 Go 1.22 构建，对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索。',
+    path: 'backend/',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-server',
+  },
+  {
+    name: 'tjucli',
+    scope: '校园能力 CLI / Tool Server',
+    desc: '独立自包含的 Go 工具管道与标准服务，将真实校园服务抽象为智能体确定性执行指令。',
+    path: 'cli/',
+    href: 'https://github.com/yunzaixi-dev/tjucli',
+  },
+];
+
 const platforms = [
   {
     name: 'Web 云端版',
@@ -97,6 +128,32 @@ export default function HomePage() {
       <section className="wiki-chapters">
         <div className="wiki-section-title"><h2>认识 TJUClaw。</h2><p>这里介绍产品定位、核心能力、使用方式与参赛信息，帮助评审和校园用户快速理解这套平台能解决什么问题。</p></div>
         {chapters.map(([id, title, description, href]) => <Link className="wiki-chapter" href={href} key={id}><span>{id}</span><strong>{title}</strong><p>{description}</p><b>→</b></Link>)}
+      </section>
+
+      <section className="wiki-repos" aria-label="开源代码仓库划分">
+        <div className="wiki-section-title">
+          <h2>开源代码矩阵与模块划分。</h2>
+          <p>TJUClaw 采用高内聚、低耦合的多仓协同架构，各模块权责清晰、独立演进。</p>
+        </div>
+        <div className="wiki-repos-grid">
+          {repositories.map((repo) => (
+            <a
+              key={repo.name}
+              className="wiki-repo-card"
+              href={repo.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <div className="wiki-repo-top">
+                <span className="wiki-repo-path">{repo.path}</span>
+                <span className="wiki-repo-arrow">↗</span>
+              </div>
+              <strong className="wiki-repo-name">{repo.name}</strong>
+              <div className="wiki-repo-scope">{repo.scope}</div>
+              <p className="wiki-repo-desc">{repo.desc}</p>
+            </a>
+          ))}
+        </div>
       </section>
     </main>
   );

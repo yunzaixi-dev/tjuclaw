@@ -29,6 +29,19 @@ TJUClaw 是由我个人独立设计并开发的天津大学专属通用智能体
 
 ---
 
+## 代码仓库划分与开源矩阵 (Repositories)
+
+为保持系统高内聚、低耦合与长期独立演进，TJUClaw 采用多仓协同与 Git Submodule 依赖锁定的现代化架构：
+
+| 仓库名称 / 职责 | 技术栈与定位 | 源码链接与 Submodule 路径 |
+| :--- | :--- | :--- |
+| **集成总仓 (tjuclaw)** | **工程集成、文档站与云边运维**<br />Next.js 16 + Fumadocs、Ansible 部署规范、Taskfile 统一调度 | [github.com/yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw)（根目录） |
+| **客户端仓库 (tjuclaw-client)** | **多端原生客户端与 Web 工作空间**<br />React 19 + Vite + Tauri，构建 Web、Windows、Linux 与 Android | [github.com/yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)<br />对应路径：`frontend/` |
+| **服务端仓库 (tjuclaw-server)** | **核心业务 API、任务状态与安全网关**<br />Go 1.22、Ory Kratos 认证桥接、PostgreSQL、MeiliSearch 检索驱动 | [github.com/yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server)<br />对应路径：`backend/` |
+| **校园能力 CLI (tjucli)** | **确定性校园工具协议与 Tool Server**<br />Go CLI + Unix Pipeline，将课程平台、空闲教室等抽象为 Agent 标准工具 | [github.com/yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli)<br />对应路径：`cli/` |
+
+---
+
 ## 传承与反思：从微北洋移动端与云原生运维到 Agent-Native
 
 在动手构建 TJUClaw 之前，我曾参与过微北洋（WePeiyang）移动端的研发，并在后续个人网站与独立项目的建设中积累了大量的后端研发与 Kubernetes 集群容器化的经验。
