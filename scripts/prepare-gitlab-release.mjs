@@ -64,7 +64,7 @@ export async function prepareRelease(env = process.env) {
   if (!env.GITLAB_RELEASE_TOKEN || !env.GITHUB_TOKEN) throw new Error('Missing publication credentials');
   await requirePassingIntegration(ref, env.GITHUB_TOKEN);
   const components = {};
-  for (const path of ['frontend', 'backend', 'cli']) {
+  for (const path of ['frontend', 'backend', 'cli', 'crawler']) {
     const entry = git('ls-tree', ref, path).split(/\s+/);
     if (entry[0] !== '160000') throw new Error('Missing component gitlink');
     const sha = validateSha(entry[2]);
@@ -121,7 +121,7 @@ export async function prepareRelease(env = process.env) {
   files.push({ name: 'SHA256SUMS.txt', path: sumsPath, sha256: createHash('sha256').update(sums).digest('hex') });
   const manifestPath = join(directory, 'release-manifest.json');
   await writeFile(manifestPath, JSON.stringify({ version, tag: `v${version}`, ref, client_sha: clientSha, files,
-    description: `开发验证版 ${version}。Windows 安装程序未签名，Android 为 arm64 调试包；尚未验收真机安装及登录。\n\nGitHub 集成提交：${ref}\n客户端提交：${clientSha}\n\n源码快照包含客户端、服务端、CLI/Skill 与集成材料，无需访问私有 GitHub 子仓库。请核对 SHA256SUMS.txt。\n\n文件实际存储于 GitLab；比赛下载计数的具体口径尚未核实。` }, null, 2));
+    description: `开发验证版 ${version}。Windows 安装程序未签名，Android 为 arm64 调试包；尚未验收真机安装及登录。\n\nGitHub 集成提交：${ref}\n客户端提交：${clientSha}\n\n源码快照包含客户端、服务端、CLI/Skill、RSS 采集服务与集成材料，无需访问私有 GitHub 子仓库。请核对 SHA256SUMS.txt。\n\n文件实际存储于 GitLab；比赛下载计数的具体口径尚未核实。` }, null, 2));
   if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, `manifest=${manifestPath}\n`);
   return manifestPath;
 }

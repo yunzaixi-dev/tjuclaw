@@ -9,6 +9,7 @@ GitHub 是唯一开发主平台。GitLab 比赛项目接收单向源码镜像、
 仓库 Actions 白名单须包含所有使用的固定动作 SHA。新增的部署动作是
 `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093`，集成运维检查还使用
 `astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d`。
+Bun 1.3.14 安装使用 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6`，同样须加入白名单。
 本地 actionlint 不会检查 GitHub 服务端白名单；遗漏时即使部署任务在 dev 上跳过，整个工作流也会启动失败。
 
 ## 仓库职责
@@ -19,14 +20,15 @@ GitHub 是唯一开发主平台。GitLab 比赛项目接收单向源码镜像、
 | `yunzaixi-dev/tjuclaw-client` | Public | React/Tauri、UI/工作区回归、Web/Linux/Windows/Android 构建 |
 | `yunzaixi-dev/tjuclaw-server` | Private | Go API、静态检查、race tests 和 API 构建 |
 | `yunzaixi-dev/tjucli` | Private（暂定） | 校园 CLI、Skill、独立检查与构建 |
+| `yunzaixi-dev/tjuclaw-crawler` | Private | Bun RSS、SQLite 更新回放、独立检查；集成锁定 `crawler/` SHA |
 
 客户端和集成仓库分别使用自己的 pnpm workspace/lockfile，服务端与 CLI 使用独立
-Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链或自管 Runner。
+Go module；crawler 使用独立 Bun 依赖和 `bun.lock`。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链或自管 Runner。
 
 ## 开发与组合检查
 
 1. 在组件仓库实现并提交修改，通过该仓库 CI 后推送可访问的提交。
-2. 在集成仓库更新 `frontend/`、`backend/` 或 `cli/` 的 submodule SHA，并逐路径暂存。
+2. 在集成仓库更新 `frontend/`、`backend/`、`cli/` 或 `crawler/` 的 submodule SHA，并逐路径暂存。
 3. 运行 `task check` 和需要的组合回归。真实认证使用 `task auth:test`，不使用 mock 替代。
 4. 合并或直接在 GitHub release 迭代（集成与生产部署基于 release，dev 保留备用）。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab release。
 
@@ -81,7 +83,7 @@ Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` �
 
 | 所在仓库 | Secret | 权限与用途 |
 | --- | --- | --- |
-| 私有集成 | `SERVER_READ_KEY`、`CLI_READ_KEY` | 分别只能读取一个私有组件 |
+| 私有集成 | `SERVER_READ_KEY`、`CLI_READ_KEY`、`CRAWLER_READ_KEY` | 分别只能读取一个私有组件 |
 | 私有集成 | `GITLAB_SYNC_TOKEN` | 仅比赛项目的源码推送权限 |
 | 私有集成 | `GITLAB_STATUS_TOKEN` | 仅比赛项目的外部 CI 状态回写 |
 | 私有集成 | `GITLAB_RELEASE_TOKEN` | 仅比赛项目的包与 Release API |

@@ -7,6 +7,9 @@ inputs:
   cli-key:
     description: Read-only deploy key for the CLI repository
     required: true
+  crawler-key:
+    description: Read-only deploy key for the crawler repository
+    required: true
 runs:
   using: composite
   steps:
@@ -14,7 +17,7 @@ runs:
       id: refs
       shell: bash
       run: |
-        for component in frontend backend cli; do
+        for component in frontend backend cli crawler; do
           entry=$(git ls-tree HEAD "$component")
           test "$(printf '%s' "$entry" | awk '{print $1}')" = 160000
           sha=$(printf '%s' "$entry" | awk '{print $3}')
@@ -42,4 +45,12 @@ runs:
         ref: ${{ steps.refs.outputs.cli }}
         path: cli
         ssh-key: ${{ inputs.cli-key }}
+        persist-credentials: false
+    - name: Checkout private crawler
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: yunzaixi-dev/tjuclaw-crawler
+        ref: ${{ steps.refs.outputs.crawler }}
+        path: crawler
+        ssh-key: ${{ inputs.crawler-key }}
         persist-credentials: false

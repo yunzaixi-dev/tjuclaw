@@ -17,7 +17,8 @@ them in tool-specific files.
   `wiki.tjuclaw.cloud` is retained as a compatible Docs address.
 - Private integration repository: `tjuclaw`. Pinned Git submodules: `frontend/`
   (`tjuclaw-client`, public), `backend/` (`tjuclaw-server`, private), `cli/`
-  (`tjucli`, private for now). Operations remain in `ops/`.
+  (`tjucli`, private for now), `crawler/` (`tjuclaw-crawler`, private).
+  Operations remain in `ops/`.
 - Each component owns its dependencies, lockfile, version metadata and CI.
   Root pnpm workspace contains documentation; the client is independent.
 - Product CLI instructions: `cli/skills/tjucli/`; these must be explicitly loaded
@@ -45,6 +46,12 @@ them in tool-specific files.
 - Campus tools: `task cli:build` builds `cli/bin/tjucli` and `cli/bin/tjucli-server`;
   `task cli:test` tests all CLI/service packages. `task cli:server:dev` requires
   `TJUCLI_GRANTS_FILE`; see `cli/TOOL_SERVER.md`. Current provider scope remains public courses.
+- RSS feeds: `task crawler:setup` installs locked Bun dependencies;
+  `task crawler:import` explicitly imports synthetic fixtures; `task crawler:dev`
+  starts the loopback RSS/replay service on 3031. `task crawler:check` and
+  `task crawler:test` run in `task check`. Bun 1.3.14 is the CI runtime.
+  Crawler owns source events only; no user-private libraries or production deployment
+  are implied. CI checks out its pinned SHA with a separate read-only deploy key.
 - Checks: `task check`
 - Portable build: `task build`
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`

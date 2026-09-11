@@ -35,15 +35,16 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 | `frontend/src-tauri/` | Tauri 原生宿主、权限与打包配置 |
 | `backend/cmd/api/` | 私有服务端子仓库：Go API 入口及测试 |
 | `cli/` | 校园 CLI、内部工具 HTTP 服务与 `skills/tjucli/` |
+| `crawler/` | 私有 Bun RSS 与持久更新回放子仓库，当前使用合成来源 |
 | `docs/` | 文档站源码与经审核的站点内容 |
 | `ops/images/`、`ops/runbooks/` | 容器定义与开发 / CI 操作说明 |
 | `scripts/`、`.githooks/` | 仓库检查与 Git hooks |
 | `Taskfile.yml` | 开发命令统一入口 |
 | `compose.yaml`、`.gitlab-ci.yml` | 本地容器与跨平台构建编排 |
 
-`frontend/`、`backend/`、`cli/` 分别锁定独立仓库的提交；组件版本与依赖各自管理。
+`frontend/`、`backend/`、`cli/`、`crawler/` 分别锁定独立仓库的提交；组件版本与依赖各自管理。
 客户端源码位于 [tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)。
-服务端与 CLI 当前为私有仓库，需要相应访问权限。
+服务端、CLI 与 [tjuclaw-crawler](https://github.com/yunzaixi-dev/tjuclaw-crawler) 当前为私有仓库，需要相应访问权限。
 
 ```bash
 rtk git clone --recurse-submodules https://github.com/yunzaixi-dev/tjuclaw.git
@@ -55,7 +56,7 @@ rtk git submodule update --init --recursive
 
 ## 开始开发
 
-安装 Node、pnpm、Task、Go；原生开发还需要 Rust 和平台 SDK。
+安装 Node、pnpm、Bun 1.3.14、Task、Go；原生开发还需要 Rust 和平台 SDK。
 具体版本与平台依赖见 [开发与 CI 手册](ops/runbooks/development.md)。
 在仓库根目录运行，以下示例使用 RTK：
 
@@ -75,6 +76,11 @@ rtk task dev
 [tjucli 说明](cli/TJUCLI.md)。配置受限授权文件后可用 `rtk task cli:server:dev`
 启动本地工具服务，协议与凭据边界见 [工具服务说明](cli/TOOL_SERVER.md)。
 这一服务不代表产品 Pi 或云沙箱执行已经接通。
+
+RSS 子模块使用 `rtk task crawler:setup` 安装锁定依赖，`rtk task crawler:import`
+显式导入合成示例，`rtk task crawler:dev` 在本机 3031 端口启动服务。
+`rtk task crawler:check` 和 `rtk task crawler:test` 已纳入 `task check`；
+订阅与回放协议见 [crawler README](crawler/README.md)。默认 `task dev` 不启动该服务。
 
 ## 检查与构建
 

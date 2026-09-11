@@ -12,6 +12,7 @@ tasks:
     cmds:
       - pnpm install --frozen-lockfile
       - pnpm --dir frontend install --frozen-lockfile
+      - (cd crawler && bun install --frozen-lockfile)
       - pnpm git:setup
   doctor:
     desc: Check common development tools
@@ -200,6 +201,26 @@ tasks:
     desc: Check the independent CLI module
     dir: cli
     cmds: [go vet ./...]
+  crawler:setup:
+    desc: Install locked crawler dependencies with Bun
+    dir: crawler
+    cmds: [bun install --frozen-lockfile]
+  crawler:dev:
+    desc: Run Bun crawler feed service in watch mode
+    dir: crawler
+    cmds: [bun run dev]
+  crawler:import:
+    desc: Import fixture intelligence events into crawler SQLite database
+    dir: crawler
+    cmds: [bun run fixture:import]
+  crawler:check:
+    desc: Typecheck crawler module
+    dir: crawler
+    cmds: [bun run check]
+  crawler:test:
+    desc: Run crawler test suite with Bun
+    dir: crawler
+    cmds: [bun test]
   api:test:
     desc: Run Go tests
     dir: backend
@@ -218,6 +239,7 @@ tasks:
       - pnpm lint
       - task: api:lint
       - task: cli:lint
+      - task: crawler:check
   types:
     desc: Check client and docs types
     cmds: [pnpm types:check]
@@ -229,6 +251,7 @@ tasks:
       - task: audit:test
       - task: api:test
       - task: cli:test
+      - task: crawler:test
       - go test ops/auth/mail_test.go
   check:
     desc: Run portable checks (no native SDK needed)
