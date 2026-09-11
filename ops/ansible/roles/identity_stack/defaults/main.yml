@@ -3,7 +3,7 @@
 
 identity_base_dir: /opt/tjuclaw-identity
 identity_project_name: tjuclaw-identity
-identity_app_url: https://tjuclaw.cloud
+identity_app_url: https://app.tjuclaw.cloud
 identity_smtp_env_file: /etc/tjuclaw-identity-smtp.env
 identity_listen_addr: "127.0.0.1:4433"
 identity_admin_listen_addr: "127.0.0.1:4434"

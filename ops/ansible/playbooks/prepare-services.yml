@@ -35,5 +35,5 @@
         mode: '0600'
         force: false
         content: |
-          APP_PUBLIC_URL=https://tjuclaw.cloud
+          APP_PUBLIC_URL=https://app.tjuclaw.cloud
           KRATOS_PUBLIC_URL=http://127.0.0.1:4433

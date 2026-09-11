@@ -91,6 +91,72 @@ test('newapi_origin role configuration template and preflight assertions', () =>
     const corruptRes = run({ ...variables, newapi_origin_tls_pem: corruptPem });
     assert.notEqual(corruptRes.status, 0);
 
+    // 5. Auth origin disabled by default; when enabled without auth SAN in cert, preflight fails closed
+    const authFailRes = run({ ...variables, newapi_origin_auth_enabled: true });
+    assert.notEqual(authFailRes.status, 0);
+    assert.match(authFailRes.stdout + authFailRes.stderr, /does not match auth hostname/);
+
+    // 6. When cert includes both newapi and auth SANs, auth origin enabled succeeds
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${directory}/multi-key.pem" -out "${directory}/multi-cert.pem" -days 1 -nodes -subj "/CN=newapi.tjuclaw.cloud" -addext "subjectAltName=DNS:newapi.tjuclaw.cloud,DNS:auth.tjuclaw.cloud" 2>/dev/null`);
+    const multiCertData = readFileSync(join(directory, 'multi-cert.pem'), 'utf8');
+    const multiKeyData = readFileSync(join(directory, 'multi-key.pem'), 'utf8');
+    const multiCertPath = join(directory, 'multi-tls.pem');
+    writeFileSync(multiCertPath, multiCertData + '\n' + multiKeyData, { mode: 0o600 });
+
+    const authSuccessRes = run({
+      ...variables,
+      newapi_origin_tls_pem: multiCertPath,
+      newapi_origin_auth_enabled: true,
+      newapi_origin_auth_hostname: 'auth.tjuclaw.cloud',
+      newapi_origin_auth_backend_address: '127.0.0.1',
+      newapi_origin_auth_backend_port: 18080,
+      newapi_origin_auth_redirect_target: 'https://app.tjuclaw.cloud/auth/login',
+    });
+    assert.equal(authSuccessRes.status, 0, authSuccessRes.stdout + authSuccessRes.stderr);
+
+    const authHaproxyCfg = readFileSync(configFile, 'utf8');
+    assert.match(authHaproxyCfg, /acl is_newapi_host hdr\(host\) -i newapi\.tjuclaw\.cloud/);
+    assert.match(authHaproxyCfg, /acl is_auth_host hdr\(host\) -i auth\.tjuclaw\.cloud/);
+    assert.match(authHaproxyCfg, /http-request set-log-level silent if is_auth_host/);
+    assert.match(authHaproxyCfg, /http-request deny deny_status 404 unless is_newapi_host or is_auth_host/);
+    assert.match(authHaproxyCfg, /http-request redirect location https:\/\/app\.tjuclaw\.cloud\/auth\/login code 302 if is_auth_host is_root/);
+    assert.match(authHaproxyCfg, /acl is_api_exact path -m str \/api/);
+    assert.match(authHaproxyCfg, /acl is_api_prefix path_beg \/api\//);
+    assert.match(authHaproxyCfg, /http-request deny deny_status 404 if is_auth_host !is_api_exact !is_api_prefix/);
+    assert.match(authHaproxyCfg, /http-request set-path %\[path,regsub\(\^\/api,\)\] if is_auth_host is_api_prefix/);
+    assert.match(authHaproxyCfg, /http-request set-path \/ if is_auth_host is_api_exact/);
+    assert.match(authHaproxyCfg, /use_backend auth_backend if is_auth_host/);
+    assert.match(authHaproxyCfg, /backend auth_backend/);
+    assert.match(authHaproxyCfg, /server auth_app 127\.0\.0\.1:18080 check/);
+
+    // Verify ordering: silent log level MUST precede deny/redirect rules to prevent logging leaks on early-exit
+    const silentIndex = authHaproxyCfg.indexOf('http-request set-log-level silent if is_auth_host');
+    const denyIndex = authHaproxyCfg.indexOf('http-request deny deny_status 404 unless is_newapi_host or is_auth_host');
+    const redirectIndex = authHaproxyCfg.indexOf('http-request redirect location');
+    assert.ok(silentIndex !== -1, 'silent log level rule present');
+    assert.ok(silentIndex < denyIndex, 'silent log level must be evaluated before host deny rule');
+    assert.ok(silentIndex < redirectIndex, 'silent log level must be evaluated before redirect rule');
+
+    // 7. Suffix attack resistance: cert with suffix attack domain fails checkhost preflight
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${directory}/evil-key.pem" -out "${directory}/evil-cert.pem" -days 1 -nodes -subj "/CN=newapi.tjuclaw.cloud" -addext "subjectAltName=DNS:newapi.tjuclaw.cloud,DNS:auth.tjuclaw.cloud.evil" 2>/dev/null`);
+    const evilCertData = readFileSync(join(directory, 'evil-cert.pem'), 'utf8');
+    const evilKeyData = readFileSync(join(directory, 'evil-key.pem'), 'utf8');
+    const evilCertPath = join(directory, 'evil-tls.pem');
+    writeFileSync(evilCertPath, evilCertData + '\n' + evilKeyData, { mode: 0o600 });
+
+    const evilSuffixRes = run({
+      ...variables,
+      newapi_origin_tls_pem: evilCertPath,
+      newapi_origin_auth_enabled: true,
+      newapi_origin_auth_hostname: 'auth.tjuclaw.cloud',
+    });
+    assert.notEqual(evilSuffixRes.status, 0);
+    assert.match(evilSuffixRes.stdout + evilSuffixRes.stderr, /does not match auth hostname auth\.tjuclaw\.cloud/);
+
+    // Also test haproxy ACL host matching: hdr(host) -i does exact token matching and does not match suffix domain
+    // Verify in HAProxy config: hdr(host) -i is used (exact match in haproxy), not hdr_end or regex
+    assert.match(authHaproxyCfg, /acl is_auth_host hdr\(host\) -i auth\.tjuclaw\.cloud auth\.tjuclaw\.cloud:443 auth\.tjuclaw\.cloud:8443/);
+
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

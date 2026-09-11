@@ -16,6 +16,13 @@ newapi_origin_config_dir: "/etc/tjuclaw-newapi-origin"
 newapi_origin_config_file: "/etc/tjuclaw-newapi-origin/haproxy.cfg"
 newapi_origin_unit_file: "/etc/systemd/system/{{ newapi_origin_service_name }}.service"
 
+# Optional authentication API origin routing (disabled by default)
+newapi_origin_auth_enabled: false
+newapi_origin_auth_hostname: "auth.tjuclaw.cloud"
+newapi_origin_auth_backend_address: "127.0.0.1"
+newapi_origin_auth_backend_port: 18080
+newapi_origin_auth_redirect_target: "https://app.tjuclaw.cloud/auth/login"
+
 # Memory limit for systemd unit
 newapi_origin_memory_limit: "96M"
 

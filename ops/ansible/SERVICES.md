@@ -86,6 +86,30 @@ for this administration/API host. Keep public registration disabled and verify
 actual HTTPS login after certificate deployment and DNS propagation. No default
 administrator credentials or public DNS changes are performed by this role.
 
+### Optional authentication API origin routing
+
+When `newapi_origin_auth_enabled` is set to `true`, the dedicated HAProxy 8443 listener
+multiplexes incoming requests between NewAPI (`newapi_origin_hostname`, e.g. `newapi.tjuclaw.cloud`)
+and the product authentication API (`newapi_origin_auth_hostname`, e.g. `auth.tjuclaw.cloud`):
+
+- **Certificate requirement (dual SANs)**: The single TLS bundle specified by `newapi_origin_tls_pem`
+  (default `/etc/tjuclaw-newapi-origin/tls.pem`) must cover **both** `newapi_origin_hostname`
+  and `newapi_origin_auth_hostname` (via Subject Alternative Names, or Common Name if SAN is absent).
+  Preflight uses `openssl x509 -checkhost` to verify both hostnames against the PEM bundle and
+  fails closed if either hostname does not strictly match. Wildcard or multi-domain SAN certificates
+  are verified strictly against each target FQDN.
+- **Routing & Path rewrite**: Requests matching `newapi_origin_auth_hostname` have exact path `/`
+  redirected via 302 to `newapi_origin_auth_redirect_target` (default `https://app.tjuclaw.cloud/auth/login`).
+  API requests starting with `/api` or `/api/` are stripped of the `/api` prefix (rewritten to `/`
+  or `/...`) and forwarded to `auth_backend` (`127.0.0.1:18080`). Requests to other paths are denied
+  with HTTP 404.
+- **Privacy & security rule ordering**: `http-request set-log-level silent if is_auth_host` is
+  evaluated immediately upon host identification, **before** any authorization, routing, path rewrite,
+  or host deny/redirect rules. This ensures sensitive query parameters, tokens, or credentials on
+  auth endpoints are never emitted to HAProxy logs even during early-exit rejections.
+- **Strict host ACLs**: HAProxy uses exact host token matching (`hdr(host) -i <hostname>`),
+  preventing domain suffix collision attacks (e.g. `auth.tjuclaw.cloud.evil`).
+
 ## Validation boundaries
 
 `task ops:test` checks local deployment contracts, including identity secret

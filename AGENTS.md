@@ -10,6 +10,11 @@ them in tool-specific files.
 - Documentation: Next.js 16 with Fumadocs.
 - Package manager: pnpm.
 - Documentation app: `docs/`; content: `docs/content/docs/`; source: `docs/src/`.
+- Public entry points: `https://tjuclaw.cloud` serves the existing Docs homepage,
+  documentation and downloads; `https://app.tjuclaw.cloud` serves the product Web app.
+  Keep Docs and client deployments independent. Browser authentication stays under
+  `https://app.tjuclaw.cloud/api/*`; `auth.tjuclaw.cloud` remains the API origin.
+  `wiki.tjuclaw.cloud` is retained as a compatible Docs address.
 - Private integration repository: `tjuclaw`. Pinned Git submodules: `frontend/`
   (`tjuclaw-client`, public), `backend/` (`tjuclaw-server`, private), `cli/`
   (`tjucli`, private for now). Operations remain in `ops/`.

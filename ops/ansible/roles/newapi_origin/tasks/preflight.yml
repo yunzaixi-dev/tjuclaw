@@ -27,6 +27,18 @@
       - (newapi_origin_unit_file | string) is match('^/[a-zA-Z0-9_.-]+(/.*)?$')
     fail_msg: "Invalid configuration variables for newapi_origin role."
 
+- name: Validate optional auth configuration variables
+  ansible.builtin.assert:
+    that:
+      - (newapi_origin_auth_hostname | length) > 0
+      - (newapi_origin_auth_hostname | string) is match('^[a-zA-Z0-9.-]+$')
+      - (newapi_origin_auth_backend_address | length) > 0
+      - (newapi_origin_auth_backend_port | int) > 0
+      - (newapi_origin_auth_backend_port | int) < 65536
+      - (newapi_origin_auth_redirect_target | length) > 0
+    fail_msg: "Invalid auth configuration variables for newapi_origin role."
+  when: newapi_origin_auth_enabled | bool
+
 - name: Check target TLS PEM file existence
   ansible.builtin.stat:
     path: "{{ newapi_origin_tls_pem }}"
@@ -63,3 +75,51 @@
       - -noout
   changed_when: false
   register: newapi_origin_pkey_check
+
+- name: Validate certificate matches origin hostname with openssl checkhost
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ newapi_origin_tls_pem }}"
+      - -noout
+      - -checkhost
+      - "{{ newapi_origin_hostname }}"
+  changed_when: false
+  failed_when: false
+  register: newapi_origin_checkhost_origin
+
+- name: Assert certificate matches origin hostname
+  ansible.builtin.assert:
+    that:
+      - newapi_origin_checkhost_origin.rc == 0
+      - "'does match certificate' in newapi_origin_checkhost_origin.stdout"
+    fail_msg: >-
+      TLS certificate {{ newapi_origin_tls_pem }} does not match hostname {{ newapi_origin_hostname }}.
+      Certificate must match the configured origin hostname.
+
+- name: Validate certificate matches auth hostname with openssl checkhost when auth routing is enabled
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ newapi_origin_tls_pem }}"
+      - -noout
+      - -checkhost
+      - "{{ newapi_origin_auth_hostname }}"
+  changed_when: false
+  failed_when: false
+  register: newapi_origin_checkhost_auth
+  when: newapi_origin_auth_enabled | bool
+
+- name: Assert certificate matches auth hostname when auth routing is enabled
+  ansible.builtin.assert:
+    that:
+      - newapi_origin_checkhost_auth.rc == 0
+      - "'does match certificate' in newapi_origin_checkhost_auth.stdout"
+    fail_msg: >-
+      TLS certificate {{ newapi_origin_tls_pem }} does not match auth hostname {{ newapi_origin_auth_hostname }}.
+      A valid TLS certificate covering {{ newapi_origin_auth_hostname }} must be provisioned before enabling auth routing.
+  when: newapi_origin_auth_enabled | bool

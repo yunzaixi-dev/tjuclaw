@@ -1,5 +1,16 @@
 # Kratos Email Authentication
 
+## Deployed domain layout
+
+The public homepage, documentation and downloads use `https://tjuclaw.cloud`.
+The product browser origin is `https://app.tjuclaw.cloud`; all browser authentication
+requests stay under its `/api/*` path. `auth.tjuclaw.cloud` is the upstream gateway.
+Set production `APP_PUBLIC_URL` and Ansible `identity_app_url` to the app origin.
+Kratos configuration and its `.env.kratos` URL overrides must agree; changing the
+environment requires recreating the Kratos container, not just restarting it.
+Preserve database volumes, identity schemas, cookie/cipher secrets and host-only cookies.
+The policy examples below remain examples for the separately named reference domain.
+
 ## Scope
 
 Email one-time-code login and registration only. Registration verifies possession

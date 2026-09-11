@@ -17,9 +17,32 @@ frontend newapi_tls_in
     bind :{{ newapi_origin_port }} ssl crt {{ newapi_origin_tls_pem }} ssl-min-ver TLSv1.2
     mode http
 
+    # Host verification and routing
+{% if newapi_origin_auth_enabled | bool %}
+    acl is_newapi_host hdr(host) -i {{ newapi_origin_hostname }} {{ newapi_origin_hostname }}:443 {{ newapi_origin_hostname }}:{{ newapi_origin_port }}
+    acl is_auth_host hdr(host) -i {{ newapi_origin_auth_hostname }} {{ newapi_origin_auth_hostname }}:443 {{ newapi_origin_auth_hostname }}:{{ newapi_origin_port }}
+
+    # Privacy & security: do not log query parameters or auth credentials on auth endpoints before any routing/deny
+    http-request set-log-level silent if is_auth_host
+
+    http-request deny deny_status 404 unless is_newapi_host or is_auth_host
+
+    # auth.tjuclaw.cloud root redirect
+    acl is_root path -m str /
+    http-request redirect location {{ newapi_origin_auth_redirect_target }} code 302 if is_auth_host is_root
+
+    # auth.tjuclaw.cloud API routing & path rewrite
+    acl is_api_exact path -m str /api
+    acl is_api_prefix path_beg /api/
+    http-request deny deny_status 404 if is_auth_host !is_api_exact !is_api_prefix
+
+    http-request set-path %[path,regsub(^/api,)] if is_auth_host is_api_prefix
+    http-request set-path / if is_auth_host is_api_exact
+{% else %}
     # Only accept newapi.tjuclaw.cloud host header (with optional standard/custom ports)
     acl valid_host hdr(host) -i {{ newapi_origin_hostname }} {{ newapi_origin_hostname }}:443 {{ newapi_origin_hostname }}:{{ newapi_origin_port }}
     http-request deny deny_status 404 unless valid_host
+{% endif %}
 
     # Security: strip any client-supplied/forged X-Forwarded-For before setting client IP
     http-request del-header X-Forwarded-For
@@ -32,8 +55,17 @@ frontend newapi_tls_in
     # This host is an administration/API gateway; never cache authenticated responses.
     http-response set-header Cache-Control "no-store"
 
+{% if newapi_origin_auth_enabled | bool %}
+    use_backend auth_backend if is_auth_host
+{% endif %}
     default_backend newapi_backend
 
 backend newapi_backend
     mode http
     server newapi_app {{ newapi_origin_backend_address }}:{{ newapi_origin_backend_port }} check
+{% if newapi_origin_auth_enabled | bool %}
+
+backend auth_backend
+    mode http
+    server auth_app {{ newapi_origin_auth_backend_address }}:{{ newapi_origin_auth_backend_port }} check
+{% endif %}
