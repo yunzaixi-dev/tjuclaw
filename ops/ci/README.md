@@ -28,7 +28,7 @@ Go module。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链�
 1. 在组件仓库实现并提交修改，通过该仓库 CI 后推送可访问的提交。
 2. 在集成仓库更新 `frontend/`、`backend/` 或 `cli/` 的 submodule SHA，并逐路径暂存。
 3. 运行 `task check` 和需要的组合回归。真实认证使用 `task auth:test`，不使用 mock 替代。
-4. 合并到 GitHub release（日常集成与开发在 dev）。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab release。
+4. 合并或直接在 GitHub release 迭代（集成与生产部署基于 release，dev 保留备用）。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab release。
 
 客户端负责外观与工作区回归及原生打包。仅修改服务端不会重新构建四个平台客户端。
 集成仍会构建 Web 以验证实际认证/任务接口；这是组合回归的一部分。

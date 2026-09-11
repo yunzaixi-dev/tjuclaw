@@ -73,9 +73,9 @@ them in tool-specific files.
 - Follow `CONTRIBUTING.md`; root `package.json#version` is the repository version.
 - Commit subjects must use `EMOJI [vVERSION] type(scope): summary`.
   The emoji must match the type and VERSION must match the staged package.json.
-- Long-lived branches: `dev` is the default integration and development branch
-  (direct commits allowed); `release` is the stable production branch, auto-deployed
-  after passing CI. Develop directly on `dev`; version tags are optional. Commit subjects and
+- Long-lived branches: `release` is the production and direct rapid iteration branch
+  (direct commits and deployments after CI); `dev` is retained as an integration branch
+  without deleting it. Develop directly on `release` for fast iteration; version tags are optional. Commit subjects and
   package versions continue to follow `CONTRIBUTING.md`. Use explicit-path staging
   and never stage another agent's unfinished work or create a commit/tag/push without task authorization.
 - Keep research, local context, credentials, and runtime state out of Git.
