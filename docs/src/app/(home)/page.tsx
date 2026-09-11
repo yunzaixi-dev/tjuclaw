@@ -50,7 +50,7 @@ const platforms = [
   {
     name: 'Web 云端版',
     tag: '无需安装 · 浏览器即用',
-    desc: '基于 EdgeOne 全球加速与 Kratos 会话管理，提供完整的任务工作空间。',
+    desc: '部署在腾讯云 EdgeOne 边缘节点，享受超低延迟云端 Agent 沙箱交互，带来堪比原生客户端的流畅体验。',
     action: '立即访问',
     href: 'https://app.tjuclaw.cloud',
     external: true,
@@ -59,7 +59,7 @@ const platforms = [
   {
     name: 'Windows 桌面端',
     tag: 'x64 · 未签名 NSIS 安装包 (.exe)',
-    desc: '集成 WebView2 容器，原生支持系统托盘与本地沙箱持久化。',
+    desc: '将本地开发环境与文件系统深度链接到云端 Agent 沙箱，原生支持系统托盘与全局状态通知。',
     action: '下载 EXE',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-windows-x64-setup.exe',
     external: true,
@@ -67,7 +67,7 @@ const platforms = [
   {
     name: 'Linux 桌面端',
     tag: 'amd64 · Debian 软件包 (.deb)',
-    desc: '面向 Ubuntu / Debian 深度优化，支持 Wayland 与原生通知交互。',
+    desc: '为开发者无缝打通本地 Linux 工作区与云端 Agent 协同，支持 Wayland 原生渲染与 CLI 管道接入。',
     action: '下载 DEB',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-linux-amd64.deb',
     external: true,
@@ -75,7 +75,7 @@ const platforms = [
   {
     name: 'Android 移动端',
     tag: 'arm64 · 调试版安装包 (.apk)',
-    desc: '专为学生移动场景定制，支持课程资料即时调取与端上任务通知。',
+    desc: '随时随地便捷掌握智能体动态，无论在教室还是通勤途中，均可即时下发任务、调取资料与接收完成提醒。',
     action: '下载 APK',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-android-arm64-debug.apk',
     external: true,
