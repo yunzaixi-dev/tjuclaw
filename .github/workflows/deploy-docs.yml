@@ -1,0 +1,67 @@
+name: Deploy Docs to EdgeOne
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - 'docs/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Taskfile.yml'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'yunzaixi-dev/tjuclaw' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/release'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          run_install: false
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --fetch-timeout 600000 --network-concurrency 4
+
+      - name: Build static Docs artifact
+        run: pnpm --filter @tjuclaw/docs build
+
+      - name: Publish verified Docs artifact
+        env:
+          EDGEONE_TOKEN: ${{ secrets.EDGEONE_TOKEN }}
+          EDGEONE_PROJECT_NAME: ${{ vars.EDGEONE_DOCS_PROJECT_NAME || 'tjuclaw-docs' }}
+          EDGEONE_AREA: ${{ vars.EDGEONE_AREA || 'global' }}
+        run: |
+          set -euo pipefail
+          test -n "$EDGEONE_TOKEN" || { echo 'Missing production secret EDGEONE_TOKEN'; exit 1; }
+          test -n "$EDGEONE_PROJECT_NAME" || { echo 'Missing production variable EDGEONE_DOCS_PROJECT_NAME'; exit 1; }
+          test -f docs/out/index.html
+          rm -rf edge-deploy
+          mkdir -p edge-deploy
+          cp -R docs/out edge-deploy/assets
+          node -e 'require("fs").writeFileSync("edge-deploy/edgeone.json", JSON.stringify({outputDirectory:"assets"}))'
+          cd edge-deploy
+          npx --yes edgeone@1.6.37 makers build
+          test -f .edgeone/assets/index.html
+          npx --yes edgeone@1.6.37 makers deploy .edgeone --name "$EDGEONE_PROJECT_NAME" --env production --area "$EDGEONE_AREA" --token "$EDGEONE_TOKEN" --json
