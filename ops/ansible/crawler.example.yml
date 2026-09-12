@@ -1,0 +1,32 @@
+---
+# Example configuration for deploying tjuclaw-crawler
+# Copy this file to ops/local/crawler.yml or pass via -e @ops/local/crawler.yml
+
+# Controller-side path to the compressed crawler container image archive (optional if using preloaded image)
+# crawler_artifact_path: "/tmp/crawler-image.tar.gz"
+
+# SHA256 checksum (64 hex characters) of the artifact on the controller
+# crawler_artifact_sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+# Image tag to run
+crawler_image_tag: "latest"
+crawler_image: "tjuclaw-crawler:{{ crawler_image_tag }}"
+
+# Loopback binding on target host
+crawler_listen_addr: "127.0.0.1:3031"
+
+# Target file paths
+crawler_base_dir: "/opt/tjuclaw-crawler"
+crawler_sources_file: "/etc/crawler/sources.json"
+
+# Strict resource limits (448MB total memory budget: 256m db + 192m app)
+crawler_db_mem_limit: "256m"
+crawler_app_mem_limit: "192m"
+
+# Object storage S3/COS configuration for mirroring (optional: all-or-none)
+# crawler_s3_endpoint: "https://cos.ap-beijing.myqcloud.com"
+# crawler_s3_region: "ap-beijing"
+# crawler_s3_bucket: "tjuclaw-crawler-placeholder"
+# crawler_s3_access_key_id: "PLACEHOLDER_KEY_ID"
+# crawler_s3_secret_access_key: "PLACEHOLDER_SECRET_KEY"
+# crawler_s3_prefix: ""

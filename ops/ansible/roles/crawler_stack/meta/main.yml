@@ -1,0 +1,14 @@
+---
+# Meta information for crawler_stack role
+galaxy_info:
+  author: TJUClaw Core Team
+  description: Deploy isolated PostgreSQL and Bun feed crawler stack with resource constraints
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "22.04"
+        - "24.04"
+
+dependencies: []

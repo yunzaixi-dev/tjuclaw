@@ -47,14 +47,21 @@ them in tool-specific files.
   `task cli:test` tests all CLI/service packages. `task cli:server:dev` requires
   `TJUCLI_GRANTS_FILE`; see `cli/TOOL_SERVER.md`. Current provider scope remains public courses.
 - RSS feeds: `task crawler:setup` installs locked Bun dependencies;
-  `task crawler:import` explicitly imports synthetic fixtures; `task crawler:dev`
-  starts the loopback RSS/replay service on 3031. `task crawler:check` and
+  `task crawler:crawl` collects configured public sources once, and
+  `CRAWLER_SOURCES_FILE` enables the same scheduler in `task crawler:dev`.
+  `task crawler:import` explicitly imports synthetic fixtures; without a sources
+  file the loopback RSS/replay service on 3031 does not initiate collection.
+  `task crawler:check` and
   `task crawler:test` run in `task check`. Bun 1.3.14 is the CI runtime.
   Runtime/import require `CRAWLER_DATABASE_URL` pointing to a dedicated PostgreSQL
   database and account. Tests use `CRAWLER_TEST_DATABASE_URL` or an ephemeral Docker
   PostgreSQL instance; never reuse identity databases or runtime credentials for tests.
-  Crawler owns source events only; no user-private libraries or production deployment
-  are implied. CI checks out its pinned SHA with a separate read-only deploy key.
+  Crawler owns public source events only; private library authorization remains in
+  the Go API. `task ops:crawler:deploy` uses `ops/local/crawler.yml` and a verified
+  image archive to deploy its independent PostgreSQL/service with rollback.
+  COS mirroring requires an explicitly configured private writable bucket; never
+  treat the host's anonymous public COS mount as write authorization.
+  CI checks out its pinned SHA with a separate read-only deploy key.
 - Checks: `task check`
 - Portable build: `task build`
 - Native builds: `task linux:build`, `task windows:build`, `task android:build`

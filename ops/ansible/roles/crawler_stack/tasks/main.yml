@@ -1,0 +1,219 @@
+---
+# Main tasks for crawler_stack role
+
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Ensure target directory structure exists
+  ansible.builtin.file:
+    path: "{{ crawler_base_dir }}"
+    state: directory
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Manage durable secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Check previous deployment files for potential rollback
+  block:
+    - name: Stat existing compose.yaml
+      ansible.builtin.stat:
+        path: "{{ crawler_base_dir }}/compose.yaml"
+      register: crawler_existing_compose_stat
+
+    - name: Stat existing .env.app
+      ansible.builtin.stat:
+        path: "{{ crawler_base_dir }}/.env.app"
+      register: crawler_existing_app_env_stat
+
+    - name: Stat existing sources.json
+      ansible.builtin.stat:
+        path: "{{ crawler_base_dir }}/sources.json"
+      register: crawler_existing_sources_stat
+
+    - name: Slurp previous compose.yaml if present
+      ansible.builtin.slurp:
+        path: "{{ crawler_base_dir }}/compose.yaml"
+      register: crawler_previous_compose_slurp
+      when: crawler_existing_compose_stat.stat.exists
+
+    - name: Slurp previous .env.app if present
+      ansible.builtin.slurp:
+        path: "{{ crawler_base_dir }}/.env.app"
+      register: crawler_previous_app_env_slurp
+      when: crawler_existing_app_env_stat.stat.exists
+      no_log: true
+
+    - name: Slurp previous sources.json if present
+      ansible.builtin.slurp:
+        path: "{{ crawler_base_dir }}/sources.json"
+      register: crawler_previous_sources_slurp
+      when: crawler_existing_sources_stat.stat.exists
+
+    - name: Record previous configuration state
+      ansible.builtin.set_fact:
+        crawler_had_previous_deployment: "{{ crawler_existing_compose_stat.stat.exists }}"
+        crawler_had_previous_sources: "{{ crawler_existing_sources_stat.stat.exists }}"
+        crawler_previous_compose_content: "{{ crawler_previous_compose_slurp.content | b64decode if crawler_existing_compose_stat.stat.exists else '' }}"
+        crawler_previous_app_env_content: "{{ crawler_previous_app_env_slurp.content | b64decode if crawler_existing_app_env_stat.stat.exists else '' }}"
+        crawler_previous_sources_content: "{{ crawler_previous_sources_slurp.content | b64decode if crawler_existing_sources_stat.stat.exists else '' }}"
+      no_log: true
+
+- name: Transfer and load Docker image artifact if provided
+  when:
+    - not (crawler_simulate | bool)
+    - (crawler_artifact_path | length > 0)
+  block:
+    - name: Ensure temporary image staging directory exists
+      ansible.builtin.file:
+        path: "{{ crawler_base_dir }}/staging"
+        state: directory
+        owner: "root"
+        group: "root"
+        mode: "0700"
+
+    - name: Copy compressed image artifact to target
+      ansible.builtin.copy:
+        src: "{{ crawler_artifact_path }}"
+        dest: "{{ crawler_base_dir }}/staging/crawler-image.tar.gz"
+        owner: "root"
+        group: "root"
+        mode: "0600"
+
+    - name: Load image into local Docker daemon
+      ansible.builtin.shell: >
+        gunzip -c "{{ crawler_base_dir }}/staging/crawler-image.tar.gz" | docker load
+      register: crawler_docker_load
+      changed_when: "'Loaded image' in crawler_docker_load.stdout"
+
+    - name: Clean up temporary image staging file
+      ansible.builtin.file:
+        path: "{{ crawler_base_dir }}/staging/crawler-image.tar.gz"
+        state: absent
+
+- name: Render .env.db file with strict permissions
+  ansible.builtin.template:
+    src: env.db.j2
+    dest: "{{ crawler_base_dir }}/.env.db"
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Copy sources configuration file read-only to base directory
+  ansible.builtin.copy:
+    src: "{{ crawler_sources_file }}"
+    dest: "{{ crawler_base_dir }}/sources.json"
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0644"
+    remote_src: true
+
+- name: Render .env.app file with strict permissions
+  ansible.builtin.template:
+    src: env.app.j2
+    dest: "{{ crawler_base_dir }}/.env.app"
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render docker compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ crawler_base_dir }}/compose.yaml"
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Deploy containers and verify health with automated rollback
+  when: not (crawler_simulate | bool)
+  block:
+    - name: Start PostgreSQL database service
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d db
+      register: crawler_db_up
+      changed_when: "'Started' in (crawler_db_up.stdout + crawler_db_up.stderr) or 'Created' in (crawler_db_up.stdout + crawler_db_up.stderr)"
+
+    - name: Wait for PostgreSQL container to become healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format={% raw %}'{{.State.Health.Status}}'{% endraw %} "{{ crawler_project_name }}-db"
+      register: crawler_db_health
+      until: crawler_db_health.stdout | trim == 'healthy'
+      retries: 25
+      delay: 2
+      changed_when: false
+
+    - name: Start crawler app service
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d app
+      register: crawler_app_up
+      changed_when: "'Started' in (crawler_app_up.stdout + crawler_app_up.stderr) or 'Created' in (crawler_app_up.stdout + crawler_app_up.stderr)"
+
+    - name: Verify crawler health endpoint (/healthz)
+      ansible.builtin.uri:
+        url: "http://{{ crawler_listen_addr }}/healthz"
+        method: GET
+        status_code: 200
+        timeout: 2
+        use_proxy: false
+      register: crawler_health_check
+      until: crawler_health_check.status | default(0) == 200
+      retries: "{{ ((crawler_health_timeout_seconds | int) / (crawler_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ crawler_health_delay_seconds }}"
+
+  rescue:
+    - name: Deployment failed health check - trigger rollback
+      ansible.builtin.debug:
+        msg: "Deployment failed readiness check. Initiating automated rollback (preserving DB volume)..."
+
+    - name: Stop failed crawler app container
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" stop app
+      ignore_errors: true
+
+    - name: Restore previous compose.yaml and .env.app if present
+      when: crawler_had_previous_deployment | bool
+      block:
+        - name: Restore previous compose.yaml
+          ansible.builtin.copy:
+            content: "{{ crawler_previous_compose_content }}"
+            dest: "{{ crawler_base_dir }}/compose.yaml"
+            mode: "0644"
+
+        - name: Restore previous .env.app
+          ansible.builtin.copy:
+            content: "{{ crawler_previous_app_env_content }}"
+            dest: "{{ crawler_base_dir }}/.env.app"
+            mode: "0600"
+          no_log: true
+
+        - name: Restore previous sources.json if previously present
+          ansible.builtin.copy:
+            content: "{{ crawler_previous_sources_content }}"
+            dest: "{{ crawler_base_dir }}/sources.json"
+            mode: "0644"
+          when: crawler_had_previous_sources | default(false) | bool
+
+        - name: Restart app with previous configuration
+          ansible.builtin.command:
+            cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d app
+
+        - name: Verify restored service health
+          ansible.builtin.uri:
+            url: "http://{{ crawler_listen_addr }}/healthz"
+            status_code: 200
+            timeout: 2
+            use_proxy: false
+          register: crawler_rollback_health
+          until: crawler_rollback_health.status | default(0) == 200
+          retries: 10
+          delay: 1
+
+    - name: Fail deployment task with explicit error
+      ansible.builtin.fail:
+        msg: >-
+          Deployment of crawler stack failed readiness check (/healthz did not return 200).
+          Automated rollback completed. Previous service restored: {{ crawler_had_previous_deployment }}.
+          Database volumes and data were strictly preserved.

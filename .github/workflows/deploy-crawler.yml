@@ -1,0 +1,111 @@
+name: Deploy Crawler
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-crawler
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'yunzaixi-dev/tjuclaw' && github.ref == 'refs/heads/release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout integration repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Read pinned crawler gitlink reference
+        id: gitlink
+        shell: bash
+        run: |
+          entry=$(git ls-tree HEAD crawler)
+          test "$(printf '%s' "$entry" | awk '{print $1}')" = 160000
+          sha=$(printf '%s' "$entry" | awk '{print $3}')
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout crawler at exact pinned SHA
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        with:
+          repository: yunzaixi-dev/tjuclaw-crawler
+          ref: ${{ steps.gitlink.outputs.sha }}
+          path: crawler
+          ssh-key: ${{ secrets.CRAWLER_READ_KEY }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Build local container image
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
+        with:
+          context: crawler
+          file: crawler/Dockerfile
+          tags: tjuclaw-crawler:${{ steps.gitlink.outputs.sha }}
+          outputs: type=docker,dest=/tmp/crawler-image-${{ steps.gitlink.outputs.sha }}.tar
+
+      - name: Compress image artifact and compute SHA256 digest
+        id: artifact
+        shell: bash
+        run: |
+          sha="${{ steps.gitlink.outputs.sha }}"
+          gzip -9 "/tmp/crawler-image-${sha}.tar"
+          artifact_path="/tmp/crawler-image-${sha}.tar.gz"
+          digest=$(sha256sum "$artifact_path" | awk '{print $1}')
+          test -n "$digest"
+          test "${#digest}" -eq 64
+          echo "path=$artifact_path" >> "$GITHUB_OUTPUT"
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: '3.13'
+
+      - name: Setup SSH directory
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          chmod 0700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 0600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 0644 ~/.ssh/known_hosts
+
+      - name: Deploy crawler service via Ansible playbook
+        env:
+          ANSIBLE_CONFIG: ops/ansible/ansible.cfg
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          CRAWLER_SHA: ${{ steps.gitlink.outputs.sha }}
+          ARTIFACT_PATH: ${{ steps.artifact.outputs.path }}
+          ARTIFACT_DIGEST: ${{ steps.artifact.outputs.sha256 }}
+        shell: bash
+        run: |
+          remote_sources=$(ssh -i ~/.ssh/id_deploy -o BatchMode=yes "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            'mktemp /tmp/tjuclaw-crawler-sources.XXXXXXXX.json')
+          [[ "$remote_sources" =~ ^/tmp/tjuclaw-crawler-sources\.[[:alnum:]]+\.json$ ]]
+          trap 'ssh -i ~/.ssh/id_deploy -o BatchMode=yes "${DEPLOY_USER}@${DEPLOY_HOST}" "rm -f -- ${remote_sources}" || true' EXIT
+          scp -i ~/.ssh/id_deploy -o BatchMode=yes crawler/config/sources.example.json \
+            "${DEPLOY_USER}@${DEPLOY_HOST}:${remote_sources}"
+          uv run --no-project --with-requirements ops/ansible/requirements.txt \
+            ansible-playbook \
+            -i "${DEPLOY_HOST}," \
+            -u "${DEPLOY_USER}" \
+            --private-key ~/.ssh/id_deploy \
+            ops/ansible/playbooks/deploy-crawler.yml \
+            -e "crawler_image_tag=${CRAWLER_SHA}" \
+            -e "crawler_image=tjuclaw-crawler:${CRAWLER_SHA}" \
+            -e "crawler_artifact_path=${ARTIFACT_PATH}" \
+            -e "crawler_artifact_sha256=${ARTIFACT_DIGEST}" \
+            -e "crawler_sources_file=${remote_sources}"

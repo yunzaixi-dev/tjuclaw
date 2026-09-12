@@ -1,0 +1,36 @@
+---
+# Restore PostgreSQL database from specified dump file
+# Requires variable: crawler_restore_file (path to .sql or .sql.gz file)
+
+- name: Assert crawler_restore_file is provided
+  ansible.builtin.assert:
+    that:
+      - crawler_restore_file is defined
+      - crawler_restore_file | length > 0
+    fail_msg: crawler_restore_file must be specified to perform database restore.
+
+- name: Stat restore file
+  ansible.builtin.stat:
+    path: "{{ crawler_restore_file }}"
+  register: crawler_restore_file_stat
+
+- name: Ensure restore file exists
+  ansible.builtin.assert:
+    that:
+      - crawler_restore_file_stat.stat.exists
+      - not crawler_restore_file_stat.stat.isdir
+    fail_msg: "Specified restore file {{ crawler_restore_file }} does not exist or is a directory."
+
+- name: Restore database dump into container
+  ansible.builtin.shell: >
+    {% if crawler_restore_file.endswith('.gz') %}
+    gunzip -c "{{ crawler_restore_file }}" | docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" exec -T db psql -U "{{ crawler_db_user }}" "{{ crawler_db_name }}"
+    {% else %}
+    docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" exec -T db psql -U "{{ crawler_db_user }}" "{{ crawler_db_name }}" < "{{ crawler_restore_file }}"
+    {% endif %}
+  when: not (crawler_simulate | bool)
+  changed_when: true
+
+- name: Report restore completion
+  ansible.builtin.debug:
+    msg: "PostgreSQL restore from {{ crawler_restore_file }} completed successfully."

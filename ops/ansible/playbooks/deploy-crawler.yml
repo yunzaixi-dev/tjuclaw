@@ -1,0 +1,9 @@
+---
+# Playbook to deploy crawler stack (isolated PostgreSQL and Bun crawler service)
+- name: Deploy crawler service and isolated database
+  hosts: all
+  become: "{{ crawler_become | default(true) }}"
+  gather_facts: false
+
+  roles:
+    - role: crawler_stack

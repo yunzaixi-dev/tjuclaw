@@ -1,0 +1,78 @@
+---
+# Preflight checks for crawler_stack
+
+- name: Validate crawler listen address format
+  ansible.builtin.assert:
+    that:
+      - crawler_listen_addr is defined
+      - crawler_listen_addr | length > 0
+      - (crawler_listen_addr.split(':') | length) == 2
+      - crawler_listen_addr.startswith('127.0.0.1:') or crawler_listen_addr.startswith('localhost:')
+    fail_msg: >-
+      crawler_listen_addr must be configured to bind strictly to loopback (127.0.0.1:PORT).
+      Refusing to expose crawler feed or replay port publicly.
+
+- name: Validate artifact path and checksum if provided
+  ansible.builtin.assert:
+    that:
+      - crawler_artifact_sha256 | length == 64
+      - crawler_artifact_sha256 is regex('^[0-9a-fA-F]{64}$')
+    fail_msg: crawler_artifact_sha256 must be a 64-character hex string when an artifact is provided.
+  when: (crawler_artifact_path | length > 0)
+
+- name: Check artifact file existence on controller when artifact path is provided
+  ansible.builtin.stat:
+    path: "{{ crawler_artifact_path }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: crawler_artifact_stat
+  when: (crawler_artifact_path | length > 0)
+
+- name: Verify artifact SHA256 matches controller-side calculation
+  ansible.builtin.assert:
+    that:
+      - crawler_artifact_stat.stat.exists
+      - crawler_artifact_stat.stat.checksum == (crawler_artifact_sha256 | lower)
+    fail_msg: >-
+      Artifact at {{ crawler_artifact_path }} does not exist or its SHA256 checksum
+      ({{ crawler_artifact_stat.stat.checksum | default('none') }}) does not match
+      expected checksum ({{ crawler_artifact_sha256 | lower }}).
+  when: (crawler_artifact_path | length > 0)
+
+- name: Check sources configuration file on target
+  ansible.builtin.stat:
+    path: "{{ crawler_sources_file }}"
+  register: crawler_sources_stat
+
+- name: Ensure sources file exists on target or in simulation
+  ansible.builtin.assert:
+    that:
+      - crawler_sources_stat.stat.exists
+      - not crawler_sources_stat.stat.isdir
+    fail_msg: >-
+      Crawler sources configuration file {{ crawler_sources_file }} does not exist on target.
+      Please provision a valid JSON sources list (owned by root, mode 0644 or 0600) before deploying.
+  when: not (crawler_simulate | bool)
+
+- name: Validate optional S3/COS configuration parameters (all-or-none)
+  ansible.builtin.set_fact:
+    crawler_s3_configured_count: >-
+      {{
+        (
+          (1 if (crawler_s3_endpoint | default('') | trim | length > 0) else 0) +
+          (1 if (crawler_s3_region | default('') | trim | length > 0) else 0) +
+          (1 if (crawler_s3_bucket | default('') | trim | length > 0) else 0) +
+          (1 if (crawler_s3_access_key_id | default('') | trim | length > 0) else 0) +
+          (1 if (crawler_s3_secret_access_key | default('') | trim | length > 0) else 0)
+        )
+      }}
+
+- name: Assert S3/COS configuration is either completely empty or fully specified
+  ansible.builtin.assert:
+    that:
+      - (crawler_s3_configured_count | int == 0) or (crawler_s3_configured_count | int == 5)
+    fail_msg: >-
+      Incomplete S3/COS archive configuration. Either all 5 parameters (crawler_s3_endpoint,
+      crawler_s3_region, crawler_s3_bucket, crawler_s3_access_key_id, crawler_s3_secret_access_key)
+      must be non-empty, or all 5 must be left empty to disable S3 archiving.

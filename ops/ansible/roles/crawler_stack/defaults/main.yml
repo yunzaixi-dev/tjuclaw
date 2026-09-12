@@ -1,0 +1,44 @@
+---
+# Production crawler stack defaults
+
+crawler_base_dir: /opt/tjuclaw-crawler
+crawler_project_name: tjuclaw-crawler
+crawler_listen_addr: "127.0.0.1:3031"
+crawler_sources_file: "/etc/crawler/sources.json"
+
+# Pinned images and tags
+crawler_postgres_image: "postgres:17-alpine"
+crawler_image_tag: "latest"
+crawler_image: "tjuclaw-crawler:{{ crawler_image_tag }}"
+
+# Artifact parameters (for image transfer)
+crawler_artifact_path: ""
+crawler_artifact_sha256: ""
+
+# Resource limits (strict constraints for ~1.2GB memory host: 448MB total = 256m db + 192m app)
+crawler_db_mem_limit: "256m"
+crawler_app_mem_limit: "192m"
+
+# Logging limits
+crawler_logging_max_size: "10m"
+crawler_logging_max_file: "3"
+
+# Health check settings
+crawler_health_timeout_seconds: 40
+crawler_health_delay_seconds: 2
+
+# Database connection credentials
+crawler_db_user: "tjuclaw_crawler"
+crawler_db_name: "tjuclaw_crawler"
+
+# Object storage S3/COS configuration (optional: all-or-none)
+crawler_s3_endpoint: ""
+crawler_s3_region: ""
+crawler_s3_bucket: ""
+crawler_s3_access_key_id: ""
+crawler_s3_secret_access_key: ""
+crawler_s3_prefix: ""
+
+# Testing / simulation mode flag
+crawler_simulate: false
+crawler_become: true

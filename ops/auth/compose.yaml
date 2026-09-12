@@ -10,7 +10,8 @@ x-kratos-environment: &kratos-environment
   SELFSERVICE_FLOWS_VERIFICATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/verification
   SELFSERVICE_FLOWS_ERROR_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/error
   SELFSERVICE_FLOWS_LOGOUT_AFTER_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/logged-out
-  COURIER_SMTP_CONNECTION_URI: smtp://mail:1025/?disable_starttls=true
+  COURIER_SMTP_CONNECTION_URI: ${COURIER_SMTP_CONNECTION_URI:-smtp://mail:1025/?disable_starttls=true}
+  COURIER_SMTP_FROM_ADDRESS: ${COURIER_SMTP_FROM_ADDRESS:-login@tjuclaw.agentwego.com}
   SECRETS_COOKIE: local-development-cookie-secret-not-for-production
   SECRETS_CIPHER: 0123456789abcdef0123456789abcdef
 services:
@@ -36,10 +37,18 @@ services:
     image: oryd/kratos:v26.2.0
     command: serve --dev --watch-courier -c /etc/config/kratos/kratos.yml
     environment: *kratos-environment
+    extra_hosts:
+      - "smtp.resend.com:54.205.195.44"
+      - "smtp.apps.resend.com:54.205.195.44"
     volumes:
       - ./kratos.yml:/etc/config/kratos/kratos.yml:ro
       - ./identity.schema.json:/etc/config/kratos/identity.schema.json:ro
       - ./mail:/etc/config/kratos/mail:ro
+    env_file:
+      - path: ./ops/auth/.env.local
+        required: false
+      - path: .env.local
+        required: false
     ports: ["127.0.0.1:${AUTH_KRATOS_PORT:-14433}:4433"]
     depends_on:
       migrate: { condition: service_completed_successfully }

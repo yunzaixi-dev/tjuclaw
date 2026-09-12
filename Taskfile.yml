@@ -38,7 +38,8 @@ tasks:
       - task --dir frontend ui:test
   auth:up:
     desc: Start isolated local Kratos, PostgreSQL and captured mail (no external email)
-    cmds: [docker compose -f ops/auth/compose.yaml up --detach]
+    cmds:
+      - docker compose --env-file ops/auth/.env.local -f ops/auth/compose.yaml up --detach 2>/dev/null || docker compose -f ops/auth/compose.yaml up --detach
   auth:down:
     desc: Stop local auth services without deleting identities
     cmds: [docker compose -f ops/auth/compose.yaml down]
@@ -108,6 +109,7 @@ tasks:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-identity.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi-origin.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-crawler.yml --syntax-check
   ops:test:
     desc: Verify origin, API deployment and identity secret preservation locally
     cmds:
@@ -137,6 +139,15 @@ tasks:
       - test -f ops/local/ansible-inventory.yml
     cmds:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi.yml
+  ops:crawler:deploy:
+    desc: Deploy the verified crawler image and isolated PostgreSQL with rollback
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/crawler.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-crawler.yml -e @ops/local/crawler.yml
   ops:newapi:origin:deploy:
     desc: Deploy the dedicated NewAPI HTTPS origin (requires a provisioned TLS PEM)
     env:
@@ -209,6 +220,11 @@ tasks:
     desc: Run Bun crawler feed service in watch mode
     dir: crawler
     cmds: [bun run dev]
+  crawler:crawl:
+    desc: Collect configured real sources once (requires source config and PostgreSQL)
+    dir: crawler
+    cmds:
+      - bun run crawl -- {{.CLI_ARGS}}
   crawler:import:
     desc: Import synthetic events into the configured crawler PostgreSQL database
     dir: crawler

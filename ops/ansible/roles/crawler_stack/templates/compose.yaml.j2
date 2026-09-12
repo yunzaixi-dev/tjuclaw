@@ -1,0 +1,63 @@
+services:
+  db:
+    image: {{ crawler_postgres_image }}
+    container_name: {{ crawler_project_name }}-db
+    restart: unless-stopped
+    env_file:
+      - .env.db
+    volumes:
+      - crawler_pg_data:/var/lib/postgresql/data
+    networks:
+      - crawler_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ crawler_db_user }} -d {{ crawler_db_name }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: {{ crawler_db_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ crawler_logging_max_size }}"
+        max-file: "{{ crawler_logging_max_file }}"
+
+  app:
+    image: {{ crawler_image }}
+    container_name: {{ crawler_project_name }}-app
+    restart: unless-stopped
+    ports:
+      - "{{ crawler_listen_addr }}:3031"
+    env_file:
+      - .env.app
+    volumes:
+      - {{ crawler_base_dir }}/sources.json:/etc/crawler/sources.json:ro
+    networks:
+      - crawler_internal
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    deploy:
+      resources:
+        limits:
+          memory: {{ crawler_app_mem_limit }}
+          pids: 100
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ crawler_logging_max_size }}"
+        max-file: "{{ crawler_logging_max_file }}"
+
+volumes:
+  crawler_pg_data:
+
+networks:
+  crawler_internal:
+    internal: true

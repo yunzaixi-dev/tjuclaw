@@ -1,0 +1,34 @@
+---
+# Backup PostgreSQL database to timestamped dump file
+
+- name: Generate timestamp for backup
+  ansible.builtin.set_fact:
+    crawler_backup_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ crawler_base_dir }}/backups"
+    state: directory
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Execute pg_dump from container
+  ansible.builtin.shell: >
+    docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml"
+    exec -T db pg_dump -U "{{ crawler_db_user }}" "{{ crawler_db_name }}" | gzip > "{{ crawler_base_dir }}/backups/crawler_{{ crawler_backup_timestamp }}.sql.gz"
+  when: not (crawler_simulate | bool)
+  register: crawler_backup_result
+  changed_when: true
+
+- name: Set backup permissions to 0600
+  ansible.builtin.file:
+    path: "{{ crawler_base_dir }}/backups/crawler_{{ crawler_backup_timestamp }}.sql.gz"
+    owner: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (crawler_simulate | bool) else omit }}"
+    mode: "0600"
+  when: not (crawler_simulate | bool)
+
+- name: Report backup path
+  ansible.builtin.debug:
+    msg: "PostgreSQL backup completed: {{ crawler_base_dir }}/backups/crawler_{{ crawler_backup_timestamp }}.sql.gz"
