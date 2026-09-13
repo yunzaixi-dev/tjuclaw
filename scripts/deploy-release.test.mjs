@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { verifyManifest, deploymentTarget } from './deploy-release.mjs';
+import { deploymentCommandTimeoutMs, deploymentSshArgs, deploymentTarget, verifyManifest } from './deploy-release.mjs';
 const bytes = Buffer.from('verified executable fixture');
 const sha = 'a'.repeat(40), backend = 'b'.repeat(40);
 const manifest = { repository: 'yunzaixi-dev/tjuclaw', commit: sha, backend, platform: 'linux-amd64', sha256: createHash('sha256').update(bytes).digest('hex') };
@@ -17,4 +17,8 @@ test('SSH deployment config must be explicit and cannot inject options', () => {
   for (const key of Object.keys(env)) assert.throws(() => deploymentTarget({ ...env, [key]: '' }));
   assert.throws(() => deploymentTarget({ ...env, DEPLOY_HOST: '-oProxyCommand=bad' }));
   assert.throws(() => deploymentTarget({ ...env, DEPLOY_USER: 'root;bad' }));
+});
+test('SSH transport compresses artifacts, detects dead peers and has a bounded deployment timeout', () => {
+  assert.equal(deploymentSshArgs('/tmp/known_hosts'), '-F /dev/null -o IdentitiesOnly=yes -o Compression=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/known_hosts');
+  assert.equal(deploymentCommandTimeoutMs, 25 * 60_000);
 });

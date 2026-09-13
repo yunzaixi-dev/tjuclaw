@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const repository = 'yunzaixi-dev/tjuclaw';
 const shaPattern = /^[a-f0-9]{40}$/;
 const run = (cmd, args, options = {}) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 60_000, ...options })?.trim() ?? '';
+export const deploymentCommandTimeoutMs = 25 * 60_000;
 const checksum = bytes => createHash('sha256').update(bytes).digest('hex');
 export function verifyManifest(manifest, bytes, sha, backend) {
   if (!shaPattern.test(sha ?? '') || !shaPattern.test(backend ?? '') ||
@@ -24,6 +25,9 @@ export function deploymentTarget(env) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(env.DEPLOY_HOST) ||
       !/^[a-z_][a-z0-9_-]*$/.test(env.DEPLOY_USER)) throw new Error('Invalid SSH host or user');
   return { host: env.DEPLOY_HOST, user: env.DEPLOY_USER };
+}
+export function deploymentSshArgs(knownHostsFile) {
+  return `-F /dev/null -o IdentitiesOnly=yes -o Compression=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${knownHostsFile}`;
 }
 function main() {
   const sha = run('git', ['rev-parse', 'HEAD']);
@@ -53,7 +57,7 @@ function main() {
     const inventory = { all: { hosts: { production_api: {
       ansible_host: host, ansible_user: user, ansible_port: 22,
       ansible_ssh_private_key_file: key,
-      ansible_ssh_common_args: `-F /dev/null -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${known}`,
+      ansible_ssh_common_args: deploymentSshArgs(known),
       ansible_python_interpreter: '/usr/bin/python3',
     } } } };
     writeFileSync(join(directory, 'inventory.json'), JSON.stringify(inventory), { mode: 0o600 });
@@ -63,7 +67,7 @@ function main() {
     for (const name of ['DEPLOY_SSH_KEY', 'DEPLOY_KNOWN_HOSTS', 'GH_TOKEN']) delete env[name];
     run('uv', ['run', '--no-project', '--with-requirements', 'ops/ansible/requirements.txt', 'ansible-playbook',
       '-i', join(directory, 'inventory.json'), 'ops/ansible/playbooks/deploy-api.yml', '-e', '@' + join(directory, 'vars.json')],
-    { env, timeout: 600_000, stdio: 'inherit' });
+    { env, timeout: deploymentCommandTimeoutMs, stdio: 'inherit' });
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
