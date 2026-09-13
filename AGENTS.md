@@ -41,7 +41,15 @@ them in tool-specific files.
 
 ## Common Commands
 
-- Development: `task dev`
+- Development: `task dev` starts Web on 1420 and the ZITADEL-enabled API on 18088,
+  with isolated local ZITADEL/PostgreSQL/Cap/Valkey and real SMTP from the ignored
+  `ops/auth/.env.local` by default (Docker required). Set `AUTH_DEV_MAIL_MODE=captured`
+  explicitly for Mailpit; disposable tests always use captured mail.
+  Project `tjuclaw-zitadel-dev` keeps credentials and API data in ignored
+  `ops/local/auth-dev/`; `task auth:down` preserves identities and secrets.
+  `node scripts/auth-dev-smoke.mjs` checks the running dev proxy and real login.
+  `task api:dev` remains the low-level API runner on 8080; set `API_PROXY_TARGET`
+  explicitly when pairing the client with a different API.
 - Documentation: `task docs:dev` starts Docs on 3030.
   An occupied port is reported without terminating unrelated processes.
   `task docs:build` builds the documentation app.

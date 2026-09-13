@@ -148,6 +148,11 @@ test('email auth policy keeps browser identity boundaries and local mail isolate
   }
   assert.equal(local.services.db.ports, undefined);
   assert.ok(local.services.kratos.ports.every(port => !port.endsWith(':4434')));
+  const zitadelCompose = parse(read('ops/auth/zitadel/compose.yml'));
+  for (const service of Object.values(zitadelCompose.services)) {
+    assert.ok((service.ports || []).every(port => port.startsWith('127.0.0.1:')));
+  }
+  assert.equal(zitadelCompose.services['zitadel-db'].ports, undefined);
   assert.match(read('ops/images/nginx.conf'), /limit_req_status 429/);
   assert.match(read('ops/images/nginx.conf'), /access_log off/);
 });

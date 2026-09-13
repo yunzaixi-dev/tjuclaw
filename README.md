@@ -66,9 +66,9 @@ rtk task doctor
 rtk task dev
 ```
 
-产品 Web：`http://127.0.0.1:1420`；API：`http://127.0.0.1:8080/healthz`。
+产品 Web：`http://127.0.0.1:1420`；开发 API：`http://127.0.0.1:18088/healthz`。
 文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3030`。
-`task dev` 不启动外部认证或任务执行基础设施。
+`task dev` 需要 Docker，自动启动独立的 ZITADEL、PostgreSQL、Cap、Valkey 和本地收件箱；不启动任务执行基础设施。
 
 校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和
 `cli/bin/tjucli-server`；`rtk task cli:test` 覆盖全部CLI与服务端包。
@@ -117,9 +117,11 @@ CI 配置和同步方式见 [CI 手册](ops/ci/README.md)；以实际运行链�
 [UI 基础规范](frontend/UI.md)；首次执行 `rtk task ui:install` 安装测试浏览器，
 之后用 `rtk task ui:test` 验证主题与四种响应式尺寸。
 
-邮箱认证开发先运行 `rtk task auth:up`，再分别启动 `rtk task auth:dev` 和
-`rtk task web:dev`。本地邮件查看地址为 `http://127.0.0.1:18025`，
-真实 Kratos 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
+邮箱认证开发使用 `rtk task dev`，也可分别运行 `rtk task auth:dev` 和
+`rtk task web:dev`。本地邮件查看地址为 `http://127.0.0.1:18027`，
+真实 ZITADEL/Cap 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
+`rtk task auth:down` 保留本地身份和密钥；运行中的开发链路可用
+`node scripts/auth-dev-smoke.mjs` 验证。
 接入说明见 [邮箱认证](ops/auth/README.md)，协作基准见
 [前后端开发基准](DEVELOPMENT.md)。原生端认证尚需独立适配。
 

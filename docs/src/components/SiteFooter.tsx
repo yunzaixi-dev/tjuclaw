@@ -96,7 +96,7 @@ export function SiteFooter({
           </div>
 
           <div className="wiki-footer-beian">
-            {icpNumber ? (
+            {icpNumber && (
               <a
                 href="https://beian.miit.gov.cn/"
                 target="_blank"
@@ -104,15 +104,6 @@ export function SiteFooter({
                 className="wiki-footer-beian-link"
               >
                 {icpNumber}
-              </a>
-            ) : (
-              <a
-                href="https://beian.miit.gov.cn/"
-                target="_blank"
-                rel="noreferrer"
-                className="wiki-footer-beian-link wiki-footer-beian-placeholder"
-              >
-                津ICP备XXXXXXXX号-1
               </a>
             )}
 

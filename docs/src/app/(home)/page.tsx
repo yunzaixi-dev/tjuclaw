@@ -10,7 +10,7 @@ const chapters = [
 const repositories = [
   {
     name: 'tjuclaw',
-    status: '评审公开',
+    status: '访问受限',
     lang: 'TypeScript (Node >=22) · Next.js 16.3',
     scope: '工程集成 / 文档 / 云边运维',
     desc: '系统总体集成仓库，包含 Next.js 16 静态文档站、Ansible 部署声明与 Taskfile 统一指令。',
@@ -31,7 +31,7 @@ const repositories = [
     status: '竞赛私有',
     lang: 'Go 1.27.0',
     scope: '核心后端 API / 存储 / 认证网关',
-    desc: '基于 Go 1.27 构建，对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索。',
+    desc: '基于 Go 1.27 构建，提供同源会话认证、任务记录与工作空间管理 API。',
     path: 'backend/',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-server',
   },
@@ -59,7 +59,7 @@ const platforms = [
   {
     name: 'Web 云端版',
     tag: '无需安装 · 浏览器即用',
-    desc: '部署在腾讯云 EdgeOne 边缘节点，享受超低延迟云端 Agent 沙箱交互，带来堪比原生客户端的流畅体验。',
+    desc: '通过浏览器登录、创建任务并查看工作空间。云端智能体与沙箱执行链路仍在接入中。',
     action: '立即访问',
     href: 'https://app.tjuclaw.cloud',
     external: true,
@@ -69,7 +69,7 @@ const platforms = [
   {
     name: 'Windows 桌面端',
     tag: 'x64 · 未签名 NSIS 安装包 (.exe)',
-    desc: '将本地开发环境与文件系统深度链接到云端 Agent 沙箱，原生支持系统托盘与全局状态通知。',
+    desc: '基于 Tauri 的 Windows 客户端，与 Web 共享登录、任务与工作空间界面。',
     action: '下载 EXE',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-windows-x64-setup.exe',
     external: true,
@@ -78,7 +78,7 @@ const platforms = [
   {
     name: 'Linux 桌面端',
     tag: 'amd64 · Debian 软件包 (.deb)',
-    desc: '为开发者无缝打通本地 Linux 工作区与云端 Agent 协同，支持 Wayland 原生渲染与 CLI 管道接入。',
+    desc: '面向 Linux 的桌面客户端，提供 Debian 软件包，与 Web 共享任务与工作空间界面。',
     action: '下载 DEB',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-linux-amd64.deb',
     external: true,
@@ -87,7 +87,7 @@ const platforms = [
   {
     name: 'Android 移动端',
     tag: 'arm64 · 调试版安装包 (.apk)',
-    desc: '随时随地便捷掌握智能体动态，无论在教室还是通勤途中，均可即时下发任务、调取资料与接收完成提醒。',
+    desc: '在 Android 设备上体验登录、任务与工作空间界面；当前提供用于验证的调试版安装包。',
     action: '下载 APK',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-android-arm64-debug.apk',
     external: true,

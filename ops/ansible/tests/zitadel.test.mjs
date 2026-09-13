@@ -152,6 +152,16 @@ test('zitadel role preflight assertions, compose rendering, credential decoding,
     );
     const rejectInsecureRun = runPlaybook({ ...baseVars, zitadel_smtp_env_file: insecureSmtpEnvFile });
     assert.notEqual(rejectInsecureRun.status, 0, 'Must reject non-smtps 465 SMTP URI');
+
+    // 5. Verify files/sync_smtp.py exists and fails closed on missing PAT or missing payload
+    const syncScript = join(root, 'ops/ansible/roles/zitadel/files/sync_smtp.py');
+    assert.ok(existsSync(syncScript), 'sync_smtp.py must exist');
+    const pyRunMissingPat = spawnSync('python3', [syncScript, baseDir, '127.0.0.1:8085', 'auth.tjuclaw.cloud'], {
+      input: JSON.stringify({ host: 'smtp.tjuclaw.cloud:465', username: rawUser, password: rawPass, from_address: fromAddr }),
+      encoding: 'utf8',
+    });
+    assert.equal(pyRunMissingPat.status, 1, 'sync_smtp.py must fail closed when bootstrap PAT is missing');
+    assert.match(pyRunMissingPat.stderr, /Required bootstrap PAT file not found/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

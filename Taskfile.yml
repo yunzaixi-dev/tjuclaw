@@ -18,8 +18,8 @@ tasks:
     desc: Check common development tools
     cmds: [node scripts/doctor.mjs]
   dev:
-    desc: Run Web client and Go API (Ctrl+C stops both)
-    deps: [web:dev, api:dev]
+    desc: Run Web client and Go API with local ZITADEL/Cap dev services (Ctrl+C stops both)
+    deps: [web:dev, auth:dev]
   web:dev:
     desc: Run Web client on loopback port 1420
     cmds: [pnpm --dir frontend dev]
@@ -37,19 +37,14 @@ tasks:
     cmds:
       - task --dir frontend ui:test
   auth:up:
-    desc: Start isolated local Kratos, PostgreSQL and captured mail (no external email)
-    cmds:
-      - docker compose --env-file ops/auth/.env.local -f ops/auth/compose.yaml up --detach 2>/dev/null || docker compose -f ops/auth/compose.yaml up --detach
+    desc: Start persistent local ZITADEL, Cap and real SMTP by default (captured Mailpit is explicit; Docker required)
+    cmds: [node scripts/auth-test-stack.mjs --dev --up]
   auth:down:
-    desc: Stop local auth services without deleting identities
-    cmds: [docker compose -f ops/auth/compose.yaml down]
+    desc: Stop local ZITADEL services without deleting identities or credentials
+    cmds: [node scripts/auth-test-stack.mjs --dev --down]
   auth:dev:
-    desc: Run Go with local Kratos on port 14433 (use alongside web:dev)
-    dir: backend
-    env:
-      KRATOS_PUBLIC_URL: http://127.0.0.1:14433
-      APP_PUBLIC_URL: http://127.0.0.1:1420
-    cmds: [go run ./cmd/api]
+    desc: Start local identity services and Go API on loopback 18088
+    cmds: [node scripts/auth-test-stack.mjs --dev]
   auth:serve:
     desc: Run API using ignored .env.auth.local (server-only configuration)
     dir: backend

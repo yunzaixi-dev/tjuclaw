@@ -5,11 +5,20 @@ import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveAuthDevMailConfig, syncZitadelSmtpProvider } from './auth-mail-config.mjs';
 
-// All identities, credentials, volumes and mailbox messages are disposable.
+// Tests are disposable; --dev keeps identities and credentials across restarts.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const statePath = join(root, 'ops/local/auth-test-stack.json');
-const composeArgs = ['compose', '-p', 'tjuclaw-auth-test', '-f', 'ops/auth/zitadel/compose.yml'];
+const development = process.argv.includes('--dev');
+const devDirectory = join(root, 'ops/local/auth-dev');
+const statePath = development ? join(devDirectory, 'state.json') : join(root, 'ops/local/auth-test-stack.json');
+const project = development ? 'tjuclaw-zitadel-dev' : 'tjuclaw-auth-test';
+const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/zitadel/compose.yml'];
+const identityPort = development ? 14436 : 14435;
+const mailPort = development ? 18027 : 18026;
+const capPort = development ? 13302 : 13301;
+const apiPort = development ? 18088 : 18089;
+const publicOrigin = development ? 'http://127.0.0.1:1420' : 'http://127.0.0.1:1423';
 let runtime, api, stopping = false;
 const secret = () => randomBytes(24).toString('hex');
 const compose = (args, env) => spawnSync('docker', [...composeArgs, ...args], { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit', timeout: 180000 });
@@ -49,7 +58,7 @@ async function cleanup(exitCode = 0) {
     await Promise.race([new Promise(resolveExit => api.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
     if (api.exitCode === null) api.kill('SIGKILL');
   }
-  if (runtime) {
+  if (runtime && !development) {
     const result = compose(['down', '--volumes', '--remove-orphans'], runtime.env);
     if (result.status !== 0) exitCode = 1;
     else {
@@ -62,26 +71,42 @@ async function cleanup(exitCode = 0) {
 if (process.argv.includes('--down')) {
   try { runtime = JSON.parse(await readFile(statePath, 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; process.exit(0); }
-  if (!runtime.directory?.startsWith(join(tmpdir(), 'tjuclaw-auth-')) || !runtime.env) throw new Error('Invalid isolated stack state');
+  if (!runtime.env || (development ? runtime.directory !== devDirectory : !runtime.directory?.startsWith(join(tmpdir(), 'tjuclaw-auth-')))) throw new Error('Invalid isolated stack state');
+  if (development) process.exit(compose(['down'], runtime.env).status === 0 ? 0 : 1);
   await cleanup();
 }
 process.on('SIGTERM', () => { void cleanup(); });
 process.on('SIGINT', () => { void cleanup(); });
 try {
-  try { await readFile(statePath); throw new Error('Existing isolated test stack state; run node scripts/auth-test-stack.mjs --down first'); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const directory = await mkdtemp(join(tmpdir(), 'tjuclaw-auth-'));
+  try {
+    const saved = JSON.parse(await readFile(statePath, 'utf8'));
+    if (!development) throw new Error('Existing isolated test stack state; run node scripts/auth-test-stack.mjs --down first');
+    if (saved.directory !== devDirectory || !saved.env?.ZITADEL_MASTERKEY || !saved.env?.ZITADEL_DATABASE_PASSWORD || !saved.env?.CAP_ADMIN_KEY) throw new Error('Invalid local development state; refusing to replace credentials');
+    runtime = saved;
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (!runtime && development) {
+    const volumes = spawnSync('docker', ['volume', 'ls', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.Name}}'], { encoding: 'utf8' });
+    if (volumes.status !== 0 || volumes.stdout.trim()) throw new Error('Cannot create development credentials: existing volumes or unavailable Docker');
+  }
+  const directory = runtime?.directory ?? (development ? devDirectory : await mkdtemp(join(tmpdir(), 'tjuclaw-auth-')));
   const bootstrap = join(directory, 'bootstrap');
-  await mkdir(bootstrap, { mode: 0o700 });
-  runtime = { directory, env: {
-    ZITADEL_MASTERKEY: randomBytes(16).toString('hex'),
-    ZITADEL_DATABASE_PASSWORD: secret(), CAP_ADMIN_KEY: secret(),
-    ZITADEL_BOOTSTRAP_DIR: bootstrap,
-    AUTH_TEST_UID: String(process.getuid?.() ?? 1000), AUTH_TEST_GID: String(process.getgid?.() ?? 1000),
-  } };
-  await mkdir(dirname(statePath), { recursive: true });
-  await writeFile(statePath, JSON.stringify(runtime), { mode: 0o600, flag: 'wx' });
-  console.log('Starting isolated ZITADEL, Cap and captured-mail services.');
+  await mkdir(bootstrap, { recursive: true, mode: 0o700 });
+  const mailConfig = await resolveAuthDevMailConfig(root, process.env, { development });
+  if (!runtime) {
+    runtime = { directory, cookieKey: randomBytes(32).toString('base64'), env: {
+      ZITADEL_MASTERKEY: randomBytes(16).toString('hex'),
+      ZITADEL_DATABASE_PASSWORD: secret(), CAP_ADMIN_KEY: secret(),
+      ZITADEL_BOOTSTRAP_DIR: bootstrap,
+      AUTH_TEST_UID: String(process.getuid?.() ?? 1000), AUTH_TEST_GID: String(process.getgid?.() ?? 1000),
+      AUTH_IDENTITY_PORT: String(identityPort), AUTH_MAIL_PORT: String(mailPort), AUTH_CAP_PORT: String(capPort),
+      ...mailConfig.composeEnv,
+    } };
+    await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
+    await writeFile(statePath, JSON.stringify(runtime), { mode: 0o600, flag: 'wx' });
+  } else {
+    runtime.env = { ...runtime.env, ...mailConfig.composeEnv };
+  }
+  console.log(`Starting isolated ZITADEL, Cap and ${mailConfig.mode === 'real' ? 'real-delivery SMTP' : 'captured-mail'} services.`);
   if (compose(['up', '--detach'], runtime.env).status !== 0) {
     const logs = spawnSync('docker', [...composeArgs, 'logs', '--no-color', '--tail', '35', 'zitadel-setup'], { cwd: root, env: { ...process.env, ...runtime.env }, encoding: 'utf8' });
     let diagnostic = (logs.stdout ?? '') + (logs.stderr ?? '');
@@ -89,11 +114,11 @@ try {
     await writeFile(join(dirname(statePath), 'stack-startup.log'), diagnostic, { mode: 0o600 });
     throw new Error('Isolated identity stack startup failed; private diagnostics: test-results/auth/stack-startup.log');
   }
-  const identityBase = 'http://127.0.0.1:14435';
-  const identityHost = { Host: 'localhost:14435' };
+  const identityBase = `http://127.0.0.1:${identityPort}`;
+  const identityHost = { Host: `localhost:${identityPort}` };
   await ready(identityBase, '/debug/ready', identityHost);
-  await ready('http://127.0.0.1:18026', '/api/v1/messages');
-  await ready('http://127.0.0.1:13301', '/');
+  await ready(`http://127.0.0.1:${mailPort}`, '/api/v1/messages');
+  await ready(`http://127.0.0.1:${capPort}`, '/');
   const owner = (await readFile(join(bootstrap, 'owner.pat'), 'utf8')).trim();
   const loginToken = (await readFile(join(bootstrap, 'login-client.pat'), 'utf8')).trim();
   await chmod(join(bootstrap, 'owner.pat'), 0o600);
@@ -110,27 +135,42 @@ try {
   }
   const org = organizations.result?.find(item => item.name === 'TJUClaw Test');
   if (!org?.id || !loginToken) throw new Error('Missing isolated organization or login-client PAT');
-  const capBase = 'http://127.0.0.1:13301';
-  const login = await json(capBase, '/auth/login', { method: 'POST', body: { admin_key: runtime.env.CAP_ADMIN_KEY } });
-  if (!login.success || !login.session_token || !login.hashed_token) throw new Error('Cap bootstrap authentication failed');
-  const capAuth = `Bearer ${Buffer.from(JSON.stringify({ token: login.session_token, hash: login.hashed_token })).toString('base64')}`;
-  const site = await json(capBase, '/server/keys', { method: 'POST', headers: { Authorization: capAuth }, body: { name: 'TJUClaw Test', corsOrigins: ['http://127.0.0.1:1423'] } });
-  if (!site.siteKey || !site.secretKey) throw new Error('Cap site key provisioning failed');
+
+  if (development && mailConfig.smtp) {
+    // Persistent development identities must switch providers when mode changes.
+    await syncZitadelSmtpProvider(identityBase, owner, `localhost:${identityPort}`, mailConfig.smtp);
+  }
+
+  const capBase = `http://127.0.0.1:${capPort}`;
+  let site = runtime.site;
+  if (!site) {
+    const login = await json(capBase, '/auth/login', { method: 'POST', body: { admin_key: runtime.env.CAP_ADMIN_KEY } });
+    if (!login.success || !login.session_token || !login.hashed_token) throw new Error('Cap bootstrap authentication failed');
+    const capAuth = `Bearer ${Buffer.from(JSON.stringify({ token: login.session_token, hash: login.hashed_token })).toString('base64')}`;
+    site = await json(capBase, '/server/keys', { method: 'POST', headers: { Authorization: capAuth }, body: { name: development ? 'TJUClaw Development' : 'TJUClaw Test', corsOrigins: [publicOrigin] } });
+    if (!site.siteKey || !site.secretKey) throw new Error('Cap site key provisioning failed');
+    runtime.site = { siteKey: site.siteKey, secretKey: site.secretKey };
+    await writeFile(statePath, JSON.stringify(runtime), { mode: 0o600 });
+  }
+  if (development && process.argv.includes('--up')) {
+    console.log(`Local identity services ready; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `captured mailbox: http://127.0.0.1:${mailPort}`}`);
+    process.exit(0);
+  }
   const executable = join(directory, 'tjuclaw-api');
   const build = spawnSync('go', ['build', '-o', executable, './cmd/api'], { cwd: join(root, 'backend'), stdio: 'inherit', timeout: 120000 });
   if (build.status !== 0) throw new Error('API build failed');
   api = spawn(executable, [], { cwd: directory, stdio: 'inherit', env: {
-    ...process.env, HTTP_ADDR: '127.0.0.1:18089', DATABASE_URL: '',
+    ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, DATABASE_URL: '',
     TASK_DATA_DIR: join(directory, 'tasks'), AUTH_PROVIDER: 'zitadel',
-    APP_PUBLIC_URL: 'http://127.0.0.1:1423', ZITADEL_URL: identityBase,
-    ZITADEL_DOMAIN: 'localhost:14435', ZITADEL_ORG_ID: org.id,
-    ZITADEL_TOKEN: loginToken, AUTH_COOKIE_KEY: randomBytes(32).toString('base64'),
+    APP_PUBLIC_URL: publicOrigin, ZITADEL_URL: identityBase,
+    ZITADEL_DOMAIN: `localhost:${identityPort}`, ZITADEL_ORG_ID: org.id,
+    ZITADEL_TOKEN: loginToken, AUTH_COOKIE_KEY: runtime.cookieKey,
     CAP_URL: capBase, CAP_SITE_KEY: site.siteKey, CAP_SECRET_KEY: site.secretKey,
   } });
   api.on('error', () => { console.error('Isolated API could not start'); void cleanup(1); });
   api.on('exit', code => { if (!stopping) { console.error(`Isolated API exited (${code})`); void cleanup(1); } });
-  await ready('http://127.0.0.1:18089', '/healthz');
-  console.log('Isolated ZITADEL + Cap API ready; mailbox remains local.');
+  await ready(`http://127.0.0.1:${apiPort}`, '/auth/flow');
+  console.log(`ZITADEL + Cap API ready at 127.0.0.1:${apiPort}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
 } catch (error) {
   console.error(error.message);
   await cleanup(1);

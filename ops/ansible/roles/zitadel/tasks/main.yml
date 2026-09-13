@@ -89,3 +89,24 @@
       until: zitadel_health_check.status | default(0) == 200
       retries: "{{ ((zitadel_health_timeout_seconds | int) / (zitadel_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
       delay: "{{ zitadel_health_delay_seconds }}"
+
+    - name: Install SMTP synchronization helper
+      ansible.builtin.copy:
+        src: sync_smtp.py
+        dest: "{{ zitadel_base_dir }}/sync_smtp.py"
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Reconcile active ZITADEL SMTP provider with a replacement
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ zitadel_base_dir }}/sync_smtp.py"
+          - "{{ zitadel_base_dir }}"
+          - "{{ zitadel_listen_addr }}"
+          - "{{ zitadel_domain }}"
+        stdin: "{{ zitadel_smtp | combine({'from_address': zitadel_smtp_from_address, 'from_name': 'TJUClaw', 'tls': true}) | to_json }}"
+      register: zitadel_sync_smtp_res
+      changed_when: "(zitadel_sync_smtp_res.stdout | default('{}') | from_json).changed | default(false)"
+      no_log: true
