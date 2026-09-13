@@ -71,6 +71,10 @@ jobs:
           server-key: ${{ secrets.SERVER_READ_KEY }}
           cli-key: ${{ secrets.CLI_READ_KEY }}
           crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
+      - name: Install media conversion tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils webp python3 python3-pil
       - uses: ./.github/actions/setup
         with:
           profile: portable
@@ -117,7 +121,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ops/ansible/ansible.cfg
         run: |
-          for play in discover render-origin deploy-api; do
+          for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel; do
             uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
           done
           node --test ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
