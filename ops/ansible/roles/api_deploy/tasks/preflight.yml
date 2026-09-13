@@ -77,7 +77,7 @@
     fail_msg: >-
       Environment file {{ api_env_file }} is ABSENT on target host.
       Deployment cannot proceed without root-managed configuration.
-      Create {{ api_env_file }} defining APP_PUBLIC_URL and KRATOS_PUBLIC_URL before deploying.
+      Create {{ api_env_file }} defining APP_PUBLIC_URL and the selected identity provider before deploying.
 
 - name: Require root-only production environment configuration
   ansible.builtin.assert:
@@ -99,18 +99,54 @@
       {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^APP_PUBLIC_URL=(.+)$') | first | default('') | trim }}
     api_target_kratos_public_url: >-
       {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^KRATOS_PUBLIC_URL=(.+)$') | first | default('') | trim }}
+    api_target_zitadel_url: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^ZITADEL_URL=(.+)$') | first | default('') | trim }}
+    api_target_zitadel_domain: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^ZITADEL_DOMAIN=(.+)$') | first | default('') | trim }}
+    api_target_auth_provider_explicit: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^AUTH_PROVIDER=(.+)$') | first | default('') | trim }}
   no_log: true
+
+- name: Resolve the single selected identity provider
+  ansible.builtin.set_fact:
+    api_target_auth_provider: >-
+      {{ api_target_auth_provider_explicit if api_target_auth_provider_explicit else ('zitadel' if api_target_zitadel_url else 'kratos') }}
 
 - name: Assert required environment variables conform to production contract
   ansible.builtin.assert:
     that:
       - (api_target_app_public_url | length) > 0
       - api_target_app_public_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
-      - (api_target_kratos_public_url | length) > 0
-      - api_target_kratos_public_url is match('^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_auth_provider in ['zitadel', 'kratos']
+      - api_target_auth_provider != 'kratos' or api_target_kratos_public_url is match('^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_auth_provider != 'zitadel' or api_target_zitadel_url is match('^https?://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_auth_provider != 'zitadel' or api_target_zitadel_domain is match('^[a-zA-Z0-9.-]+(:[0-9]+)?$')
     fail_msg: >-
       Environment file {{ api_env_file }} must define APP_PUBLIC_URL (starting with https://)
-      and KRATOS_PUBLIC_URL (HTTP or HTTPS origin), using unquoted assignments.
+      and an HTTP(S) origin for the selected identity provider, using unquoted assignments.
+
+- name: Require the complete server-only ZITADEL and Cap configuration
+  ansible.builtin.assert:
+    that:
+      - (api_env_file_slurp.content | b64decode | regex_findall('(?m)^' ~ item ~ '=([^\r\n]+)$') | length) == 1
+    fail_msg: The ZITADEL provider requires each server-only setting exactly once.
+  loop: [ZITADEL_ORG_ID, ZITADEL_TOKEN, AUTH_COOKIE_KEY, CAP_URL, CAP_SITE_KEY, CAP_SECRET_KEY]
+  when: api_target_auth_provider == 'zitadel'
+  no_log: true
+
+- name: Verify ZITADEL readiness using its configured instance domain
+  ansible.builtin.uri:
+    url: "{{ api_target_zitadel_url | regex_replace('/+$', '') }}/debug/ready"
+    headers:
+      Host: "{{ api_target_zitadel_domain }}"
+    method: GET
+    status_code: 200
+    timeout: 10
+    use_proxy: false
+    follow_redirects: none
+  when:
+    - api_target_auth_provider == 'zitadel'
+    - api_verify_zitadel_ready | bool
 
 - name: Verify Kratos readiness endpoint is reachable if configured
   ansible.builtin.uri:
@@ -120,7 +156,7 @@
     timeout: 5
     use_proxy: false
   register: api_kratos_ready_check
-  when: api_verify_kratos_ready | bool
+  when: api_target_auth_provider == 'kratos' and (api_verify_kratos_ready | bool)
   failed_when: false
 
 - name: Fallback check Kratos public health endpoint if admin is not directly reachable
@@ -133,6 +169,7 @@
   register: api_kratos_public_ready_check
   when:
     - api_verify_kratos_ready | bool
+    - api_target_auth_provider == 'kratos'
     - (api_kratos_ready_check.status | default(0)) != 200
   failed_when: false
 
@@ -144,4 +181,4 @@
       Kratos is not ready at {{ api_target_kratos_public_url }}.
       Both /admin/health/ready and /health/ready failed or returned non-200.
       Deploy will not proceed without a healthy identity provider upstream.
-  when: api_verify_kratos_ready | bool
+  when: api_target_auth_provider == 'kratos' and (api_verify_kratos_ready | bool)

@@ -1,0 +1,25 @@
+---
+# Cap stack defaults
+cap_base_dir: /opt/tjuclaw-cap
+cap_project_name: tjuclaw-cap
+cap_listen_addr: "127.0.0.1:3300"
+
+# Pinned images and tags
+cap_image: "tiago2/cap:3.1.11@sha256:c29417b6270d1fddc6a0603c08d972f89a12de81889d09c3f97a0915422fba5e"
+cap_valkey_image: "valkey/valkey:9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"
+
+# Resource limits (128MiB Cap + 128MiB Valkey)
+cap_app_mem_limit: "128m"
+cap_valkey_mem_limit: "128m"
+
+# Logging limits
+cap_logging_max_size: "10m"
+cap_logging_max_file: "3"
+
+# Health check settings
+cap_health_timeout_seconds: 30
+cap_health_delay_seconds: 2
+
+# Testing / simulation mode flag
+cap_simulate: false
+cap_become: true

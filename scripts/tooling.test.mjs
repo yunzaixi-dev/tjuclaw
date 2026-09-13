@@ -54,9 +54,10 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
     }
   }
   const integrationSteps = jobs.integration.steps;
-  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('compose.yaml pull'));
+  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('docker pull ghcr.io/zitadel/zitadel:v4.17.3'));
   assert.ok(pullIndex >= 0 && pullIndex < integrationSteps.findIndex(step => step.run === 'task auth:test'));
-  assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run?.includes('down --volumes')));
+  assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run === 'node scripts/auth-test-stack.mjs --down'));
+  assert.match(read('scripts/auth-test-stack.mjs'), /\['down', '--volumes', '--remove-orphans'\]/);
   assert.deepEqual(parse(read('.gitlab-ci.yml')).workflow.rules, [{ when: 'never' }]);
   assert.ok(windowsWorkflow.on.push);
   assert.ok(windowsWorkflow.on.pull_request);

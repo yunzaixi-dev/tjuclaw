@@ -1,0 +1,94 @@
+---
+# Preflight validations for zitadel role
+
+- name: Validate caller input variables
+  ansible.builtin.assert:
+    that:
+      - zitadel_base_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - zitadel_project_name is match('^[a-z0-9_-]+$')
+      - zitadel_app_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - zitadel_listen_addr is match('^127\\.0\\.0\\.1:[0-9]{1,5}$')
+      - zitadel_smtp_env_file is match('^/[a-zA-Z0-9/_.-]+$')
+      - zitadel_postgres_image is match('^postgres:[a-zA-Z0-9_.-]+$')
+      - zitadel_image is match('^ghcr\\.io/zitadel/zitadel:[a-zA-Z0-9_.-]+$')
+    fail_msg: >-
+      Invalid zitadel configuration variables. Check zitadel_app_url,
+      zitadel_base_dir, zitadel_listen_addr, or image pins.
+
+- name: Check existence of remote SMTP env file
+  ansible.builtin.stat:
+    path: "{{ zitadel_smtp_env_file }}"
+  register: zitadel_smtp_stat
+
+- name: Fail immediately if remote SMTP env file is missing
+  ansible.builtin.assert:
+    that:
+      - zitadel_smtp_stat.stat.exists
+      - zitadel_smtp_stat.stat.isreg
+    fail_msg: >-
+      Remote SMTP env file {{ zitadel_smtp_env_file }} is ABSENT on target host.
+      Deployment cannot proceed without pre-provisioned SMTP configuration.
+
+- name: Validate SMTP env file permissions in production mode
+  ansible.builtin.assert:
+    that:
+      - zitadel_smtp_stat.stat.uid == 0
+      - zitadel_smtp_stat.stat.mode == '0600'
+    fail_msg: >-
+      SMTP configuration file {{ zitadel_smtp_env_file }} must be root-owned (uid 0)
+      and mode 0600. Current uid={{ zitadel_smtp_stat.stat.uid }}, mode={{ zitadel_smtp_stat.stat.mode }}.
+  when: not (zitadel_simulate | bool)
+
+- name: Read remote SMTP env file contents
+  ansible.builtin.slurp:
+    path: "{{ zitadel_smtp_env_file }}"
+  register: zitadel_smtp_slurp
+  no_log: true
+
+- name: Parse and validate SMTP configuration
+  ansible.builtin.set_fact:
+    zitadel_smtp_connection_uri: >-
+      {{ zitadel_smtp_slurp.content | b64decode | regex_findall('(?m)^COURIER_SMTP_CONNECTION_URI=(.+)$') | first | default('') | trim }}
+    zitadel_smtp_from_address: >-
+      {{ zitadel_smtp_slurp.content | b64decode | regex_findall('(?m)^COURIER_SMTP_FROM_ADDRESS=(.+)$') | first | default('') | trim }}
+  no_log: true
+
+- name: Assert SMTP configuration keys are valid
+  ansible.builtin.assert:
+    that:
+      - (zitadel_smtp_connection_uri | length) > 0
+      - zitadel_smtp_connection_uri is match('^smtps?://.+')
+      - "'skip_ssl_verify=true' not in zitadel_smtp_connection_uri"
+      - "'disable_starttls=true' not in zitadel_smtp_connection_uri"
+      - (zitadel_smtp_from_address | length) > 0
+      - zitadel_smtp_from_address is match('^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    fail_msg: >-
+      File {{ zitadel_smtp_env_file }} must define non-empty COURIER_SMTP_CONNECTION_URI (starting with smtp:// or smtps://)
+      and a valid COURIER_SMTP_FROM_ADDRESS.
+  no_log: true
+
+- name: Decode SMTP credentials without shell interpolation
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import json, sys
+        from urllib.parse import urlsplit, unquote, parse_qs
+        u = urlsplit(sys.stdin.read().strip())
+        assert u.scheme == 'smtps' and u.port == 465, 'This isolated profile requires verified implicit TLS on port 465'
+        assert u.hostname and u.username and u.password, 'SMTP host and credentials are required'
+        for key, values in parse_qs(u.query).items():
+            assert key in ('skip_ssl_verify', 'disable_starttls') and values == ['false'], 'Unsupported SMTP policy override'
+        value = {'host': u.hostname + ':465', 'username': unquote(u.username), 'password': unquote(u.password)}
+        assert all(not any(c in s for c in '\r\n\x00') for s in value.values()), 'Invalid SMTP credential characters'
+        print(json.dumps(value))
+    stdin: "{{ zitadel_smtp_connection_uri }}"
+  register: zitadel_smtp_decoded
+  changed_when: false
+  no_log: true
+
+- name: Use decoded SMTP fields
+  ansible.builtin.set_fact:
+    zitadel_smtp: "{{ zitadel_smtp_decoded.stdout | from_json }}"
+  no_log: true

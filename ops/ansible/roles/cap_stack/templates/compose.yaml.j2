@@ -1,0 +1,80 @@
+# Production compose configuration for tjuclaw-cap
+# Managed by Ansible. Single-host deployment.
+name: {{ cap_project_name }}
+
+services:
+  valkey:
+    image: {{ cap_valkey_image }}
+    container_name: {{ cap_project_name }}-valkey
+    restart: unless-stopped
+    pull_policy: missing
+    user: "999:999"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    command: valkey-server --save 60 1 --appendonly yes --loglevel warning --maxmemory 64mb --maxmemory-policy noeviction
+    volumes:
+      - cap-valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: {{ cap_valkey_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ cap_logging_max_size }}"
+        max-file: "{{ cap_logging_max_file }}"
+    networks:
+      - cap-internal
+
+  cap:
+    image: {{ cap_image }}
+    container_name: {{ cap_project_name }}-app
+    restart: unless-stopped
+    pull_policy: missing
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    env_file:
+      - .env.cap
+    environment:
+      - REDIS_URL=redis://valkey:6379
+      - SERVER_PORT=3000
+      - SERVER_HOSTNAME=0.0.0.0
+    ports:
+      - "{{ cap_listen_addr }}:3000"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: {{ cap_app_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ cap_logging_max_size }}"
+        max-file: "{{ cap_logging_max_file }}"
+    networks:
+      - cap-internal
+      - cap-access
+
+volumes:
+  cap-valkey-data:
+    name: {{ cap_project_name }}-valkey-data
+
+networks:
+  cap-internal:
+    name: {{ cap_project_name }}-internal
+    internal: true
+  cap-access:
+    name: {{ cap_project_name }}-access

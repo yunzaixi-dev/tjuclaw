@@ -19,17 +19,7 @@ export default defineConfig({
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {},
   },
   webServer: [
-    { command: 'node scripts/auth-test-stack.mjs', cwd: '..', url: 'http://127.0.0.1:14434/health/ready', timeout: 120000, reuseExistingServer: false, gracefulShutdown: { signal: 'SIGTERM', timeout: 30000 } },
-    {
-      command: 'go run ./cmd/api', cwd: '../backend', url: 'http://127.0.0.1:18089/healthz',
-      env: {
-        HTTP_ADDR: '127.0.0.1:18089',
-        KRATOS_PUBLIC_URL: 'http://127.0.0.1:14434',
-        APP_PUBLIC_URL: 'http://127.0.0.1:1423',
-        TASK_DATA_DIR: '../test-results/auth/task-data',
-      },
-      reuseExistingServer: false,
-    },
+    { command: 'node scripts/auth-test-stack.mjs', cwd: '..', url: 'http://127.0.0.1:18089/healthz', timeout: 240000, reuseExistingServer: false, gracefulShutdown: { signal: 'SIGTERM', timeout: 30000 } },
     {
       cwd: '..',
       command: 'pnpm --dir frontend exec vite preview --host 127.0.0.1 --port 1423 --strictPort',

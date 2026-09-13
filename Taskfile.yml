@@ -56,7 +56,7 @@ tasks:
     dotenv: ['../.env.auth.local']
     cmds: [go run ./cmd/api]
   auth:test:
-    desc: Test real Kratos email flows using the isolated local mailbox
+    desc: Test real ZITADEL email flows and Cap using an isolated captured mailbox
     cmds:
       - task: web:build
       - pnpm exec playwright test --config scripts/auth.playwright.config.mjs {{.CLI_ARGS}}
@@ -110,6 +110,8 @@ tasks:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi-origin.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-crawler.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-cap.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-zitadel.yml --syntax-check
   ops:test:
     desc: Verify origin, API deployment and identity secret preservation locally
     cmds:
@@ -139,6 +141,24 @@ tasks:
       - test -f ops/local/ansible-inventory.yml
     cmds:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi.yml
+  ops:zitadel:deploy:
+    desc: Deploy isolated ZITADEL and PostgreSQL without removing the rollback identity stack
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/zitadel.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-zitadel.yml -e @ops/local/zitadel.yml
+  ops:cap:deploy:
+    desc: Deploy isolated Cap and Valkey with private administration
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/cap.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-cap.yml -e @ops/local/cap.yml
   ops:crawler:deploy:
     desc: Deploy the verified crawler image and isolated PostgreSQL with rollback
     env:

@@ -1,0 +1,10 @@
+---
+# Playbook to deploy Cap standalone captcha service with independent Valkey backend
+- name: Deploy Cap standalone and Valkey stack
+  hosts: all
+  serial: 1
+  become: "{{ cap_become | default(true) }}"
+  gather_facts: false
+
+  roles:
+    - role: cap_stack

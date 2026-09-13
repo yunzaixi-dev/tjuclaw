@@ -16,8 +16,9 @@ api_health_delay_seconds: 1
 api_supported_architectures:
   - x86_64
 
-# Kratos health check
+# Identity readiness checks (only the selected provider is probed).
 api_verify_kratos_ready: true
+api_verify_zitadel_ready: true
 
 # Test / simulation mode: skips real systemd / chown / user operations for unprivileged local unit testing
 api_deploy_simulate_systemd: false

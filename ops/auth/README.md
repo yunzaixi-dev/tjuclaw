@@ -1,4 +1,14 @@
-# Kratos Email Authentication
+# Email Authentication
+
+The selected replacement is **ZITADEL v4.17.3** with a unified email entry and
+self-hosted Cap. See [the ZITADEL boundary and migration guide](ZITADEL.md).
+Implementation and acceptance are in progress; these configuration files do not
+by themselves prove that production has switched.
+
+The Kratos material below is retained for a coordinated rollback. It must not
+override the newer ZITADEL decision or be deployed into a shared identity cluster.
+
+## Legacy Kratos configuration
 
 ## Deployed domain layout
 

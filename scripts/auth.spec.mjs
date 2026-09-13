@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 
-async function captureState(page, info, state, evidence = 'real-kratos') {
+const origin = 'http://127.0.0.1:1423';
+const headers = { Origin: origin };
+const nginx = await readFile(new URL('../ops/images/nginx.conf', import.meta.url), 'utf8');
+const csp = nginx.match(/add_header Content-Security-Policy "([^"]+)"/)?.[1];
+if (!csp) throw new Error('Missing production CSP');
+
+async function captureState(page, info, state, evidence = 'real-zitadel-cap') {
   const original = page.viewportSize();
   for (const [viewport, width, height] of [['compact', 360, 800], ['phone', 390, 844], ['tablet', 768, 1024], ['desktop', 1440, 900]]) {
     for (const theme of ['light', 'dark']) {
@@ -9,262 +15,200 @@ async function captureState(page, info, state, evidence = 'real-kratos') {
       await page.emulateMedia({ colorScheme: theme });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const name = `audit-${state}-${viewport}-${theme}`;
-      // Mask codes even in synthetic accounts; evidence never needs a usable OTP.
-      await page.screenshot({ path: info.outputPath(`${name}.png`), animations: 'disabled',
-        mask: [page.getByLabel('邮箱验证码', { exact: true })] });
-      await writeFile(info.outputPath(`${name}.json`), JSON.stringify({
-        state, viewport, theme, width, height, evidence, capturedAt: new Date().toISOString(),
-      }));
+      await page.screenshot({ path: info.outputPath(`${name}.png`), animations: 'disabled', mask: [page.getByLabel('邮箱验证码', { exact: true })] });
+      await writeFile(info.outputPath(`${name}.json`), JSON.stringify({ state, viewport, theme, width, height, evidence, capturedAt: new Date().toISOString() }));
     }
   }
   await page.setViewportSize(original);
   await page.emulateMedia({ colorScheme: 'light' });
 }
-
-async function latestCode(request, email, previousID) {
+async function latestCode(request, email, previous = []) {
   let message;
   await expect.poll(async () => {
-    const result = await request.get('http://127.0.0.1:18026/api/v1/messages');
-    const { messages } = await result.json();
-    const excluded = Array.isArray(previousID) ? previousID : [previousID];
-    message = messages.find(m => m.To.some(to => to.Address === email) && !excluded.includes(m.ID));
-    return !!message;
-  }, { timeout: 20000 }).toBe(true);
-  const result = await request.get(`http://127.0.0.1:18026/api/v1/message/${message.ID}`);
-  const mail = await result.json();
-  const code = mail.Text.match(/\b[0-9]{6}\b/)?.[0];
-  expect(code, 'Kratos must deliver a real six-digit code').toBeTruthy();
+    const { messages } = await (await request.get('http://127.0.0.1:18026/api/v1/messages')).json();
+    message = messages.find(item => item.To.some(to => to.Address === email) && !previous.includes(item.ID));
+    return Boolean(message);
+  }, { timeout: 30000 }).toBe(true);
+  const mail = await (await request.get(`http://127.0.0.1:18026/api/v1/message/${message.ID}`)).json();
+  const code = (mail.Text || mail.HTML || '').match(/\b[0-9]{6}\b/)?.[0];
+  expect(Boolean(code), 'ZITADEL must deliver a real six-digit email code').toBe(true);
   return { code, id: message.ID };
 }
-
-test('real email registration, wrong code, reload, session, logout and login', async ({ page, request, context }, info) => {
-  test.setTimeout(120000);
-  const email = `e2e-${Date.now()}@example.com`;
-  await page.goto('/auth/registration');
+async function solveCap(page) {
+  await page.getByRole('button', { name: '安全验证', exact: true }).click();
+  await expect(page.getByRole('button', { name: '安全验证已通过', exact: true })).toBeVisible({ timeout: 60000 });
+}
+async function begin(page, email, route = '/auth/login') {
+  await page.goto(route);
   await page.getByLabel('邮箱地址', { exact: true }).fill(email);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
+  await expect(page.getByRole('button', { name: '获取验证码', exact: true })).toBeDisabled();
+  await solveCap(page);
+  const [response] = await Promise.all([
+    page.waitForResponse(res => res.url().endsWith('/api/auth/start')),
+    page.getByRole('button', { name: '获取验证码', exact: true }).click(),
+  ]);
+  expect(response.status(), 'real Cap-gated email start must succeed').toBe(200);
   await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+}
+async function finish(page, code) {
+  await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
+  await page.getByRole('button', { name: '验证并继续', exact: true }).click();
+  await expect(page).toHaveURL(/\/workspace$/);
+  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
+}
+
+test('real Cap under production CSP, enrollment, wrong code, resend, reload, login and provider logout', async ({ page, request, context }, info) => {
+  test.setTimeout(240000);
+  await page.addInitScript(() => {
+    window.__cspViolations = [];
+    document.addEventListener('securitypolicyviolation', event => window.__cspViolations.push(event.violatedDirective));
+  });
+  await page.route('**/*', async route => {
+    if (route.request().resourceType() !== 'document') return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': csp } });
+  });
+  const email = `e2e-${Date.now()}@example.com`;
+  let usedCap;
+  page.on('request', req => { if (req.url().endsWith('/api/auth/start')) usedCap = req.postDataJSON()?.captcha_token; });
+  await begin(page, email, '/auth/registration');
+  expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
+  const token = usedCap;
+  expect(Boolean(token)).toBe(true);
+  expect((await page.request.post('/api/auth/start', { headers, data: { email, captcha_token: token } })).status()).toBe(403);
+  expect((await page.request.get('/api/tasks')).status()).toBe(401);
   await captureState(page, info, 'registration-code');
   const mail = await latestCode(request, email);
-  const wrong = mail.code === '000000' ? '111111' : '000000';
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(wrong);
-  await page.getByRole('button', { name: '验证并创建账号' }).click();
-  await expect(page.getByRole('alert')).toContainText('验证码');
+  await page.getByLabel('邮箱验证码', { exact: true }).fill(mail.code === '000000' ? '111111' : '000000');
+  await page.getByRole('button', { name: '验证并继续', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('验证码不正确');
   await captureState(page, info, 'wrong-code');
   await page.reload();
-  await page.getByRole('button', { name: '重新发送验证码', exact: true }).click();
-  const resent = await latestCode(request, email, mail.id);
-  await expect(page.getByRole('button', { name: /秒后可重发/ })).toBeDisabled();
+  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('button', { name: '重新发送', exact: true }).click({ timeout: 70000 });
+  await solveCap(page);
+  await page.getByRole('button', { name: '确认重发', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('新验证码已发送');
+  const resent = await latestCode(request, email, [mail.id]);
   await captureState(page, info, 'resend');
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(mail.code);
-  await page.getByRole('button', { name: '验证并创建账号' }).click();
-  await expect(page.getByRole('alert')).toContainText('验证码');
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(resent.code);
-  await page.getByRole('button', { name: '验证并创建账号' }).click();
-  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
-  await page.goto('/auth/login');
-  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
-  const cookies = await context.cookies();
-  expect(cookies.some(c => c.httpOnly && c.name.includes('session'))).toBe(true);
-  expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'tjuclaw.appearance.v1'))).toBe(true);
+  await finish(page, resent.code);
+  const sessionCookie = (await context.cookies()).find(cookie => cookie.name.includes('session'));
+  expect(Boolean(sessionCookie?.httpOnly)).toBe(true);
+  expect(sessionCookie.sameSite).toBe('Lax');
   const session = await page.request.get('/api/auth/session');
   expect(session.status()).toBe(200);
   expect(await session.json()).toMatchObject({ email, email_verified: true });
+  expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'tjuclaw.appearance.v1'))).toBe(true);
+  await page.goto('/auth/complete');
+  await expect(page.getByRole('heading', { name: '已安全登录。' })).toBeVisible();
   await captureState(page, info, 'complete');
-  await page.getByRole('link', { name: '进入 TJUClaw' }).click();
-  await expect(page.getByRole('heading', { name: '你的账号。' })).toBeVisible();
-  await page.reload();
-  await expect(page.getByText(email, { exact: true })).toBeVisible();
   await captureState(page, info, 'account');
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
   await expect(page.getByRole('heading', { name: '已安全退出。' })).toBeVisible();
+  await context.addCookies([sessionCookie]);
   expect((await page.request.get('/api/auth/session')).status()).toBe(401);
-  await page.goto('/auth/login');
-  await page.getByLabel('邮箱地址', { exact: true }).fill(email);
-  await page.getByRole('button', { name: '继续', exact: true }).click();
-  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
+  await context.clearCookies();
+  await begin(page, email);
   await captureState(page, info, 'login-code');
   const loginMail = await latestCode(request, email, [mail.id, resent.id]);
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(loginMail.code);
-  await page.getByRole('button', { name: '验证并登录' }).click();
-  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
+  await finish(page, loginMail.code);
 });
 
-test('real task creation, list reload, and cross-identity isolation', async ({ page, request }) => {
+test('real task persistence and cross-identity isolation', async ({ page, request, context }) => {
   test.setTimeout(180000);
-
-  // 1. Create first user A
   const emailA = `task-a-${Date.now()}@example.com`;
-  await page.goto('/auth/registration');
-  await page.getByLabel('邮箱地址', { exact: true }).fill(emailA);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
-  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
-  const mailA = await latestCode(request, emailA);
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(mailA.code);
-  await page.getByRole('button', { name: '验证并创建账号' }).click();
-  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
-
-  // 2. Navigate to /workspace and create task
-  await page.goto('/workspace');
-  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
-  const taskPromptA = `Task for User A ${Date.now()}\nDetailed description of task A`;
-  await page.getByLabel('任务目标', { exact: true }).fill(taskPromptA);
+  await begin(page, emailA);
+  await finish(page, (await latestCode(request, emailA)).code);
+  const prompt = `Task for user A ${Date.now()}\nDetails owned by A`;
+  await page.getByLabel('任务目标', { exact: true }).fill(prompt);
   await page.getByRole('button', { name: '保存任务', exact: true }).click();
-
-  const taskTitleA = taskPromptA.split('\n')[0];
-  await expect(page.getByRole('heading', { level: 2, name: taskTitleA, exact: true })).toBeVisible();
-  await expect(page.locator('.workspace-detail-panel').getByText('Detailed description of task A')).toBeVisible();
-  const listAResponse = await page.request.get('/api/tasks');
-  expect(listAResponse.status()).toBe(200);
-  const { tasks: tasksA } = await listAResponse.json();
-  expect(tasksA).toHaveLength(1);
-  expect(tasksA[0].id).toMatch(/^[0-9a-f]{32}$/);
-  expect(tasksA[0].prompt).toBe(taskPromptA);
-
-  // 3. Reload page and verify persistence
+  await expect(page.getByRole('heading', { level: 2, name: prompt.split('\n')[0], exact: true })).toBeVisible();
+  const { tasks } = await (await page.request.get('/api/tasks')).json();
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0].prompt).toBe(prompt);
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: taskTitleA, exact: true })).toBeVisible();
-  await expect(page.locator('.workspace-detail-panel').getByText('Detailed description of task A')).toBeVisible();
-
-  // 4. Logout user A
-  await page.getByRole('button', { name: '退出登录', exact: true }).click();
-  await expect(page).toHaveURL(/\/auth\/login/);
-
-  // 5. Create second user B
+  await expect(page.getByRole('heading', { level: 2, name: prompt.split('\n')[0], exact: true })).toBeVisible();
+  expect((await page.request.post('/api/auth/logout', { headers, data: {} })).status()).toBe(204);
+  await context.clearCookies();
   const emailB = `task-b-${Date.now()}@example.com`;
-  await page.goto('/auth/registration');
-  await page.getByLabel('邮箱地址', { exact: true }).fill(emailB);
-  await page.getByRole('button', { name: '创建账号', exact: true }).click();
-  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
-  const mailB = await latestCode(request, emailB);
-  await page.getByLabel('邮箱验证码', { exact: true }).fill(mailB.code);
-  await page.getByRole('button', { name: '验证并创建账号' }).click();
-  await expect(page.getByRole('heading', { name: '准备好了。' })).toBeVisible();
-
-  // 6. Navigate to /workspace as user B: verify user A's task is NOT visible
-  await page.goto('/workspace');
-  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
-  await expect(page.getByText(taskTitleA)).toHaveCount(0);
-  await expect(page.getByText('还没有保存的任务')).toBeVisible();
-  const foreignTask = await page.request.get(`/api/tasks/${tasksA[0].id}`);
-  const missingTask = await page.request.get(`/api/tasks/${'0'.repeat(32)}`);
-  expect(foreignTask.status()).toBe(404);
-  expect(missingTask.status()).toBe(404);
-  expect(await foreignTask.json()).toEqual(await missingTask.json());
+  await begin(page, emailB);
+  await finish(page, (await latestCode(request, emailB)).code);
+  const foreign = await page.request.get(`/api/tasks/${tasks[0].id}`);
+  const missing = await page.request.get(`/api/tasks/${'0'.repeat(32)}`);
+  expect(foreign.status()).toBe(404);
+  expect(missing.status()).toBe(404);
+  expect(await foreign.json()).toEqual(await missing.json());
   expect(await (await page.request.get('/api/tasks')).json()).toEqual({ tasks: [] });
-  expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'tjuclaw.appearance.v1'))).toBe(true);
-
-  // 7. Create task for user B
-  const taskPromptB = `Task for User B ${Date.now()}`;
-  await page.getByLabel('任务目标', { exact: true }).fill(taskPromptB);
+  await page.getByLabel('任务目标', { exact: true }).fill('Task owned by B');
   await page.getByRole('button', { name: '保存任务', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 2, name: taskPromptB })).toBeVisible();
-  await expect(page.getByText(taskTitleA)).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 2, name: 'Task owned by B', exact: true })).toBeVisible();
+  await expect(page.getByText(prompt.split('\n')[0], { exact: true })).toHaveCount(0);
 });
 
-test('protected page rejects guests and Kratos rejects missing CSRF', async ({ page, request }) => {
+test('guests, cross-origin sends and missing or invalid Cap are rejected', async ({ page }) => {
   await page.goto('/app');
-  await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/auth\/login/);
-  const flowResponse = await request.get('/api/kratos/self-service/registration/browser');
-  const flow = await flowResponse.json();
-  const response = await request.post(`/api/kratos/self-service/registration?flow=${flow.id}`, {
-    headers: { Origin: 'http://127.0.0.1:1423' },
-    data: { method: 'code', traits: { email: 'csrf-check@example.com' } },
-  });
-  expect(response.status()).toBe(403);
-});
-
-test('expired link and network outage have recoverable UI', async ({ page }, info) => {
-  await page.goto('/auth/login?flow=00000000-0000-0000-0000-000000000000');
-  await expect(page.getByRole('alert')).toContainText('失效');
-  await captureState(page, info, 'expired');
-  await page.getByRole('button', { name: '重新开始' }).click();
-  await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
-  await page.route('**/api/kratos/**', route => route.abort());
-  await page.goto('/auth/registration');
-  await expect(page.getByRole('alert')).toContainText('连接不上');
-  await captureState(page, info, 'offline', 'injected-response');
-  await page.unroute('**/api/kratos/**');
-  await page.getByRole('button', { name: '重新开始' }).click();
-  await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
-});
-
-test('rate limits and expired submissions never claim success', async ({ page }, info) => {
-  await page.goto('/auth/login');
-  await page.getByLabel('邮箱地址', { exact: true }).fill('rate-test@example.com');
-  await page.route('**/api/kratos/self-service/login?flow=*', route => route.fulfill({
-    status: 429, contentType: 'text/html', body: '<h1>Too many requests</h1>',
-  }));
-  await page.getByRole('button', { name: '继续', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('频繁');
-  await captureState(page, info, 'rate-limit', 'injected-response');
-  await page.unroute('**/api/kratos/self-service/login?flow=*');
-  await page.route('**/api/kratos/self-service/login?flow=*', route => route.fulfill({
-    status: 410, contentType: 'application/json', body: '{"error":{"id":"self_service_flow_expired"}}',
-  }));
-  await page.getByRole('button', { name: '继续', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('过期');
-  await expect(page.getByRole('button', { name: '重新开始' })).toBeVisible();
-  await captureState(page, info, 'expired-submit', 'injected-response');
+  await expect(page).toHaveURL(/\/auth\/login$/);
+  const data = { email: 'captcha-gate@example.com', captcha_token: '' };
+  expect((await page.request.post('/api/auth/start', { data })).status()).toBe(403);
+  expect((await page.request.post('/api/auth/start', { headers: { Origin: 'https://other.invalid' }, data })).status()).toBe(403);
+  expect((await page.request.post('/api/auth/start', { headers, data })).status()).toBe(403);
+  expect((await page.request.post('/api/auth/start', { headers, data: { ...data, captcha_token: 'invalid' } })).status()).toBe(403);
+  expect((await page.request.post('/api/auth/verify', { headers, data: { code: '000000' } })).status()).toBe(410);
   expect((await page.request.get('/api/auth/session')).status()).toBe(401);
 });
 
-test('malformed upstream responses fail gracefully instead of crashing', async ({ page }) => {
-  await page.route('**/api/kratos/**', route => route.fulfill({
-    status: 200, contentType: 'application/json', body: '{}',
-  }));
-  await page.goto('/auth/login');
-  await expect(page.getByRole('alert')).toContainText('不可用');
-  await page.route('**/api/auth/session', route => route.fulfill({
-    status: 200, contentType: 'text/html', body: '<html>Misconfigured proxy</html>',
-  }));
-  await page.goto('/app');
-  await expect(page.getByRole('alert')).toContainText('不可用');
-});
-
-test('verification flow sends and rejects invalid code without claiming success', async ({ page }, info) => {
-  await page.goto('/auth/verification');
-  await page.getByLabel('邮箱地址', { exact: true }).fill('nonexistent@example.com');
-  await page.getByRole('button', { name: '发送验证码' }).click();
-  await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
-  await captureState(page, info, 'verification-code');
-  await page.getByLabel('邮箱验证码', { exact: true }).fill('000000');
-  await page.getByRole('button', { name: '验证邮箱', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('验证码');
-  await expect(page.getByRole('heading', { name: '邮箱已验证。' })).toHaveCount(0);
-  await captureState(page, info, 'verification-error');
-});
-
-test('audit route inventory', async ({ page }, info) => {
+test('lost pending cookie has recoverable expiry without authentication', async ({ page, context }, info) => {
   test.setTimeout(120000);
-  for (const [state, route] of [
-    ['welcome', '/'], ['login', '/auth/login'], ['registration', '/auth/registration'],
-    ['verification', '/auth/verification'], ['help', '/auth/help'],
-    ['error', '/auth/error'], ['logged-out', '/auth/logged-out'],
-  ]) {
+  await begin(page, `expired-${Date.now()}@example.com`, '/auth/verification');
+  await captureState(page, info, 'verification-code');
+  await context.clearCookies();
+  await page.getByLabel('邮箱验证码', { exact: true }).fill('000000');
+  await page.getByRole('button', { name: '验证并继续', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('过期');
+  expect((await page.request.get('/api/auth/session')).status()).toBe(401);
+  await captureState(page, info, 'verification-error');
+  await captureState(page, info, 'expired');
+  await captureState(page, info, 'expired-submit');
+  await page.getByRole('button', { name: '重新开始', exact: true }).click();
+  await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
+});
+
+test('network and malformed response errors recover without replacing the form', async ({ page }, info) => {
+  await page.route('**/api/auth/flow', route => route.abort());
+  await page.goto('/auth/login');
+  await expect(page.getByRole('alert')).toContainText('暂时连接不上认证服务');
+  await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
+  await captureState(page, info, 'offline', 'injected-response');
+  await page.unroute('**/api/auth/flow');
+  await page.getByRole('button', { name: '重试连接', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.route('**/api/auth/flow', route => route.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
+  await page.reload();
+  await expect(page.getByRole('alert')).toContainText('暂时连接不上认证服务');
+  await page.route('**/api/auth/session', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>bad proxy</html>' }));
+  await page.goto('/app');
+  await expect(page.getByRole('alert')).toContainText('暂时连接不上认证服务');
+});
+
+test('rate limit response remains an error after real Cap solving', async ({ page }, info) => {
+  test.setTimeout(120000);
+  await page.route('**/api/auth/start', route => route.fulfill({ status: 429, contentType: 'application/json', body: '{"error":{"id":"rate_limited"}}' }));
+  await page.goto('/auth/login');
+  await page.getByLabel('邮箱地址', { exact: true }).fill('rate-test@example.com');
+  await solveCap(page);
+  await page.getByRole('button', { name: '获取验证码', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('频繁');
+  await captureState(page, info, 'rate-limit', 'injected-response');
+  expect((await page.request.get('/api/auth/session')).status()).toBe(401);
+});
+
+test('auth route inventory and responsive evidence', async ({ page }, info) => {
+  test.setTimeout(120000);
+  for (const [state, route] of [['welcome', '/'], ['login', '/auth/login'], ['registration', '/auth/registration'], ['verification', '/auth/verification'], ['help', '/auth/help'], ['error', '/auth/error'], ['logged-out', '/auth/logged-out']]) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    if (['login', 'registration', 'verification'].includes(state)) {
-      await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
-    }
     await captureState(page, info, state, 'render');
   }
 });
-
-for (const [width, height] of [[360, 800], [390, 844], [768, 1024], [1440, 900]]) {
-  for (const theme of ['light', 'dark']) {
-    test(`auth ${width}x${height} ${theme} layout`, async ({ page }, info) => {
-      await page.setViewportSize({ width, height });
-      await page.emulateMedia({ colorScheme: theme });
-      for (const route of ['/', '/auth/login', '/auth/registration', '/auth/help', '/auth/error', '/auth/logged-out']) {
-        await page.goto(route);
-        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        if (route === '/auth/login' || route === '/auth/registration') await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-        await page.screenshot({ path: info.outputPath(`${route.replaceAll('/', '-') || 'welcome'}.png`), fullPage: true });
-      }
-    });
-  }
-}

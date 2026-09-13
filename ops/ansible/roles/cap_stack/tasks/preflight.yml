@@ -1,0 +1,30 @@
+---
+# Preflight checks for cap_stack
+
+- name: Validate cap input variables
+  ansible.builtin.assert:
+    that:
+      - cap_base_dir is match('^/[a-zA-Z0-9/_.-]+$')
+      - cap_project_name is match('^[a-z0-9_-]+$')
+      - cap_listen_addr is match('^127\\.0\\.0\\.1:[0-9]{1,5}$')
+      - cap_base_dir != '/'
+      - cap_image is match('^[a-zA-Z0-9_./:-]+@sha256:[a-f0-9]{64}$')
+      - cap_valkey_image is match('^[a-zA-Z0-9_./:-]+@sha256:[a-f0-9]{64}$')
+    fail_msg: >-
+      Invalid cap_stack configuration variables. Check cap_base_dir,
+      cap_listen_addr (must be loopback 127.0.0.1:port), or image pins.
+
+- name: Validate cap loopback port constraint
+  ansible.builtin.assert:
+    that:
+      - (cap_listen_addr.split(':')[1] | int) > 0
+      - (cap_listen_addr.split(':')[1] | int) < 65536
+    fail_msg: cap_listen_addr port must be between 1 and 65535.
+
+- name: Refuse unrelated directories, containers, storage and listeners
+  ansible.builtin.script:
+    cmd: >-
+      preflight.py {{ cap_base_dir | quote }} {{ cap_project_name | quote }}
+      {{ cap_listen_addr.split(':')[1] | quote }} {{ (cap_simulate | bool | ternary('true', 'false')) | quote }}
+    executable: python3
+  changed_when: false

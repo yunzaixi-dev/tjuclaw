@@ -1,0 +1,8 @@
+---
+- name: Deploy isolated ZITADEL identity service
+  hosts: all
+  serial: 1
+  become: "{{ zitadel_become | default(true) }}"
+  gather_facts: false
+  roles:
+    - role: zitadel

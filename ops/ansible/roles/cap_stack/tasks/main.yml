@@ -1,0 +1,122 @@
+---
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Ensure private configuration directory
+  ansible.builtin.file:
+    path: "{{ cap_base_dir }}"
+    state: directory
+    owner: "{{ 'root' if not (cap_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (cap_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Check previous Compose configuration
+  ansible.builtin.stat:
+    path: "{{ cap_base_dir }}/compose.yaml"
+  register: cap_previous_stat
+
+- name: Preserve previous Compose configuration for rollback
+  ansible.builtin.slurp:
+    path: "{{ cap_base_dir }}/compose.yaml"
+  register: cap_previous_compose
+  when: cap_previous_stat.stat.exists
+
+- name: Validate or generate durable administrator secret
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Mark this directory as owned by the Cap role
+  ansible.builtin.copy:
+    content: "tjuclaw-cap-v1\n"
+    dest: "{{ cap_base_dir }}/.managed-by-ansible"
+    mode: "0600"
+
+- name: Create administrator environment only on first deployment
+  ansible.builtin.template:
+    src: env.cap.j2
+    dest: "{{ cap_base_dir }}/.env.cap"
+    mode: "0600"
+  when: not cap_env_stat.stat.exists
+  no_log: true
+
+- name: Enforce private environment permissions
+  ansible.builtin.file:
+    path: "{{ cap_base_dir }}/.env.cap"
+    mode: "0600"
+    owner: "{{ 'root' if not (cap_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (cap_simulate | bool) else omit }}"
+
+- name: Apply candidate configuration with rollback
+  block:
+    - name: Render Compose candidate
+      ansible.builtin.template:
+        src: compose.yaml.j2
+        dest: "{{ cap_base_dir }}/compose.yaml"
+        mode: "0644"
+
+    - name: Validate candidate Compose without displaying environment
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ cap_project_name }}" -f "{{ cap_base_dir }}/compose.yaml" config --quiet
+      changed_when: false
+      when: not (cap_simulate | bool)
+      no_log: true
+
+    - name: Start independent Cap and Valkey containers
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ cap_project_name }}" -f "{{ cap_base_dir }}/compose.yaml" up -d --wait --wait-timeout 45
+      register: cap_up
+      changed_when: "'Started' in (cap_up.stdout + cap_up.stderr) or 'Created' in (cap_up.stdout + cap_up.stderr) or 'Recreated' in (cap_up.stdout + cap_up.stderr)"
+      when: not (cap_simulate | bool)
+
+    - name: Verify unauthenticated dashboard asset is served
+      ansible.builtin.uri:
+        url: "http://{{ cap_listen_addr }}/public/logo-small.webp"
+        status_code: 200
+        timeout: 3
+        use_proxy: false
+      register: cap_health
+      until: cap_health.status | default(0) == 200
+      retries: "{{ ((cap_health_timeout_seconds | int) / (cap_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ cap_health_delay_seconds }}"
+      when: not (cap_simulate | bool)
+
+    - name: Verify management API rejects unauthenticated requests
+      ansible.builtin.uri:
+        url: "http://{{ cap_listen_addr }}/server/keys"
+        status_code: 401
+        timeout: 3
+        use_proxy: false
+      when: not (cap_simulate | bool)
+
+  rescue:
+    - name: Restore previous Compose configuration
+      ansible.builtin.copy:
+        content: "{{ cap_previous_compose.content | b64decode }}"
+        dest: "{{ cap_base_dir }}/compose.yaml"
+        mode: "0644"
+      when: cap_previous_stat.stat.exists
+
+    - name: Restore previously deployed services
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ cap_project_name }}" -f "{{ cap_base_dir }}/compose.yaml" up -d --wait --wait-timeout 45
+      when: cap_previous_stat.stat.exists and not (cap_simulate | bool)
+
+    - name: Verify restored service
+      ansible.builtin.uri:
+        url: "http://{{ cap_listen_addr }}/public/logo-small.webp"
+        status_code: 200
+        timeout: 3
+        use_proxy: false
+      register: cap_restored
+      until: cap_restored.status | default(0) == 200
+      retries: 15
+      delay: 2
+      when: cap_previous_stat.stat.exists and not (cap_simulate | bool)
+
+    - name: Stop failed initial deployment without deleting storage
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ cap_project_name }}" -f "{{ cap_base_dir }}/compose.yaml" down
+      when: not cap_previous_stat.stat.exists and not (cap_simulate | bool)
+
+    - name: Report failed candidate
+      ansible.builtin.fail:
+        msg: "Cap deployment failed. Previous services restored when present; persistent volume and administrator environment retained."

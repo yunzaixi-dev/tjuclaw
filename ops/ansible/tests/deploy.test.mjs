@@ -63,3 +63,40 @@ test('API deployment validates before mutation, preserves immutable releases and
     assert.ok(!existsSync(join(firstBase, 'current'))); assert.ok(!existsSync(join(firstBase, 'tjuclaw-api.service')));
   } finally { server.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('ZITADEL deployment checks its configured instance and rejects incomplete credentials before mutation', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'tjuclaw-zitadel-deploy-'));
+  const paths = [];
+  let identityHealthy = false;
+  const server = createServer((req, res) => {
+    paths.push(req.url);
+    const ready = req.url === '/debug/ready';
+    res.writeHead(ready && (!identityHealthy || req.headers.host !== 'identity.example.invalid') ? 503 : 200);
+    res.end('health');
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const artifact = join(directory, 'artifact'), envFile = join(directory, 'api.env'), base = join(directory, 'opt');
+  const listen = `127.0.0.1:${server.address().port}`;
+  writeFileSync(artifact, 'zitadel-version');
+  const vars = { api_release_sha: 'c'.repeat(40), api_artifact_path: artifact, api_artifact_sha256: digest('zitadel-version'),
+    api_env_file: envFile, api_base_dir: base, api_data_dir: join(directory, 'data'), api_listen_addr: listen,
+    api_deploy_simulate_systemd: true, api_deploy_become: false, api_health_timeout_seconds: 1 };
+  const settings = `APP_PUBLIC_URL=https://app.example.invalid\nAUTH_PROVIDER=zitadel\nZITADEL_URL=http://${listen}\nZITADEL_DOMAIN=identity.example.invalid\nZITADEL_ORG_ID=test-org\nZITADEL_TOKEN=synthetic-pat\nAUTH_COOKIE_KEY=${Buffer.alloc(32, 3).toString('base64')}\nCAP_URL=http://127.0.0.1:13301\nCAP_SITE_KEY=synthetic-site\n`;
+  try {
+    writeFileSync(envFile, settings);
+    let result = await run(vars);
+    assert.notEqual(result.status, 0); assert.ok(!existsSync(base));
+    assert.ok(!result.output.includes('synthetic-pat'));
+    writeFileSync(envFile, `${settings}CAP_SECRET_KEY=synthetic-secret\n`);
+    result = await run(vars);
+    assert.notEqual(result.status, 0); assert.ok(!existsSync(base));
+    assert.deepEqual(paths, ['/debug/ready']);
+    identityHealthy = true;
+    result = await run(vars);
+    assert.equal(result.status, 0, result.output);
+    assert.equal(readlinkSync(join(base, 'current')), join(base, 'releases', vars.api_release_sha));
+    assert.ok(!paths.some(path => path.includes('/health/ready')));
+    assert.ok(!result.output.includes('synthetic-pat'));
+    assert.ok(!result.output.includes('synthetic-secret'));
+  } finally { server.close(); rmSync(directory, { recursive: true, force: true }); }
+});

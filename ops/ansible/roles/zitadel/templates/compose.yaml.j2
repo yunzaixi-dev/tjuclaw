@@ -1,0 +1,75 @@
+name: {{ zitadel_project_name }}
+
+x-zitadel-common: &zitadel-common
+  image: "{{ zitadel_image }}"
+  env_file:
+    - path: .env.zitadel
+      format: raw
+  logging:
+    driver: json-file
+    options:
+      max-size: "{{ zitadel_logging_max_size }}"
+      max-file: "{{ zitadel_logging_max_file }}"
+  security_opt:
+    - no-new-privileges:true
+  volumes:
+    - ./bootstrap:/bootstrap
+
+services:
+  db:
+    image: "{{ zitadel_postgres_image }}"
+    restart: unless-stopped
+    env_file:
+      - .env.db
+    volumes:
+      - zitadel_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: "{{ zitadel_postgres_mem_limit }}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "{{ zitadel_logging_max_size }}"
+        max-file: "{{ zitadel_logging_max_file }}"
+    security_opt:
+      - no-new-privileges:true
+
+  zitadel-init:
+    <<: *zitadel-common
+    command: init
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  zitadel-setup:
+    <<: *zitadel-common
+    command: setup --masterkeyFromEnv
+    depends_on:
+      zitadel-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  zitadel:
+    <<: *zitadel-common
+    command: start --masterkeyFromEnv --tlsMode external
+    restart: unless-stopped
+    ports:
+      - "{{ zitadel_listen_addr }}:8080"
+    depends_on:
+      zitadel-setup:
+        condition: service_completed_successfully
+    # Distroless ZITADEL has no shell/wget; Ansible probes readiness over HTTP.
+    deploy:
+      resources:
+        limits:
+          memory: "{{ zitadel_app_mem_limit }}"
+
+volumes:
+  zitadel_db_data:

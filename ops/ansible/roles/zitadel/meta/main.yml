@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: TJUClaw Core Team
+  description: Production ZITADEL identity provider stack with Docker Compose
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - "12"
+
+dependencies: []

@@ -1,0 +1,91 @@
+---
+# Main tasks for zitadel role
+
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Manage durable secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Ensure target directory structure exists (production)
+  ansible.builtin.file:
+    path: "{{ zitadel_base_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0700"
+  when: not (zitadel_simulate | bool)
+
+- name: Ensure target directory structure exists (simulation mode)
+  ansible.builtin.file:
+    path: "{{ zitadel_base_dir }}"
+    state: directory
+    mode: "0700"
+  when: zitadel_simulate | bool
+
+- name: Create private bootstrap directory for the image's ZITADEL user
+  ansible.builtin.file:
+    path: "{{ zitadel_base_dir }}/bootstrap"
+    state: directory
+    owner: "{{ '1000' if not (zitadel_simulate | bool) else omit }}"
+    group: "{{ '1000' if not (zitadel_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Render .env.db file with strict permissions
+  ansible.builtin.template:
+    src: env.db.j2
+    dest: "{{ zitadel_base_dir }}/.env.db"
+    owner: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render .env.zitadel file with strict permissions
+  ansible.builtin.template:
+    src: env.zitadel.j2
+    dest: "{{ zitadel_base_dir }}/.env.zitadel"
+    owner: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render docker compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ zitadel_base_dir }}/compose.yaml"
+    owner: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (zitadel_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Execute compose deployment and health checks
+  when: not (zitadel_simulate | bool)
+  block:
+    - name: Start database service first
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ zitadel_project_name }}" -f "{{ zitadel_base_dir }}/compose.yaml" up -d db
+      register: zitadel_db_up
+      changed_when: "'Started' in zitadel_db_up.stdout or 'Created' in zitadel_db_up.stdout"
+
+    - name: Run ZITADEL init and setup steps
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ zitadel_project_name }}" -f "{{ zitadel_base_dir }}/compose.yaml" up zitadel-init zitadel-setup
+      register: zitadel_init_setup
+      changed_when: "'Started' in zitadel_init_setup.stdout or 'Created' in zitadel_init_setup.stdout"
+
+    - name: Start ZITADEL server
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ zitadel_project_name }}" -f "{{ zitadel_base_dir }}/compose.yaml" up -d zitadel
+      register: zitadel_up
+      changed_when: "'Started' in zitadel_up.stdout or 'Created' in zitadel_up.stdout"
+
+    - name: Verify ZITADEL readiness endpoint
+      ansible.builtin.uri:
+        url: "http://{{ zitadel_listen_addr }}/debug/ready"
+        method: GET
+        status_code: 200
+        timeout: 5
+        use_proxy: false
+      register: zitadel_health_check
+      until: zitadel_health_check.status | default(0) == 200
+      retries: "{{ ((zitadel_health_timeout_seconds | int) / (zitadel_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ zitadel_health_delay_seconds }}"

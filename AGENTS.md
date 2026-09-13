@@ -33,9 +33,11 @@ them in tool-specific files.
 - Follow `frontend/UI.md` for product UI components and appearance state.
   Use shared semantic tokens and `src/components/ui/`, not parallel theme systems.
 - Follow root `DEVELOPMENT.md` for frontend/API boundaries and acceptance checks.
-  Kratos is the only identity authority; browser auth stays same-origin.
+  ZITADEL is the target identity authority (replacing Kratos by explicit user decision);
+  browser auth stays same-origin. Preserve the old identity database for rollback
+  until the replacement is verified. Never auto-link existing accounts by email.
   Read `ops/auth/README.md` before changing authentication policy or deployments.
-  Never apply the isolated Kratos policy blindly to a shared identity cluster.
+  Never apply an isolated identity policy blindly to a shared identity cluster.
 
 ## Common Commands
 
@@ -72,6 +74,10 @@ them in tool-specific files.
   explicitly configured artifact; see `ops/ansible/DEPLOY.md`. Inventories and generated configs
   stay under ignored `ops/local/`. Existing proxy/VPN services are not auto-adopted.
 - Service provisioning: `task ops:services:prepare` installs the Compose plugin and initializes the API environment without overwriting existing configuration. `task ops:identity:deploy` requires a real root-only `/etc/tjuclaw-identity-smtp.env`; `task ops:newapi:deploy` manages the internal model gateway. Both use isolated databases and durable secrets. Keep database/admin ports private; NewAPI is an operations service, never a second product identity authority.
+- Cap self-hosting: `task ops:cap:deploy` uses ignored `ops/local/cap.yml` to deploy
+  independent Cap/Valkey with durable secrets and private loopback administration.
+  See `ops/ansible/CAP.md`. A running Cap service alone does not enforce CAPTCHA on
+  product authentication; enforcement requires server-side token verification.
 - NewAPI HTTPS origin: `task ops:newapi:origin:deploy` (pre-provisioned TLS PEM;
   dedicated HAProxy 8443, preserves existing 443 service). See `ops/ansible/SERVICES.md`.
 - Local containers: `task compose:up`, `task compose:down`

@@ -129,7 +129,7 @@ jobs:
     secrets: inherit
 
   integration:
-    name: Real Kratos authentication and task ownership
+    name: Real ZITADEL authentication, Cap and task ownership
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -150,10 +150,15 @@ jobs:
           task compose:context
       - name: Install Chromium with system dependencies
         run: pnpm exec playwright install --with-deps chromium
-      - name: Pre-pull exact auth test Compose images
-        run: docker compose -p tjuclaw-auth-test -f ops/auth/compose.yaml pull
+      - name: Pre-pull pinned identity and CAPTCHA test images
+        run: |
+          docker pull ghcr.io/zitadel/zitadel:v4.17.3
+          docker pull postgres:16.14-alpine
+          docker pull axllent/mailpit:v1.27.8
+          docker pull tiago2/cap:3.1.11
+          docker pull valkey/valkey:9-alpine
       - name: Run real auth regression
         run: task auth:test
       - name: Clean up exact test stack
         if: always()
-        run: docker compose -p tjuclaw-auth-test -f ops/auth/compose.yaml down --volumes --remove-orphans || true
+        run: node scripts/auth-test-stack.mjs --down

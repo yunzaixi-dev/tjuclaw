@@ -22,7 +22,7 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 | --- | --- |
 | 产品客户端 | React + Vite，共用界面；Tauri 原生端初始化 |
 | 构建目标 | Web、Android、Linux、Windows；不配置 Apple 平台 |
-| 产品后端 | Go HTTP 服务，健康检查、Kratos 流程边界与真实会话校验 |
+| 产品后端 | Go HTTP 服务，ZITADEL 邮箱认证与会话边界（迁移验收中） |
 | 文档站 | 独立 Next.js + Fumadocs 应用 |
 | 本地容器 | Web + API Compose 开发栈，不是生产部署 |
 | CI | GitHub 托管 Actions 运行完整检查与各平台构建；GitLab 保留比赛源码 |

@@ -1,0 +1,36 @@
+---
+# Production ZITADEL stack defaults
+
+zitadel_base_dir: /opt/tjuclaw-zitadel
+zitadel_project_name: tjuclaw-zitadel
+zitadel_app_url: https://app.tjuclaw.cloud
+zitadel_listen_addr: "127.0.0.1:8085"
+zitadel_external_domain: auth.tjuclaw.cloud
+zitadel_external_port: 443
+zitadel_external_secure: true
+zitadel_tls_mode: external
+
+# SMTP configuration env file (pre-provisioned on target host)
+zitadel_smtp_env_file: /etc/tjuclaw-identity-smtp.env
+
+# Images pinned by version
+zitadel_postgres_image: "postgres:16.14-alpine"
+zitadel_image: "ghcr.io/zitadel/zitadel:v4.17.3"
+
+# Rotate the login PAT before this expiry; bootstrap owner is never an API token.
+zitadel_pat_expiration: "2027-09-13T00:00:00Z"
+
+# Resource limits
+zitadel_postgres_mem_limit: "384m"
+zitadel_app_mem_limit: "512m"
+
+# Logging limits
+zitadel_logging_max_size: "10m"
+zitadel_logging_max_file: "3"
+
+# Health check settings
+zitadel_health_timeout_seconds: 45
+zitadel_health_delay_seconds: 3
+
+# Simulation / testing mode flag
+zitadel_simulate: false

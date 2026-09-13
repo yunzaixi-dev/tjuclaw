@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: TJUClaw Team
+  description: Cap standalone PoW captcha service role with Valkey backend
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+dependencies: []

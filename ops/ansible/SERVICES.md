@@ -7,8 +7,13 @@ projects; they do not take over existing containers or shared identity services.
 ```sh
 task ops:services:prepare
 task ops:newapi:deploy
-task ops:identity:deploy
+task ops:zitadel:deploy
 ```
+
+For the independent Cap CAPTCHA service, use `task ops:cap:deploy` with ignored
+`ops/local/cap.yml`. Its dashboard listens on loopback port 3300 and is accessed
+through an SSH tunnel; Valkey has no published port. See [CAP.md](CAP.md) for
+persistent secrets, backup, rollback and the separate product integration boundary.
 
 `ops:services:prepare` installs the Compose plugin and creates
 `/etc/tjuclaw-api.env` only when absent. Review existing configuration separately;
@@ -28,6 +33,15 @@ The values above are placeholders. Percent-encode credentials in the URI.
 Missing SMTP configuration stops deployment before services start. TLS
 verification and STARTTLS must not be disabled. Do not commit this file or
 include credentials in command arguments, logs, or issue descriptions.
+
+The selected replacement is ZITADEL v4.17.3. Copy `zitadel.example.yml` to ignored
+`ops/local/zitadel.yml`, then use `task ops:zitadel:deploy`. This creates isolated
+PostgreSQL and ZITADEL under `/opt/tjuclaw-zitadel`, with a loopback 8085 listener,
+durable database/master secrets and private machine bootstrap tokens. The API and
+client must be delivered together to switch providers; this role leaves their
+current selection intact. See [the authentication guide](../auth/ZITADEL.md).
+
+### Legacy Kratos rollback
 
 Kratos and its database use `/opt/tjuclaw-identity`, with durable secrets in
 `.env.db` and `.env.kratos`. Back up these files together with the database.
@@ -55,7 +69,7 @@ ssh -N -L 3000:127.0.0.1:3000 YOUR_CONFIGURED_SSH_HOST
 
 Open `http://127.0.0.1:3000` locally. Deployment initializes the administrator
 and disables public registration. NewAPI is an operational model gateway;
-Kratos remains the product identity authority. Configure model providers and
+ZITADEL is the selected replacement product identity authority. Configure model providers and
 runtime credentials separately before claiming working model inference.
 
 The default memory ceilings are 384 MiB for NewAPI and 256 MiB for its database;

@@ -1,0 +1,10 @@
+# Copy to ignored ops/local/zitadel.yml; credentials stay on the target host.
+zitadel_base_dir: /opt/tjuclaw-zitadel
+zitadel_project_name: tjuclaw-zitadel
+zitadel_app_url: https://app.tjuclaw.cloud
+zitadel_listen_addr: "127.0.0.1:8085"
+zitadel_external_domain: auth.tjuclaw.cloud
+zitadel_external_port: 443
+zitadel_external_secure: true
+zitadel_smtp_env_file: /etc/tjuclaw-identity-smtp.env
+# This creates an isolated service only. API/client cutover is separate.
