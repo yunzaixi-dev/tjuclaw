@@ -5,9 +5,11 @@ import { SiteFooter } from '@/components/SiteFooter';
 
 export default function Layout({ children }: LayoutProps<'/docs'>) {
   return (
-    <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
-      {children}
+    <div className="wiki-layout-shell">
+      <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
+        {children}
+      </DocsLayout>
       <SiteFooter />
-    </DocsLayout>
+    </div>
   );
 }

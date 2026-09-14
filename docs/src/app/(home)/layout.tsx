@@ -4,9 +4,12 @@ import { SiteFooter } from '@/components/SiteFooter';
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
-    <HomeLayout {...baseOptions()}>
-      {children}
+    <div className="wiki-layout-shell">
+      <HomeLayout {...baseOptions()}>
+        {children}
+      </HomeLayout>
       <SiteFooter />
-    </HomeLayout>
+    </div>
   );
+
 }

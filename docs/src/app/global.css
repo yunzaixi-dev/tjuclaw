@@ -777,6 +777,16 @@ html > body[data-scroll-locked] {
   font-size: 0.9rem;
 }
 
+ .wiki-layout-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.wiki-layout-shell > :first-child {
+  flex: 1 0 auto;
+}
+
 .dark .wiki-footer,
 :root:not(.light) .wiki-footer {
   background: #0a0d0e;
