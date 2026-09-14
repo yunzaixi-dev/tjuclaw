@@ -133,9 +133,9 @@ jobs:
     secrets: inherit
 
   integration:
-    name: Real ZITADEL authentication, Cap and task ownership
+    name: Real Kratos authentication, Cap and task ownership
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -156,7 +156,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Pre-pull pinned identity and CAPTCHA test images
         run: |
-          docker pull ghcr.io/zitadel/zitadel:v4.17.3
+          docker pull oryd/kratos:v26.2.0
           docker pull postgres:16.14-alpine
           docker pull axllent/mailpit:v1.27.8
           docker pull tiago2/cap:3.1.11

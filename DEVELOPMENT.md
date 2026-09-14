@@ -5,10 +5,11 @@
 - React + Vite owns the product UI; Next.js is documentation only.
 - Go's standard-library HTTP server owns application APIs. Keep business code
   under `backend/internal/<feature>/`; `cmd/api` is composition and lifecycle.
-- ZITADEL is the target identity authority, replacing Kratos. Never create parallel
-  user/password databases, verification codes, JWT issuers, or localStorage login
-  state. The API may encrypt provider session credentials in HttpOnly cookies;
-  every protected request must still validate the ZITADEL session and email factor.
+- Kratos is the active identity authority. Never create parallel user/password
+  databases, verification codes, JWT issuers, or localStorage login state. The API
+  encrypts the Kratos session token in HttpOnly cookies; every protected request
+  must still validate that session and a verified email. ZITADEL remains a paired
+  rollback only (`AUTH_PROVIDER=zitadel`).
 - Browser traffic is same-origin `/api/*`. Vite and Nginx remove `/api` once;
   Go routes do not include that prefix. Native clients need a separately reviewed
   native session transport, not relaxed CORS or browser cookies stored as tokens.
@@ -98,7 +99,7 @@ between API replicas or treat it as the future workspace file service. Keep the
 container root read-only and mount only the designated data volume for writes.
 
 Run `task workspace:test` for the mocked browser contract, and `task auth:test`
-for real ZITADEL/API task acceptance. Mocked transport checks are not evidence of
+for real Kratos/API task acceptance. Mocked transport checks are not evidence of
 working persistence or identity isolation. Run `go test -race ./...` in `backend/`
 for concurrent storage behavior. Do not run browser suites concurrently against
 the shared `frontend/dist` output.

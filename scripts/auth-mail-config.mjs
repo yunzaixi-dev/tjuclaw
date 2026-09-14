@@ -109,6 +109,8 @@ export async function resolveAuthDevMailConfig(root, env = process.env, options 
         ZITADEL_SMTP_FROM: 'test@localhost',
         ZITADEL_SMTP_FROM_NAME: 'TJUClaw',
         ZITADEL_SMTP_REPLY_TO: 'test@localhost',
+        COURIER_SMTP_CONNECTION_URI: 'smtp://mail:1025/?disable_starttls=true',
+        COURIER_SMTP_FROM_ADDRESS: 'test@localhost',
       },
     };
   }
@@ -172,6 +174,8 @@ export async function resolveAuthDevMailConfig(root, env = process.env, options 
       ZITADEL_SMTP_FROM: fromAddress,
       ZITADEL_SMTP_FROM_NAME: fromName,
       ZITADEL_SMTP_REPLY_TO: replyTo,
+      COURIER_SMTP_CONNECTION_URI: rawUri,
+      COURIER_SMTP_FROM_ADDRESS: fromAddress,
     },
   };
 }

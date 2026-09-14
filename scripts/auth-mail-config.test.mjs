@@ -191,6 +191,8 @@ COURIER_SMTP_FROM_ADDRESS=login@tjuclaw.agentwego.com
       ZITADEL_SMTP_FROM: 'login@tjuclaw.agentwego.com',
       ZITADEL_SMTP_FROM_NAME: 'TJUClaw',
       ZITADEL_SMTP_REPLY_TO: 'login@tjuclaw.agentwego.com',
+      COURIER_SMTP_CONNECTION_URI: 'smtps://resend:re_test_secret@smtp.resend.com:465/',
+      COURIER_SMTP_FROM_ADDRESS: 'login@tjuclaw.agentwego.com',
     });
   } finally {
     await rm(dir, { recursive: true, force: true });

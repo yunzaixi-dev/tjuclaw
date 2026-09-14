@@ -1,20 +1,20 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveAuthDevMailConfig, syncZitadelSmtpProvider } from './auth-mail-config.mjs';
+import { resolveAuthDevMailConfig } from './auth-mail-config.mjs';
 
 // Tests are disposable; --dev keeps identities and credentials across restarts.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const development = process.argv.includes('--dev');
 const devDirectory = join(root, 'ops/local/auth-dev');
 const statePath = development ? join(devDirectory, 'state.json') : join(root, 'ops/local/auth-test-stack.json');
-const project = development ? 'tjuclaw-zitadel-dev' : 'tjuclaw-auth-test';
-const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/zitadel/compose.yml'];
+const project = development ? 'tjuclaw-auth-dev' : 'tjuclaw-auth-test';
+const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/compose.yaml'];
 const identityPort = development ? 14436 : 14435;
 const mailPort = development ? 18027 : 18026;
 const capPort = development ? 13302 : 13301;
@@ -90,7 +90,7 @@ try {
   try {
     const saved = JSON.parse(await readFile(statePath, 'utf8'));
     if (!development) throw new Error('Existing isolated test stack state; run node scripts/auth-test-stack.mjs --down first');
-    if (saved.directory !== devDirectory || !saved.env?.ZITADEL_MASTERKEY || !saved.env?.ZITADEL_DATABASE_PASSWORD || !saved.env?.CAP_ADMIN_KEY) throw new Error('Invalid local development state; refusing to replace credentials');
+    if (saved.directory !== devDirectory || saved.provider !== 'kratos' || !saved.env?.CAP_ADMIN_KEY || !saved.cookieKey) throw new Error('Invalid local development state; refusing to replace credentials. Run task auth:down if switching from ZITADEL.');
     runtime = saved;
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (!runtime && development) {
@@ -98,57 +98,31 @@ try {
     if (volumes.status !== 0 || volumes.stdout.trim()) throw new Error('Cannot create development credentials: existing volumes or unavailable Docker');
   }
   const directory = runtime?.directory ?? (development ? devDirectory : await mkdtemp(join(tmpdir(), 'tjuclaw-auth-')));
-  const bootstrap = join(directory, 'bootstrap');
-  await mkdir(bootstrap, { recursive: true, mode: 0o700 });
   const mailConfig = await resolveAuthDevMailConfig(root, process.env, { development });
   if (!runtime) {
-    runtime = { directory, cookieKey: randomBytes(32).toString('base64'), env: {
-      ZITADEL_MASTERKEY: randomBytes(16).toString('hex'),
-      ZITADEL_DATABASE_PASSWORD: secret(), CAP_ADMIN_KEY: secret(),
-      ZITADEL_BOOTSTRAP_DIR: bootstrap,
-      AUTH_TEST_UID: String(process.getuid?.() ?? 1000), AUTH_TEST_GID: String(process.getgid?.() ?? 1000),
-      AUTH_IDENTITY_PORT: String(identityPort), AUTH_MAIL_PORT: String(mailPort), AUTH_CAP_PORT: String(capPort),
+    runtime = { directory, provider: 'kratos', cookieKey: randomBytes(32).toString('base64'), env: {
+      CAP_ADMIN_KEY: secret(),
+      AUTH_KRATOS_PORT: String(identityPort), AUTH_MAIL_PORT: String(mailPort), AUTH_CAP_PORT: String(capPort),
+      AUTH_BROWSER_URL: publicOrigin,
       ...mailConfig.composeEnv,
     } };
     await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
     await writeFile(statePath, JSON.stringify(runtime), { mode: 0o600, flag: 'wx' });
   } else {
-    runtime.env = { ...runtime.env, ...mailConfig.composeEnv };
+    runtime.env = { ...runtime.env, AUTH_BROWSER_URL: publicOrigin, ...mailConfig.composeEnv };
   }
-  console.log(`Starting isolated ZITADEL, Cap and ${mailConfig.mode === 'real' ? 'real-delivery SMTP' : 'captured-mail'} services.`);
+  console.log(`Starting isolated Kratos, Cap and ${mailConfig.mode === 'real' ? 'real-delivery SMTP' : 'captured-mail'} services.`);
   if (compose(['up', '--detach'], runtime.env).status !== 0) {
-    const logs = spawnSync('docker', [...composeArgs, 'logs', '--no-color', '--tail', '35', 'zitadel-setup'], { cwd: root, env: { ...process.env, ...runtime.env }, encoding: 'utf8' });
+    const logs = spawnSync('docker', [...composeArgs, 'logs', '--no-color', '--tail', '35', 'kratos'], { cwd: root, env: { ...process.env, ...runtime.env }, encoding: 'utf8' });
     let diagnostic = (logs.stdout ?? '') + (logs.stderr ?? '');
     for (const value of Object.values(runtime.env).filter(value => value.length >= 16)) diagnostic = diagnostic.replaceAll(value, '[redacted]');
     await writeFile(join(dirname(statePath), 'stack-startup.log'), diagnostic, { mode: 0o600 });
     throw new Error('Isolated identity stack startup failed; private diagnostics: test-results/auth/stack-startup.log');
   }
   const identityBase = `http://127.0.0.1:${identityPort}`;
-  const identityHost = { Host: `localhost:${identityPort}` };
-  await ready(identityBase, '/debug/ready', identityHost);
-  await ready(`http://127.0.0.1:${mailPort}`, '/api/v1/messages');
+  await ready(identityBase, '/health/ready');
+  if (mailConfig.mode === 'captured') await ready(`http://127.0.0.1:${mailPort}`, '/api/v1/messages');
   await ready(`http://127.0.0.1:${capPort}`, '/');
-  const owner = (await readFile(join(bootstrap, 'owner.pat'), 'utf8')).trim();
-  const loginToken = (await readFile(join(bootstrap, 'login-client.pat'), 'utf8')).trim();
-  await chmod(join(bootstrap, 'owner.pat'), 0o600);
-  await chmod(join(bootstrap, 'login-client.pat'), 0o600);
-  let organizations;
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const result = await request(identityBase, '/v2/organizations/_search', { method: 'POST', headers: { ...identityHost, Authorization: `Bearer ${owner}` }, body: { queries: [{ nameQuery: { name: 'TJUClaw Test', method: 'TEXT_QUERY_METHOD_EQUALS' } }] } });
-    if (result.status === 200) { organizations = result.value; break; }
-    if (result.status !== 503 || attempt === 29) {
-      await writeFile(join(dirname(statePath), 'bootstrap-error.json'), JSON.stringify({ status: result.status, response: result.value }), { mode: 0o600 });
-      throw new Error('Organization bootstrap query failed; private diagnostics: test-results/auth/bootstrap-error.json');
-    }
-    await new Promise(resolveWait => setTimeout(resolveWait, 1000));
-  }
-  const org = organizations.result?.find(item => item.name === 'TJUClaw Test');
-  if (!org?.id || !loginToken) throw new Error('Missing isolated organization or login-client PAT');
-
-  if (development && mailConfig.smtp) {
-    // Persistent development identities must switch providers when mode changes.
-    await syncZitadelSmtpProvider(identityBase, owner, `localhost:${identityPort}`, mailConfig.smtp);
-  }
 
   const capBase = `http://127.0.0.1:${capPort}`;
   let site = runtime.site;
@@ -170,16 +144,15 @@ try {
   if (build.status !== 0) throw new Error('API build failed');
   api = spawn(executable, [], { cwd: directory, stdio: 'inherit', env: {
     ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, DATABASE_URL: '',
-    TASK_DATA_DIR: join(directory, 'tasks'), AUTH_PROVIDER: 'zitadel',
-    APP_PUBLIC_URL: publicOrigin, ZITADEL_URL: identityBase,
-    ZITADEL_DOMAIN: `localhost:${identityPort}`, ZITADEL_ORG_ID: org.id,
-    ZITADEL_TOKEN: loginToken, AUTH_COOKIE_KEY: runtime.cookieKey,
+    TASK_DATA_DIR: join(directory, 'tasks'), AUTH_PROVIDER: 'kratos',
+    APP_PUBLIC_URL: publicOrigin, KRATOS_PUBLIC_URL: identityBase,
+    AUTH_COOKIE_KEY: runtime.cookieKey,
     CAP_URL: capBase, CAP_SITE_KEY: site.siteKey, CAP_SECRET_KEY: site.secretKey,
   } });
   api.on('error', () => { console.error('Isolated API could not start'); void cleanup(1); });
   api.on('exit', code => { if (!stopping) { console.error(`Isolated API exited (${code})`); void cleanup(1); } });
   await ready(`http://127.0.0.1:${apiPort}`, '/auth/flow');
-  console.log(`ZITADEL + Cap API ready at 127.0.0.1:${apiPort}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
+  console.log(`Kratos + Cap API ready at 127.0.0.1:${apiPort}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
 } catch (error) {
   console.error(error.message);
   await cleanup(1);

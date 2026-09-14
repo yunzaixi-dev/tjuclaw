@@ -54,7 +54,7 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
     }
   }
   const integrationSteps = jobs.integration.steps;
-  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('docker pull ghcr.io/zitadel/zitadel:v4.17.3'));
+  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('docker pull oryd/kratos:v26.2.0'));
   assert.ok(pullIndex >= 0 && pullIndex < integrationSteps.findIndex(step => step.run === 'task auth:test'));
   assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run === 'node scripts/auth-test-stack.mjs --down'));
   assert.match(read('scripts/auth-test-stack.mjs'), /\['down', '--volumes', '--remove-orphans'\]/);

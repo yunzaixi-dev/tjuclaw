@@ -69,7 +69,7 @@ ssh -N -L 3000:127.0.0.1:3000 YOUR_CONFIGURED_SSH_HOST
 
 Open `http://127.0.0.1:3000` locally. Deployment initializes the administrator
 and disables public registration. NewAPI is an operational model gateway;
-ZITADEL is the selected replacement product identity authority. Configure model providers and
+Kratos is the selected product identity authority. Configure model providers and
 runtime credentials separately before claiming working model inference.
 
 The default memory ceilings are 384 MiB for NewAPI and 256 MiB for its database;

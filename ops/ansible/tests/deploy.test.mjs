@@ -38,7 +38,7 @@ test('API deployment validates before mutation, preserves immutable releases and
     writeFileSync(envFile, 'APP_PUBLIC_URL=http://app.example.invalid\nKRATOS_PUBLIC_URL=http://127.0.0.1:4433\n');
     result = await run(vars);
     assert.notEqual(result.status, 0); assert.match(result.output, /must define APP_PUBLIC_URL/); assert.ok(!existsSync(base));
-    writeFileSync(envFile, 'APP_PUBLIC_URL=https://app.example.invalid\nKRATOS_PUBLIC_URL=http://127.0.0.1:4433\nHTTP_ADDR=0.0.0.0:9999\nTASK_DATA_DIR=/tmp/wrong\n');
+    writeFileSync(envFile, 'APP_PUBLIC_URL=https://app.example.invalid\nKRATOS_PUBLIC_URL=http://127.0.0.1:4433\nHTTP_ADDR=0.0.0.0:9999\nTASK_DATA_DIR=/tmp/wrong\nAUTH_COOKIE_KEY=dGVzdC1hdXRoLWNvb2tpZS1rZXktMzI=\nCAP_URL=http://127.0.0.1:3300\nCAP_SITE_KEY=site\nCAP_SECRET_KEY=secret\n');
     result = await run({ ...vars, api_artifact_sha256: '0'.repeat(64) });
     assert.notEqual(result.status, 0); assert.match(result.output, /does not match expected/); assert.ok(!existsSync(base));
     result = await run(vars);

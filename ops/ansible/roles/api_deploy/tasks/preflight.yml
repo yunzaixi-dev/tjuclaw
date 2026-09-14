@@ -133,6 +133,14 @@
   loop: [ZITADEL_ORG_ID, ZITADEL_TOKEN, AUTH_COOKIE_KEY, CAP_URL, CAP_SITE_KEY, CAP_SECRET_KEY]
   when: api_target_auth_provider == 'zitadel'
   no_log: true
+- name: Require the complete server-only Kratos OTP and Cap configuration
+  ansible.builtin.assert:
+    that:
+      - (api_env_file_slurp.content | b64decode | regex_findall('(?m)^' ~ item ~ '=([^\r\n]+)$') | length) == 1
+    fail_msg: The Kratos provider requires AUTH_COOKIE_KEY and Cap settings exactly once.
+  loop: [AUTH_COOKIE_KEY, CAP_URL, CAP_SITE_KEY, CAP_SECRET_KEY]
+  when: api_target_auth_provider == 'kratos'
+  no_log: true
 
 - name: Verify ZITADEL readiness using its configured instance domain
   ansible.builtin.uri:

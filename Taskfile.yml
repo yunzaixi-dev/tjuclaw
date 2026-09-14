@@ -18,7 +18,7 @@ tasks:
     desc: Check common development tools
     cmds: [node scripts/doctor.mjs]
   dev:
-    desc: Run Web client and Go API with local ZITADEL/Cap dev services (Ctrl+C stops both)
+    desc: Run Web client and Go API with local Kratos/Cap dev services (Ctrl+C stops both)
     deps: [web:dev, auth:dev]
   web:dev:
     desc: Run Web client on loopback port 1420
@@ -39,10 +39,10 @@ tasks:
     cmds:
       - task --dir frontend ui:test
   auth:up:
-    desc: Start persistent local ZITADEL, Cap and real SMTP by default (captured Mailpit is explicit; Docker required)
+    desc: Start persistent local Kratos, Cap and real SMTP by default (captured Mailpit is explicit; Docker required)
     cmds: [node scripts/auth-test-stack.mjs --dev --up]
   auth:down:
-    desc: Stop local ZITADEL services without deleting identities or credentials
+    desc: Stop local Kratos services without deleting identities or credentials
     cmds: [node scripts/auth-test-stack.mjs --dev --down]
   auth:dev:
     desc: Start local identity services and Go API on loopback 18088
@@ -55,7 +55,7 @@ tasks:
     dotenv: ['../.env.auth.local']
     cmds: [go run ./cmd/api]
   auth:test:
-    desc: Test real ZITADEL email flows and Cap using an isolated captured mailbox
+    desc: Test real Kratos email flows and Cap using an isolated captured mailbox
     cmds:
       - task: web:build
       - pnpm exec playwright test --config scripts/auth.playwright.config.mjs {{.CLI_ARGS}}

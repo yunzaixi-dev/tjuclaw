@@ -1,4 +1,5 @@
-# Isolated development identities and local-only captured mail. Never production.
+# Isolated development identities, Cap, and courier SMTP. Never production.
+# Real SMTP is injected via COURIER_SMTP_CONNECTION_URI; Mailpit is captured-mode only.
 name: tjuclaw-auth-dev
 x-kratos-environment: &kratos-environment
   DSN: postgres://kratos:local-development-only@db:5432/kratos?sslmode=disable
@@ -16,7 +17,7 @@ x-kratos-environment: &kratos-environment
   SECRETS_CIPHER: 0123456789abcdef0123456789abcdef
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:16.14-alpine
     environment:
       POSTGRES_USER: kratos
       POSTGRES_PASSWORD: local-development-only
@@ -37,16 +38,11 @@ services:
     image: oryd/kratos:v26.2.0
     command: serve --dev --watch-courier -c /etc/config/kratos/kratos.yml
     environment: *kratos-environment
-    extra_hosts:
-      - "smtp.resend.com:54.205.195.44"
-      - "smtp.apps.resend.com:54.205.195.44"
     volumes:
       - ./kratos.yml:/etc/config/kratos/kratos.yml:ro
       - ./identity.schema.json:/etc/config/kratos/identity.schema.json:ro
       - ./mail:/etc/config/kratos/mail:ro
     env_file:
-      - path: ./ops/auth/.env.local
-        required: false
       - path: .env.local
         required: false
     ports: ["127.0.0.1:${AUTH_KRATOS_PORT:-14433}:4433"]
@@ -63,5 +59,38 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+  valkey:
+    image: valkey/valkey:9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+    user: "999:999"
+    command: [valkey-server, --appendonly, "yes", --maxmemory, 64mb, --maxmemory-policy, noeviction]
+    volumes:
+      - cap-valkey-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  cap:
+    image: tiago2/cap:3.1.11@sha256:c29417b6270d1fddc6a0603c08d972f89a12de81889d09c3f97a0915422fba5e
+    user: "1000:1000"
+    environment:
+      ADMIN_KEY: ${CAP_ADMIN_KEY:?}
+      REDIS_URL: redis://valkey:6379
+      SERVER_PORT: 3000
+      SERVER_HOSTNAME: 0.0.0.0
+      ENABLE_ASSETS_SERVER: "false"
+    ports:
+      - "127.0.0.1:${AUTH_CAP_PORT:-13302}:3000"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
 volumes:
   identity-db:
+  cap-valkey-data:

@@ -1,32 +1,34 @@
 # Email Authentication
 
-The selected replacement is **ZITADEL v4.17.3** with a unified email entry and
-self-hosted Cap. See [the ZITADEL boundary and migration guide](ZITADEL.md).
-Implementation and acceptance are in progress; these configuration files do not
-by themselves prove that production has switched.
+The active identity authority is **Ory Kratos v26.2.0** with a unified email
+one-time-code entry and self-hosted Cap. The Go API is the OTP BFF: it creates
+the Kratos native flow, sends and verifies codes, and stores the session token
+in an HttpOnly cookie. ZITADEL remains a paired rollback only
+(`AUTH_PROVIDER=zitadel`). See [the ZITADEL boundary](ZITADEL.md) if reverting.
 
-## Local ZITADEL development
+## Local Kratos development
 
 Run `task dev` (requires Docker) to start the client on `http://127.0.0.1:1420`,
-the authenticated Go API on loopback 18088, and isolated ZITADEL, PostgreSQL,
-Cap, Valkey and Mailpit. Vite's development proxy defaults to this API; an explicit
+the authenticated Go API on loopback 18088, and isolated Kratos, PostgreSQL,
+Cap and Valkey. Vite's development proxy defaults to this API; an explicit
 `API_PROXY_TARGET` overrides it. The low-level `task api:dev` still uses port 8080.
 
-- Mailbox: `http://127.0.0.1:18027`; development defaults to the real SMTP settings in ignored `ops/auth/.env.local` (or `AUTH_DEV_SMTP_ENV_FILE`). Missing or malformed real SMTP configuration fails closed.
-- Captured Mailpit delivery: set `AUTH_DEV_MAIL_MODE=captured` explicitly; disposable `task auth:test` always uses its isolated captured mailbox and never real SMTP.
+- Development defaults to the same real SMTP settings as cloud, from ignored
+  `ops/auth/.env.local` (or `AUTH_DEV_SMTP_ENV_FILE`). Missing or malformed
+  real SMTP configuration fails closed.
+- Captured Mailpit delivery: set `AUTH_DEV_MAIL_MODE=captured` explicitly;
+  disposable `task auth:test` always uses its isolated captured mailbox and
+  never real SMTP. Mailpit UI: `http://127.0.0.1:18027`.
 - Services only: `task auth:up`; API and services: `task auth:dev`.
 - Stop services: `task auth:down`, preserving users, volumes and credentials.
-- Runtime and secret state: ignored `ops/local/auth-dev/`, project `tjuclaw-zitadel-dev`.
-- Running-development regression: `node scripts/auth-dev-smoke.mjs`.
+- Runtime and secret state: ignored `ops/local/auth-dev/`, project `tjuclaw-auth-dev`.
+- Running-development regression: `node scripts/auth-dev-smoke.mjs`. With the
+  default real SMTP it checks login UI and Cap only; full OTP login needs
+  `AUTH_DEV_MAIL_MODE=captured`.
 - Disposable regression: `task auth:test`, using separate ports and test volumes.
 
-Use the documented `127.0.0.1` browser origin. Existing Kratos containers and
+Use the documented `127.0.0.1` browser origin. Existing ZITADEL containers and
 other checkouts' API processes are not automatically stopped or deleted.
-
-The Kratos material below is retained for a coordinated rollback. It must not
-override the newer ZITADEL decision or be deployed into a shared identity cluster.
-
-## Legacy Kratos configuration
 
 ## Deployed domain layout
 
@@ -37,7 +39,6 @@ Set production `APP_PUBLIC_URL` and Ansible `identity_app_url` to the app origin
 Kratos configuration and its `.env.kratos` URL overrides must agree; changing the
 environment requires recreating the Kratos container, not just restarting it.
 Preserve database volumes, identity schemas, cookie/cipher secrets and host-only cookies.
-The policy examples below remain examples for the separately named reference domain.
 
 ## Scope
 
@@ -50,12 +51,6 @@ access to a mailbox requires recovering it with its provider, not bypassing auth
 The checked-in policy targets `https://tjuclaw.agentwego.com`. It is a reviewed
 configuration input, **not evidence that the domain or existing cluster has been
 configured**. The local integration is pinned to `oryd/kratos:v26.2.0`.
-
-## Legacy local configuration
-
-The old `ops/auth/compose.yaml` uses loopback 14433 and mailbox 18025.
-Current `auth:up`, `auth:dev`, and `auth:down` tasks operate on ZITADEL only.
-Retain the old configuration solely for an explicitly paired legacy client/API rollback.
 
 For an explicitly configured identity deployment, prepare ignored `.env.auth.local`
 from root `.env.auth.example` and use `task auth:serve`. The API must reach the
@@ -83,6 +78,8 @@ host-only (do not set `.agentwego.com` as their domain), Path `/`, SameSite Lax,
 Secure and HttpOnly. Mount policy, identity schema and `mail/` read-only.
 Run `courier watch` as a supervised worker, or `serve --watch-courier` for a
 single-process deployment. A missing courier means queued messages do not send.
+Cap proofs are verified server-side before creating a flow, sending, or
+resending a code. Rendering a widget alone is not protection.
 
 Before changing an existing cluster, inspect its version and identity schemas.
 Do **not** replace other applications' schemas, cookie secrets, return URLs or

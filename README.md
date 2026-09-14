@@ -68,7 +68,7 @@ rtk task dev
 
 产品 Web：`http://127.0.0.1:1420`；开发 API：`http://127.0.0.1:18088/healthz`。
 文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3030`。
-`task dev` 需要 Docker，自动启动独立的 ZITADEL、PostgreSQL、Cap、Valkey 和本地收件箱；不启动任务执行基础设施。
+`task dev` 需要 Docker，自动启动独立的 Kratos、PostgreSQL、Cap、Valkey；开发默认使用与云端相同的真实 SMTP（`ops/auth/.env.local`），一次性 `auth:test` 才用隔离收件箱。不启动任务执行基础设施。
 重复运行时会先释放本 checkout 的旧 Web/API 进程占用的 1420、18088 端口，再启动新进程；其他项目的进程和 8080 端口保持不动。单独运行 `task web:dev`、`task auth:dev` 也会执行对应清理。
 
 校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和
@@ -119,8 +119,9 @@ CI 配置和同步方式见 [CI 手册](ops/ci/README.md)；以实际运行链�
 之后用 `rtk task ui:test` 验证主题与四种响应式尺寸。
 
 邮箱认证开发使用 `rtk task dev`，也可分别运行 `rtk task auth:dev` 和
-`rtk task web:dev`。本地邮件查看地址为 `http://127.0.0.1:18027`，
-真实 ZITADEL/Cap 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
+`rtk task web:dev`。开发默认走与云端相同的真实 SMTP；本地 Mailpit
+（`http://127.0.0.1:18027`）只在 `AUTH_DEV_MAIL_MODE=captured` 时启用。
+一次性 Kratos/Cap 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
 `rtk task auth:down` 保留本地身份和密钥；运行中的开发链路可用
 `node scripts/auth-dev-smoke.mjs` 验证。
 接入说明见 [邮箱认证](ops/auth/README.md)，协作基准见
