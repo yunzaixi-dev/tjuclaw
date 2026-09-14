@@ -22,7 +22,9 @@ tasks:
     deps: [web:dev, auth:dev]
   web:dev:
     desc: Run Web client on loopback port 1420
-    cmds: [pnpm --dir frontend dev]
+    cmds:
+      - node scripts/dev-ports.mjs web
+      - pnpm --dir frontend dev
   web:build:
     desc: Build Web client
     cmds: [pnpm --dir frontend build]
@@ -44,7 +46,9 @@ tasks:
     cmds: [node scripts/auth-test-stack.mjs --dev --down]
   auth:dev:
     desc: Start local identity services and Go API on loopback 18088
-    cmds: [node scripts/auth-test-stack.mjs --dev]
+    cmds:
+      - node scripts/dev-ports.mjs api
+      - node scripts/auth-test-stack.mjs --dev
   auth:serve:
     desc: Run API using ignored .env.auth.local (server-only configuration)
     dir: backend

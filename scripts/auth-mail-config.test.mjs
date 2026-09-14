@@ -7,7 +7,6 @@ import {
   parseSimpleEnv,
   parseSmtpUri,
   resolveAuthDevMailConfig,
-  syncZitadelSmtpProvider,
   validateEmailAddress,
 } from './auth-mail-config.mjs';
 

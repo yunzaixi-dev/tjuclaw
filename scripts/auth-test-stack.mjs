@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,6 +79,14 @@ if (process.argv.includes('--down')) {
 process.on('SIGTERM', () => { void cleanup(); });
 process.on('SIGINT', () => { void cleanup(); });
 try {
+  if (!process.argv.includes('--up')) {
+    // Never let an existing API satisfy the new child's readiness check.
+    await new Promise((resolvePort, reject) => {
+      const probe = createServer();
+      probe.once('error', () => reject(new Error(`API port ${apiPort} is occupied; start with task auth:dev to release this project's old API.`)));
+      probe.listen(apiPort, '127.0.0.1', () => probe.close(resolvePort));
+    });
+  }
   try {
     const saved = JSON.parse(await readFile(statePath, 'utf8'));
     if (!development) throw new Error('Existing isolated test stack state; run node scripts/auth-test-stack.mjs --down first');

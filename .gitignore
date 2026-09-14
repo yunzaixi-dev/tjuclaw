@@ -89,3 +89,8 @@ local.properties
 .env
 .edgeone/*
 .tef_dist/*
+
+# Agent tool artifacts and Python caches
+.codegraph/
+__pycache__/
+*.py[cod]

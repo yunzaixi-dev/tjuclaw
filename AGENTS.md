@@ -42,7 +42,9 @@ them in tool-specific files.
 ## Common Commands
 
 - Development: `task dev` starts Web on 1420 and the ZITADEL-enabled API on 18088,
-  with isolated local ZITADEL/PostgreSQL/Cap/Valkey and real SMTP from the ignored
+  automatically stopping stale Web/API listeners owned by this checkout before startup.
+  Unknown or unrelated listeners are reported and preserved; port 8080 is never reclaimed.
+  It uses isolated local ZITADEL/PostgreSQL/Cap/Valkey and real SMTP from the ignored
   `ops/auth/.env.local` by default (Docker required). Set `AUTH_DEV_MAIL_MODE=captured`
   explicitly for Mailpit; disposable tests always use captured mail.
   Project `tjuclaw-zitadel-dev` keeps credentials and API data in ignored

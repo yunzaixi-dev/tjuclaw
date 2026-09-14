@@ -69,6 +69,7 @@ rtk task dev
 产品 Web：`http://127.0.0.1:1420`；开发 API：`http://127.0.0.1:18088/healthz`。
 文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3030`。
 `task dev` 需要 Docker，自动启动独立的 ZITADEL、PostgreSQL、Cap、Valkey 和本地收件箱；不启动任务执行基础设施。
+重复运行时会先释放本 checkout 的旧 Web/API 进程占用的 1420、18088 端口，再启动新进程；其他项目的进程和 8080 端口保持不动。单独运行 `task web:dev`、`task auth:dev` 也会执行对应清理。
 
 校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和
 `cli/bin/tjucli-server`；`rtk task cli:test` 覆盖全部CLI与服务端包。
