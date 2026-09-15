@@ -14,9 +14,12 @@ It is not a chatbot shell, a generic RAG app, or a Pi UI wrapper.
 
 This private integration repo (`tjuclaw`) pins Git submodules and owns Docs, ops,
 and combination checks. GitHub is the development authority; GitLab is a one-way
-competition mirror. Current implemented slice: same-origin email OTP auth, draft
-task save, and public-course CLI. Agent execution is not wired yet — do not claim
-runs have started or completed.
+competition mirror. Current implemented slice: same-origin email OTP or password auth
+(password still requires a verified email), knowledge workspace after login
+(`/api/libraries|entries|sessions|account/model`, publish/subscribe/market, local file
+blobs, note search), draft task save, and public-course CLI. Agent execution, WeKnora
+retrieval, COS, and SSH are not wired yet — do not claim runs have started or completed.
+
 
 Public surfaces:
 
@@ -33,8 +36,9 @@ Browser / Tauri WebView
   → same-origin /api/*  (Vite or EdgeOne/Nginx strips /api once)
     → Go net/http API   (routes have no /api prefix)
       → Kratos session + Cap proof  (ZITADEL kept only for paired rollback)
-      → TASK_DATA_DIR file store     (single API process; draft tasks)
-      → optional PostgreSQL task/run stores
+      → TASK_DATA_DIR file store     (single API process; draft tasks and knowledge)
+      → optional PostgreSQL task/run/library stores
+
 
 Public crawler (Bun + dedicated PostgreSQL) → RSS / replay feed
   public campus events only; private library ACL stays in the Go API
@@ -47,11 +51,9 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
   sandbox grants via TJUCLI_GRANTS_FILE; no campus login credentials
 ```
 
-- React + Vite + Tauri in `frontend/` share source across Web and native clients.
-  Next.js lives in `docs/` only.
 - `auth.Gateway.RequireSession` is the protected-API gate. Ownership comes from
   the provider `Identity.ID`. Never trust a request body/path user id. Another
-  identity's task returns the same 404 as a missing task.
+  identity's task, library, or entry returns the same 404 as a missing record.
 - Browser sessions are HttpOnly, host-only cookies. Vite and Nginx strip `/api`
   once; Go must not register `/api` prefixes. Native clients need a separately
   reviewed session transport — no relaxed CORS, no cookies stored as bearer tokens.
@@ -75,7 +77,7 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 | `frontend/src/` | Shared Web/native UI: `auth.tsx`, `workspace.tsx`, `product.tsx` |
 | `frontend/src/components/ui/` | Owned shadcn-style primitives (`button`, `dialog`, `otp-input`) |
 | `frontend/src-tauri/` | Tauri v2 host, CSP, native packaging |
-| `backend/` | Private submodule `tjuclaw-server`. `cmd/api` composition; `internal/auth`, `internal/task`, `internal/run` |
+| `backend/` | Private submodule `tjuclaw-server`. `cmd/api` composition; `internal/auth`, `internal/task`, `internal/run`, `internal/library` |
 | `cli/` | Private submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
 | `crawler/` | Private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
 | `docs/` | Next.js 16 + Fumadocs; content in `docs/content/docs/` |
@@ -95,17 +97,17 @@ Do not load root `.env.local` (PAT-bearing) into Task or client builds.
 ```bash
 rtk task setup          # frozen pnpm (root+frontend), bun (crawler), git hooks
 rtk task doctor
-rtk task dev            # Web :1420 + Kratos API :18088 (Docker)
+rtk task dev            # Web :5173 + docs :3000 + Kratos API :8080 with Air reload (Docker)
 rtk task check          # portable lint + types + tests + git:check
 rtk task build          # web, docs, api, cli (not native)
 ```
 
 | Task | What |
 | --- | --- |
-| `task web:dev` | Vite on `127.0.0.1:1420`; reclaims this checkout's listener only |
-| `task auth:dev` | Isolated Kratos/PostgreSQL/Cap/Valkey + API `:18088` |
-| `task api:dev` | Low-level API on `:8080`; never reclaimed by `task dev` |
-| `task docs:dev` | Docs on `:3030` (occupied port is reported, not killed) |
+| `task web:dev` | Vite on `127.0.0.1:5173`; reclaims this checkout's listener only |
+| `task auth:dev` | Isolated Kratos/PostgreSQL/Cap/Valkey + API `:8080` (Air reloads on Go changes) |
+| `task api:dev` | Low-level API on `:8000` with Air; never reclaimed by `task dev` |
+| `task docs:dev` | Docs on `:3000` (occupied port is reported, not killed) |
 | `task cli:build` / `task cli:test` | `cli/bin/tjucli`, `cli/bin/tjucli-server`; `go test -race ./...` |
 | `task cli:server:dev` | Requires `TJUCLI_GRANTS_FILE` — see `cli/TOOL_SERVER.md` |
 | `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
@@ -159,7 +161,8 @@ Same-origin fetch via `authRequest` in `frontend/src/lib/auth.ts`: path must sta
 with `/api/`, `credentials: 'same-origin'`, `cache: 'no-store'`, `redirect: 'error'`,
 15s timeout. Validate JSON; map `error.id` to copy. Do not log emails, OTPs, Cap
 proofs, or session tokens. After login/logout, read the real server session — do
-not optimistic-claim security mutations. Saved tasks are `draft` only.
+
+not optimistic-claim security mutations. Knowledge notes persist as Markdown; old tasks stay draft.
 
 **Backend.** Stdlib `net/http.ServeMux`. Parse config at startup; missing identity
 config is 503, never a fake authenticated response. Application errors:
@@ -210,20 +213,21 @@ history.
 | --- | --- |
 | Root + Docs | Node `>=22.12.0`, `pnpm@11.3.0`, workspace package `docs` only |
 | Frontend | Separate pnpm lockfile; Vite 8; React 19; Tailwind 4; Tauri 2 |
-| Backend / CLI | Go `1.27` (`go.mod`); stdlib HTTP; `pgx` when `DATABASE_URL` is set |
+| Backend / CLI | Go `1.27` (`go.mod`); stdlib HTTP; `pgx` when `DATABASE_URL` is set; Air `v1.67.4` via `go run` for live reload only |
 | Crawler | Bun **1.3.14** (CI pin), `bun.lock` |
 | Orchestration | Task 3; Docker for auth/crawler tests; Ansible via `uv` |
 | Agent CLI | Prefer `rtk` for eligible commands |
 
-Ports: Web `1420`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
-workspace/audit-ui tests `1424`, docs `3030`, crawler `3031`, WeKnora UI `18180`,
-WeKnora app `18181`, ZITADEL API `18088`, raw API `8080`, tool server `18090`,
-Mailpit `18027`. `scripts/dev-ports.mjs` clears this checkout's Web/API
-listeners; unknown processes and `:8080` stay.
+Ports: Web `5173`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
+workspace/audit-ui tests `1424`, docs `3000`, crawler `3031`, WeKnora UI `18180`,
+WeKnora app `18181`, Kratos `4433`, Kratos-backed API `8080`, raw API `8000`,
+tool server `18090`, Mailpit `8025`. `scripts/dev-ports.mjs` clears this
+checkout's Web/API listeners; unknown processes and `:8000` stay.
 
-Vite dev proxy: `/api` → `API_PROXY_TARGET` or `http://127.0.0.1:18088`
-(development) else `:8080`. Tauri reads `frontend/package.json`; Rust crate
-version is internal. Do not merge frontend into the root pnpm workspace.
+Vite `/api` proxies to `API_PROXY_TARGET` or `http://127.0.0.1:8080`.
+Tauri reads `frontend/package.json`; Rust crate version is internal. Do not
+merge frontend into the root pnpm workspace.
+
 
 Client Actions own Web/Linux/Android/Windows builds and UI/workspace regressions.
 Integration Actions own pinned-component checks and real Compose/auth regressions.

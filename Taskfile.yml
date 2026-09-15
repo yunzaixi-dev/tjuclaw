@@ -18,13 +18,16 @@ tasks:
     desc: Check common development tools
     cmds: [node scripts/doctor.mjs]
   dev:
-    desc: Run Web client and Go API with local Kratos/Cap dev services (Ctrl+C stops both)
+    desc: Run Web client, docs, and Go API with local Kratos/Cap dev services (Ctrl+C stops all)
+
     cmds:
       - node scripts/dev-ports.mjs web
       - node scripts/dev-ports.mjs api
+      - node scripts/dev-ports.mjs docs
       - node scripts/auth-test-stack.mjs --dev --web
+
   web:dev:
-    desc: Run Web client on loopback port 1420
+    desc: Run Web client on loopback port 5173
     cmds:
       - node scripts/dev-ports.mjs web
       - pnpm --dir frontend dev
@@ -48,7 +51,7 @@ tasks:
     desc: Stop local Kratos services without deleting identities or credentials
     cmds: [node scripts/auth-test-stack.mjs --dev --down]
   auth:dev:
-    desc: Start local identity services and Go API on loopback 18088
+    desc: Start local identity services and Go API on loopback 8080
     cmds:
       - node scripts/dev-ports.mjs api
       - node scripts/auth-test-stack.mjs --dev
@@ -67,7 +70,7 @@ tasks:
     cmds:
       - task --dir frontend workspace:test -- {{.CLI_ARGS}}
   docs:dev:
-    desc: Run Fumadocs on port 3030
+    desc: Run Fumadocs on port 3000
     cmds: [node scripts/docs-dev.mjs]
   audit:index:
     desc: Validate local screenshot descriptions and generate the private audit index
@@ -207,9 +210,10 @@ tasks:
     cmds:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i localhost, ops/ansible/playbooks/render-origin.yml -e @ops/local/origin.yml
   api:dev:
-    desc: Run Go API on loopback port 8080
+    desc: Run Go API on loopback port 8000 with Air live reload
     dir: backend
-    cmds: [go run ./cmd/api]
+    env: { HTTP_ADDR: '127.0.0.1:8000' }
+    cmds: [go run github.com/air-verse/air@v1.67.4 -c .air.toml]
   ops:api:deploy:
     desc: Deploy a verified API artifact using the explicit local production configuration
     env:

@@ -5,6 +5,8 @@
 - React + Vite owns the product UI; Next.js is documentation only.
 - Go's standard-library HTTP server owns application APIs. Keep business code
   under `backend/internal/<feature>/`; `cmd/api` is composition and lifecycle.
+  Local `task dev` / `task api:dev` reload the API with Air; production and
+  `task auth:test` still build a one-shot binary.
 - Kratos is the active identity authority. Never create parallel user/password
   databases, verification codes, JWT issuers, or localStorage login state. The API
   encrypts the Kratos session token in HttpOnly cookies; every protected request
@@ -29,7 +31,9 @@
   mutations succeeded. Read the real server session after authentication/logout.
 - Unified email login/registration uses the Go `/api/auth/*` contract and Cap.
   Treat provider responses as protocol data; do not render arbitrary upstream
-  HTML or follow caller-supplied redirects. New emails are verified before access.
+  HTML or follow caller-supplied redirects. Password login uses `/api/auth/password`;
+  password registration uses `/api/auth/register` then the existing OTP verification
+  flow. New emails are verified before access. OTP-only accounts have no password.
 - Emails, codes, Cap proofs and provider session tokens must not be written to
   localStorage, analytics, URLs or console logs. Pending flows use HttpOnly cookies.
 - Form labels, visible focus, live status/errors, autocomplete, paste, touch
@@ -85,25 +89,31 @@ not replace, the real email/cookie integration test.
 Production delivery and native WebView authentication require separate evidence.
 Never describe local Compose, a template, or CI configuration as a live deployment.
 
-## Task Workspace Acceptance
+## Knowledge Workspace Acceptance
 
-The first workspace slice saves authenticated task goals. Saved tasks have status
-`draft`; display them as saved, without claiming that an Agent has started or
-completed execution. Keep `/app` as the account surface and `/workspace` as the
-separate task surface. Preserve the appearance preview and authentication routes.
+The first workspace slice is a knowledge library, not a task list. After login,
+`/workspace` shows an AFFiNE-like tree. A missing library is created as
+「我的知识库」 with a deletable 「新手向导」 agent. Notes persist Markdown
+through `/api/entries`. Agent chat persists on `/api/sessions`. Custom model
+URLs must be public HTTPS; loopback and RFC1918 fail closed. Product NewAPI is
+the unconfigured fallback with a daily quota. Old `/tasks` and `/runs` remain
+but are not the homepage. Preserve the appearance preview and authentication
+routes.
 
-Task endpoints use the same-origin `/api/tasks` browser boundary. The API must
-validate the selected identity provider's session for each request and derive ownership from its
-`Identity.ID`. A task owned by another identity must return the same 404 as a
-missing task. Never accept ownership, status or timestamps from the request body.
+Library endpoints use the same-origin `/api/*` browser boundary. Ownership
+comes from the provider `Identity.ID`. Another identity's library or entry
+returns the same 404 as a missing record. Never echo API keys or full upstream
+URLs. File object ids stay server-side. A subscribed snapshot is read-only;
+writes match a missing library. Withdrawn publications disappear from the
+market and from new subscriber reads.
 
-`TASK_DATA_DIR` is server-only runtime configuration. The initial file store is
-for a single API process and must retain records across restarts. Do not share it
-between API replicas or treat it as the future workspace file service. Keep the
-container root read-only and mount only the designated data volume for writes.
+`TASK_DATA_DIR/knowledge` is the file-store baseline; `DATABASE_URL` selects
+PostgreSQL for libraries, entries, sessions, model records, publications, and
+blobs. Do not share that database with Kratos, the crawler, or WeKnora. Local
+blobs are not COS.
 
 Run `task workspace:test` for the mocked browser contract, and `task auth:test`
-for real Kratos/API task acceptance. Mocked transport checks are not evidence of
-working persistence or identity isolation. Run `go test -race ./...` in `backend/`
-for concurrent storage behavior. Do not run browser suites concurrently against
-the shared `frontend/dist` output.
+for real Kratos/API acceptance. Mocked transport checks are not evidence of
+working persistence or identity isolation. Run `go test -race ./...` in
+`backend/` for concurrent storage behavior. Do not run browser suites
+concurrently against the shared `frontend/dist` output.

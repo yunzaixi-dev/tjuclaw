@@ -37,6 +37,7 @@ export function isPrivatePath(path) {
     || ['frontend/PRODUCT.md', 'frontend/DESIGN.md'].includes(path)
     || path.startsWith('frontend/public/audits/')
     || /^scripts\/.*intelligence/.test(path)
+    || /^scripts\/.*(?:simulator|corpus)/i.test(path)
     || path === 'scripts/collect-public-tju-data.mjs'
     || ['private/', 'research/', 'public/ui-reference/', 'docs/public/ui-reference/', 'ops/local/'].some((prefix) => path.startsWith(prefix))
     || name.includes('.private.')

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 
-const ports = [3030];
+const ports = [3000];
 
 function probePort(port, host, ipv6Only = false) {
   return new Promise((resolve, reject) => {
@@ -35,7 +35,7 @@ try {
 }
 
 const commands = [
-  ['docs', 'pnpm', ['--dir', 'docs', 'exec', 'next', 'dev', '--hostname', '127.0.0.1', '--port', '3030']],
+  ['docs', 'pnpm', ['--dir', 'docs', 'exec', 'next', 'dev', '--hostname', '127.0.0.1', '--port', '3000']],
 ];
 const children = [];
 let stopping = false;

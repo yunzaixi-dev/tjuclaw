@@ -49,6 +49,8 @@ next-env.d.ts
 /ops/container-inventory.md
 /content/docs/0[1-7]-*.mdx
 /scripts/*intelligence*
+/scripts/*simulator*
+/scripts/*corpus*
 /scripts/collect-public-tju-data.mjs
 /docs/public/ui-reference/
 /docs/content/docs/0[1-7]-*.mdx
@@ -91,6 +93,10 @@ local.properties
 .tef_dist/*
 
 # Agent tool artifacts and Python caches
+/.agents/
+/.claude/
+/.pi/
+/skills-lock.json
 .codegraph/
 __pycache__/
 *.py[cod]

@@ -135,7 +135,7 @@ test('native launcher resolves the pinned CLI without platform-specific shell sc
 test('email auth policy keeps browser identity boundaries and local mail isolated', () => {
   const config = parse(read('ops/auth/kratos.yml'));
   assert.equal(config.selfservice.methods.code.passwordless_enabled, true);
-  assert.equal(config.selfservice.methods.password.enabled, false);
+  assert.equal(config.selfservice.methods.password.enabled, true);
   assert.equal(config.selfservice.methods.oidc.enabled, false);
   assert.equal(config.serve.public.cors.enabled, false);
   assert.equal(config.log.leak_sensitive_values, false);
@@ -180,7 +180,17 @@ test('task dev starts the Web client only after the Kratos API is ready', () => 
   assert.deepEqual(tasks.dev.cmds, [
     'node scripts/dev-ports.mjs web',
     'node scripts/dev-ports.mjs api',
+    'node scripts/dev-ports.mjs docs',
     'node scripts/auth-test-stack.mjs --dev --web',
   ]);
+
   assert.match(read('scripts/auth-test-stack.mjs'), /process\.argv\.includes\('--web'\)/);
+  assert.match(read('scripts/auth-test-stack.mjs'), /github.com\/air-verse\/air@v1\.67\.4/);
+
+  assert.match(read('scripts/auth-test-stack.mjs'), /'build', '-o', executable/);
+  assert.match(read('scripts/auth-test-stack.mjs'), /'--dir', 'docs', 'exec', 'next'/);
+  assert.match(read('scripts/auth-test-stack.mjs'), /overlayProductModel/);
+  assert.match(read('scripts/auth-test-stack.mjs'), /NEWAPI_BASE_URL/);
+
+  assert.equal(tasks['api:dev'].cmds[0], 'go run github.com/air-verse/air@v1.67.4 -c .air.toml');
 });

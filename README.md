@@ -13,7 +13,8 @@ TJUClaw 的目标是不止回答校园问题，还能结合校园信息与用户
 - 兼容的旧文档地址：<https://wiki.tjuclaw.cloud>
 
 浏览器认证和 API 请求使用应用同源的 `https://app.tjuclaw.cloud/api/*`。
-当前已实现 Web 邮箱验证码认证、任务草稿保存与公开课程资料 CLI；Agent 任务执行尚未接入。
+当前已实现 Web 邮箱验证码与密码认证、登录后的知识工作区（笔记树与智能体会话）、任务草稿 API 与公开课程资料 CLI；Agent 任务执行尚未接入。
+
 生产认证服务仍需配置并单独验收，不能把本地联调等同于上线。
 
 ## 当前状态
@@ -66,10 +67,11 @@ rtk task doctor
 rtk task dev
 ```
 
-产品 Web：`http://127.0.0.1:1420`；开发 API：`http://127.0.0.1:18088/healthz`。
-文档站单独使用 `rtk task docs:dev`，地址 `http://127.0.0.1:3030`。
+产品 Web：`http://127.0.0.1:5173`；开发 API：`http://127.0.0.1:8080/healthz`；文档站：`http://127.0.0.1:3000`。
+`rtk task docs:dev` 仍可单独启动文档站。
+
 `task dev` 需要 Docker，自动启动独立的 Kratos、PostgreSQL、Cap、Valkey；开发默认使用与云端相同的真实 SMTP（`ops/auth/.env.local`），一次性 `auth:test` 才用隔离收件箱。不启动任务执行基础设施。
-重复运行时会先释放本 checkout 的旧 Web/API 进程占用的 1420、18088 端口，再启动新进程；其他项目的进程和 8080 端口保持不动。单独运行 `task web:dev`、`task auth:dev` 也会执行对应清理。
+重复运行时会先释放本 checkout 的旧 Web/API 进程占用的 5173、8080 端口，再启动新进程；其他项目的进程和 8000 端口保持不动。单独运行 `task web:dev`、`task auth:dev` 也会执行对应清理。
 
 校园工具使用 `rtk task cli:build` 构建，输出 `cli/bin/tjucli` 和
 `cli/bin/tjucli-server`；`rtk task cli:test` 覆盖全部CLI与服务端包。
@@ -120,7 +122,7 @@ CI 配置和同步方式见 [CI 手册](ops/ci/README.md)；以实际运行链�
 
 邮箱认证开发使用 `rtk task dev`，也可分别运行 `rtk task auth:dev` 和
 `rtk task web:dev`。开发默认走与云端相同的真实 SMTP；本地 Mailpit
-（`http://127.0.0.1:18027`）只在 `AUTH_DEV_MAIL_MODE=captured` 时启用。
+（`http://127.0.0.1:8025`）只在 `AUTH_DEV_MAIL_MODE=captured` 时启用。
 一次性 Kratos/Cap 回归使用 `rtk task auth:test`，不向真实邮箱发送邮件。
 `rtk task auth:down` 保留本地身份和密钥；运行中的开发链路可用
 `node scripts/auth-dev-smoke.mjs` 验证。
