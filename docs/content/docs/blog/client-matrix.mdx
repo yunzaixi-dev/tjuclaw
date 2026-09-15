@@ -20,6 +20,13 @@ description: React 19 + Vite + Tauri 跨平台架构、多端数据同步机制�
 | **Linux 桌面端** | Tauri 2.0 (Rust) + Debian `.deb` 包 | 开发者工作站 / 极客环境 | 原生 Wayland/X11 支持、与本地终端生态打通 |
 | **Android 移动端** | Tauri Mobile (Rust + Android NDK) | 移动行走、课间自习室、随时查看 | 触控手势优化、锁屏/后台任务流式推送 |
 
+
+<IllustrationPlaceholder
+  id="img-client-matrix-comparison"
+  title="全平台客户端实机运行效果比对 (Desktop / Web / Mobile)"
+  description="展示 Windows 桌面端深色工作台窗口、Web 浏览器边缘加速视图以及 Android 移动端竖屏卡片流。"
+  aspectRatio="21/9"
+/>
 ---
 
 ## 多端会话与数据同步机制
@@ -38,3 +45,10 @@ description: React 19 + Vite + Tauri 跨平台架构、多端数据同步机制�
 为了杜绝代码仓库中的审美分裂与组件重造，TJUClaw 全平台遵循严格的语义设计规范：
 - **深色工坊质感**：基于沉稳的 `#0e1112` 底色，搭配科技北洋蓝（`#3388ff` / `#003366`）强调色；
 - **共享 UI 库**：四端共享同一套 `src/components/ui/` 基础原子组件，保证各平台字体、间距、动画与交互行为 100% 对齐。
+
+<IllustrationPlaceholder
+  id="img-design-tokens-showcase"
+  title="TJUClaw 统一设计系统 (Design System) 视觉规范"
+  description="展示 OKLCH 语义色板、按钮原子组件、输入框聚焦环、卡片阴影与暗色极客工坊质感规范。"
+  aspectRatio="16/9"
+/>

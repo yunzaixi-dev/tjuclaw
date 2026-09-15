@@ -3,8 +3,9 @@ import Link from 'next/link';
 
 const chapters = [
   ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs/quickstart'],
-  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs/architecture'],
-  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/guide'],
+  ['02', '产品与架构', '理解 Web、API、Pi、tjucli 与校园服务的关系。', '/docs/blog/architecture'],
+  ['03', '使用指南', '从校园目标到可验证结果的产品使用方式。', '/docs/blog/guide'],
+  ['04', '技术博客', '多篇专题深度剖析架构演进与攻坚历程。', '/docs/blog'],
 ];
 
 const repositories = [

@@ -27,11 +27,11 @@ description: 开发者环境准备、依赖安装、核心服务启动与本地�
 克隆仓库后，在根目录执行依赖安装：
 
 ```bash
-# 安装根工作区依赖
-pnpm install
+# 安装所有子模块依赖与开发环境设置（冻结 pnpm 锁文件、Bun 采集器依赖及 git hooks）
+task setup
 
-# 安装客户端与演示文稿依赖
-task dev:install
+# 运行开发环境健康诊断
+task doctor
 ```
 
 ---
@@ -46,7 +46,7 @@ TJUClaw 采用 Taskfile 统一调度多端与服务的启动：
 task docs:dev
 ```
 
-启动后可在浏览器访问文档首页：`http://localhost:3030`。
+启动后可在浏览器访问文档首页：`http://localhost:3000`。
 
 ### 2. 启动前端 Web 客户端与 API 服务
 
@@ -54,8 +54,27 @@ task docs:dev
 task dev
 ```
 
-前端开发服务器将运行在 `http://127.0.0.1:1420`，并通过同源代理 `/api/*` 连接后端 Go API（开发环境默认 `http://127.0.0.1:18088`，也可通过 `API_PROXY_TARGET` 配置）。认证请求需使用配置一致的浏览器地址。
+前端开发服务器将运行在 `http://127.0.0.1:5173`，并通过同源代理 `/api/*` 连接 Kratos + Cap + Go API 组合服务（端口 `:8080`）。
 
+### 3. 本地启动独立知识引擎 (WeKnora)
+
+```bash
+# 启动环回隔离的 WeKnora 知识栈（UI :18180，API :18181）
+task weknora:up
+
+# 停止并保留本地卷数据
+task weknora:down
+```
+
+### 4. 启动校园公开情报流与采集 (Crawler)
+
+```bash
+# 启动情报 Feed 服务（端口 :3031）
+task crawler:dev
+
+# 运行真实校园数据源单次抓取
+task crawler:crawl
+```
 ---
 
 ## 常用质量检查命令
@@ -69,6 +88,15 @@ task check
 # 文档静态生成构建验证
 task docs:build
 
-# 运行自动化测试套件
-task test
+# 运行全局质量门禁检查（lint、类型检查、单元测试与 git 策略）
+task check
+
+# 运行端到端认证闭环测试（含真实 Kratos + Cap + 抓取邮件）
+task auth:test
+
+# 运行 WeKnora 知识栈冒烟测试
+task ops:test
+
+# 编译核心目标产物（Web、Docs、API、CLI）
+task build
 ```

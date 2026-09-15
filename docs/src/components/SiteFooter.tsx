@@ -37,21 +37,20 @@ export function SiteFooter({
             <h4 className="wiki-footer-heading">核心导航</h4>
             <ul className="wiki-footer-links">
               <li><Link href="/">平台首页</Link></li>
-              <li><Link href="/docs">工程文档</Link></li>
-              <li><Link href="/docs/quickstart">快速开始</Link></li>
-              <li><Link href="/docs/architecture">总体架构</Link></li>
-              <li><Link href="/docs/guide">使用指南</Link></li>
+              <li><Link href="/docs">快速开始与入门</Link></li>
+              <li><Link href="/docs/blog">技术专栏首页</Link></li>
+              <li><Link href="/docs/blog/architecture">总体架构</Link></li>
+              <li><Link href="/docs/blog/guide">使用指南</Link></li>
             </ul>
           </div>
 
-          <div className="wiki-footer-nav-col">
-            <h4 className="wiki-footer-heading">端云协同</h4>
+          <div>
+            <h4 className="wiki-footer-heading">核心技术博客</h4>
             <ul className="wiki-footer-links">
-              <li><a href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">Web 云端版 ↗</a></li>
-              <li><Link href="/docs/client-matrix">客户端矩阵</Link></li>
-              <li><Link href="/docs/sandbox-security">Agent 沙箱安全</Link></li>
-              <li><Link href="/docs/storage-compute">存算分离规范</Link></li>
-              <li><Link href="/docs/deployment-ops">云边协同部署</Link></li>
+              <li><Link href="/docs/blog/client-matrix">客户端矩阵</Link></li>
+              <li><Link href="/docs/blog/sandbox-security">Agent 沙箱安全</Link></li>
+              <li><Link href="/docs/blog/storage-compute">存算分离架构</Link></li>
+              <li><Link href="/docs/blog/deployment-ops">云边协同部署</Link></li>
             </ul>
           </div>
 

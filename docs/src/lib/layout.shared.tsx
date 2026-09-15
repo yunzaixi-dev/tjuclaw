@@ -13,7 +13,7 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       {
-        text: '项目文档',
+        text: '开发文档',
         url: '/docs',
         active: 'nested-url',
       },

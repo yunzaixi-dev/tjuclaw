@@ -1,0 +1,16 @@
+{
+  "title": "技术专栏",
+  "description": "TJUClaw 架构演进与核心技术攻坚系列博客",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "architecture",
+    "storage-compute",
+    "sandbox-security",
+    "memory-system",
+    "campus-protocols",
+    "client-matrix",
+    "deployment-ops",
+    "guide"
+  ]
+}

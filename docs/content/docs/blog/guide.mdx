@@ -18,6 +18,13 @@ description: 围绕真实校园场景的端到端任务演示：课程复习资�
 学生在客户端输入：
 > “帮我找一下计算机学院《数据结构》期末复习课件，并下载到我的工作空间。”
 
+
+<IllustrationPlaceholder
+  id="img-guide-input-prompt"
+  title="目标输入与任务卡片发起"
+  description="学生在对话输入框提交自然语言目标，系统自动创建状态为 draft 的初始任务记录。"
+  aspectRatio="16/9"
+/>
 ---
 
 ## 智能体的思考与受控行动
@@ -52,6 +59,13 @@ description: 围绕真实校园场景的端到端任务演示：课程复习资�
 +-----------------------------------------------------------+
 ```
 
+
+<IllustrationPlaceholder
+  id="img-guide-execution-flow"
+  title="智能体沙箱执行与文件下载流"
+  description="展示智能体调用 tjucli 工具执行、流式输出日志与沙箱内瞬态文件落盘的过程。"
+  aspectRatio="16/9"
+/>
 ---
 
 ## 透明可追溯的 Trace 记录
@@ -62,3 +76,10 @@ description: 围绕真实校园场景的端到端任务演示：课程复习资�
 - 产物文件哈希：`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`。
 
 杜绝不可验证的虚假链接，确保学生拿到的每一份课件都是真实可靠的文件产物。
+
+<IllustrationPlaceholder
+  id="img-guide-trace-verification"
+  title="可验证执行 Trace 与产物 SHA-256 检验界面"
+  description="展示任务详情抽屉中的执行耗时、子命令退出状态码、产物大小及 SHA-256 校验指纹卡片。"
+  aspectRatio="16/9"
+/>

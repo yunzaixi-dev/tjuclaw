@@ -3,13 +3,15 @@
   "pages": [
     "index",
     "quickstart",
-    "architecture",
-    "storage-compute",
-    "client-matrix",
-    "sandbox-security",
-    "memory-system",
-    "campus-protocols",
-    "deployment-ops",
-    "guide"
+    "---技术博客---",
+    "blog/index",
+    "blog/architecture",
+    "blog/storage-compute",
+    "blog/sandbox-security",
+    "blog/memory-system",
+    "blog/campus-protocols",
+    "blog/client-matrix",
+    "blog/deployment-ops",
+    "blog/guide"
   ]
 }
