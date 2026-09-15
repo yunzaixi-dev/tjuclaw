@@ -118,36 +118,54 @@ test('real Cap under production CSP, enrollment, wrong code, resend, reload, log
   await finish(page, loginMail.code);
 });
 
-test('real task persistence and cross-identity isolation', async ({ page, request, context }) => {
+test('real library persistence and cross-identity isolation', async ({ page, request, context }) => {
   test.setTimeout(180000);
-  const emailA = `task-a-${Date.now()}@example.com`;
+  const emailA = `lib-a-${Date.now()}@example.com`;
   await begin(page, emailA);
   await finish(page, (await latestCode(request, emailA)).code);
-  const prompt = `Task for user A ${Date.now()}\nDetails owned by A`;
-  await page.getByLabel('任务目标', { exact: true }).fill(prompt);
-  await page.getByRole('button', { name: '保存任务', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 2, name: prompt.split('\n')[0], exact: true })).toBeVisible();
-  const { tasks } = await (await page.request.get('/api/tasks')).json();
-  expect(tasks).toHaveLength(1);
-  expect(tasks[0].prompt).toBe(prompt);
+  const title = `Note for user A ${Date.now()}`;
+  const body = 'Details owned by A';
+  await page.getByRole('button', { name: '新建笔记', exact: true }).click();
+  await expect(page.getByLabel('标题', { exact: true })).toBeVisible();
+  await page.getByLabel('标题', { exact: true }).fill(title);
+  await expect(page.getByRole('treeitem', { name: title })).toBeVisible();
+  await page.getByLabel('正文', { exact: true }).fill(body);
+  let note;
+  await expect.poll(async () => {
+    const { libraries } = await (await page.request.get('/api/libraries')).json();
+    for (const lib of libraries || []) {
+      const { entries } = await (await page.request.get(`/api/libraries/${lib.id}/entries`)).json();
+      const found = entries?.find(item => item.title === title);
+      if (!found?.id) continue;
+      const { entry } = await (await page.request.get(`/api/entries/${found.id}`)).json();
+      if (entry?.body === body) {
+        note = { libraryId: lib.id, id: found.id };
+        return true;
+      }
+    }
+    return false;
+  }).toBe(true);
+
   await page.reload();
-  await expect(page.getByRole('heading', { level: 2, name: prompt.split('\n')[0], exact: true })).toBeVisible();
+  await page.getByRole('treeitem', { name: title }).click();
+  await expect(page.getByLabel('正文', { exact: true })).toHaveValue(body);
   expect((await page.request.post('/api/auth/logout', { headers, data: {} })).status()).toBe(204);
   await context.clearCookies();
-  const emailB = `task-b-${Date.now()}@example.com`;
+  const emailB = `lib-b-${Date.now()}@example.com`;
   await begin(page, emailB);
   await finish(page, (await latestCode(request, emailB)).code);
-  const foreign = await page.request.get(`/api/tasks/${tasks[0].id}`);
-  const missing = await page.request.get(`/api/tasks/${'0'.repeat(32)}`);
+  const foreign = await page.request.get(`/api/entries/${note.id}`);
+  const missing = await page.request.get(`/api/entries/${'0'.repeat(32)}`);
   expect(foreign.status()).toBe(404);
   expect(missing.status()).toBe(404);
   expect(await foreign.json()).toEqual(await missing.json());
-  expect(await (await page.request.get('/api/tasks')).json()).toEqual({ tasks: [] });
-  await page.getByLabel('任务目标', { exact: true }).fill('Task owned by B');
-  await page.getByRole('button', { name: '保存任务', exact: true }).click();
-  await expect(page.getByRole('heading', { level: 2, name: 'Task owned by B', exact: true })).toBeVisible();
-  await expect(page.getByText(prompt.split('\n')[0], { exact: true })).toHaveCount(0);
+  expect((await page.request.get(`/api/libraries/${note.libraryId}`)).status()).toBe(404);
+  const { libraries } = await (await page.request.get('/api/libraries')).json();
+  expect(libraries.map(item => item.id)).not.toContain(note.libraryId);
+  await expect(page.getByRole('treeitem', { name: title })).toHaveCount(0);
+  await expect(page.getByRole('treeitem', { name: '新手向导' })).toBeVisible();
 });
+
 
 test('guests, cross-origin sends and missing or invalid Cap are rejected', async ({ page }) => {
   await page.goto('/app');
