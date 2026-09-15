@@ -8,17 +8,18 @@ in an HttpOnly cookie. ZITADEL remains a paired rollback only
 
 ## Local Kratos development
 
-Run `task dev` (requires Docker) to start the client on `http://127.0.0.1:1420`,
-the authenticated Go API on loopback 18088, and isolated Kratos, PostgreSQL,
+Run `task dev` (requires Docker) to start the client on `http://127.0.0.1:5173`,
+the authenticated Go API on loopback 8080, and isolated Kratos, PostgreSQL,
 Cap and Valkey. Vite's development proxy defaults to this API; an explicit
-`API_PROXY_TARGET` overrides it. The low-level `task api:dev` still uses port 8080.
+`API_PROXY_TARGET` overrides it. The low-level `task api:dev` uses port 8000.
+
 
 - Development defaults to the same real SMTP settings as cloud, from ignored
   `ops/auth/.env.local` (or `AUTH_DEV_SMTP_ENV_FILE`). Missing or malformed
   real SMTP configuration fails closed.
 - Captured Mailpit delivery: set `AUTH_DEV_MAIL_MODE=captured` explicitly;
   disposable `task auth:test` always uses its isolated captured mailbox and
-  never real SMTP. Mailpit UI: `http://127.0.0.1:18027`.
+  never real SMTP. Mailpit UI: `http://127.0.0.1:8025`.
 - Services only: `task auth:up`; API and services: `task auth:dev`.
 - Stop services: `task auth:down`, preserving users, volumes and credentials.
 - Runtime and secret state: ignored `ops/local/auth-dev/`, project `tjuclaw-auth-dev`.
@@ -42,11 +43,12 @@ Preserve database volumes, identity schemas, cookie/cipher secrets and host-only
 
 ## Scope
 
-Email one-time-code login and registration only. Registration verifies possession
-of the email and creates a Kratos session through the `session` hook. No passwords,
-password reset, social login, locally generated codes, or second identity store.
-An additional verification UI handles existing unverified identities. Losing
-access to a mailbox requires recovering it with its provider, not bypassing auth.
+Email one-time-code login remains the default. Password login and password
+registration are enabled on Kratos; the Go BFF still requires a verified email
+before issuing a session cookie, and password registration continues into the
+existing OTP verification flow. No password reset, social login, locally
+generated codes, or second identity store. Losing access to a mailbox requires
+recovering it with its provider, not bypassing auth.
 
 The checked-in policy targets `https://tjuclaw.agentwego.com`. It is a reviewed
 configuration input, **not evidence that the domain or existing cluster has been

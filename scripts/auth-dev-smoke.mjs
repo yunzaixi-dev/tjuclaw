@@ -19,7 +19,7 @@ if (!email) {
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-  await page.goto('http://127.0.0.1:1420/auth/login');
+  await page.goto('http://127.0.0.1:5173/auth/login');
   await expect(page.getByLabel('邮箱地址', { exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await page.getByLabel('邮箱地址', { exact: true }).fill(email);
@@ -30,7 +30,7 @@ try {
     await page.screenshot({ path: new URL('login.png', directory).pathname });
     console.log('PASS: running dev proxy and real Cap; skip sending a real SMTP code from this smoke');
   } else {
-    const mailBase = 'http://127.0.0.1:18027';
+    const mailBase = 'http://127.0.0.1:8025';
     const before = await (await page.request.get(`${mailBase}/api/v1/messages`)).json();
     const previous = new Set(before.messages.map(item => item.ID));
     await page.getByRole('button', { name: '获取验证码', exact: true }).click();
@@ -48,13 +48,14 @@ try {
     await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
     await page.getByRole('button', { name: '验证并继续', exact: true }).click();
     await expect(page).toHaveURL(/\/workspace$/);
-    assert.equal((await page.request.get('http://127.0.0.1:1420/api/auth/session')).status(), 200);
+    assert.equal((await page.request.get('http://127.0.0.1:5173/api/auth/session')).status(), 200);
     await page.reload();
-    await expect(page.getByRole('heading', { name: '任务工作区', exact: true })).toBeVisible();
-    const logout = await page.request.post('http://127.0.0.1:1420/api/auth/logout', { data: {}, headers: { Origin: 'http://127.0.0.1:1420' } });
+    await expect(page.getByRole('heading', { name: '我的知识库', exact: true })).toBeVisible();
+
+    const logout = await page.request.post('http://127.0.0.1:5173/api/auth/logout', { data: {}, headers: { Origin: 'http://127.0.0.1:5173' } });
     assert.equal(logout.status(), 204);
-    assert.equal((await page.request.get('http://127.0.0.1:1420/api/auth/session')).status(), 401);
-    await page.goto('http://127.0.0.1:1420/auth/login');
+    assert.equal((await page.request.get('http://127.0.0.1:5173/api/auth/session')).status(), 401);
+    await page.goto('http://127.0.0.1:5173/auth/login');
     await expect(page.getByRole('alert')).toHaveCount(0);
     await page.screenshot({ path: new URL('login.png', directory).pathname });
     console.log('PASS: running dev proxy, real Cap, captured email, login, reload and logout');

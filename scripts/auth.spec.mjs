@@ -55,7 +55,9 @@ async function finish(page, code) {
   await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
   await page.getByRole('button', { name: '验证并继续', exact: true }).click();
   await expect(page).toHaveURL(/\/workspace$/);
-  await expect(page.getByRole('heading', { level: 1, name: '任务工作区' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: '我的知识库' })).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: '新手向导' })).toBeVisible();
+
 }
 
 test('real Cap under production CSP, enrollment, wrong code, resend, reload, login and provider logout', async ({ page, request, context }, info) => {

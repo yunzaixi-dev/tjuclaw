@@ -13,7 +13,10 @@
           "title": "邮箱",
           "maxLength": 254,
           "ory.sh/kratos": {
-            "credentials": { "code": { "identifier": true, "via": "email" } },
+            "credentials": {
+              "password": { "identifier": true },
+              "code": { "identifier": true, "via": "email" }
+            },
             "verification": { "via": "email" }
           }
         }

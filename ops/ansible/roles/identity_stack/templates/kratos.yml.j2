@@ -16,7 +16,11 @@ selfservice:
     - {{ identity_app_url | regex_replace('/+$', '') }}/auth/complete
   methods:
     password:
-      enabled: false
+      enabled: true
+      config:
+        min_password_length: 8
+        haveibeenpwned_enabled: false
+        identifier_similarity_check_enabled: true
     oidc:
       enabled: false
     totp:

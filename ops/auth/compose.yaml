@@ -3,14 +3,14 @@
 name: tjuclaw-auth-dev
 x-kratos-environment: &kratos-environment
   DSN: postgres://kratos:local-development-only@db:5432/kratos?sslmode=disable
-  SERVE_PUBLIC_BASE_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/api/kratos/
-  SELFSERVICE_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/complete
-  SELFSERVICE_ALLOWED_RETURN_URLS: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/complete
-  SELFSERVICE_FLOWS_LOGIN_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/login
-  SELFSERVICE_FLOWS_REGISTRATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/registration
-  SELFSERVICE_FLOWS_VERIFICATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/verification
-  SELFSERVICE_FLOWS_ERROR_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/error
-  SELFSERVICE_FLOWS_LOGOUT_AFTER_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:1420}/auth/logged-out
+  SERVE_PUBLIC_BASE_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/api/kratos/
+  SELFSERVICE_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/complete
+  SELFSERVICE_ALLOWED_RETURN_URLS: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/complete
+  SELFSERVICE_FLOWS_LOGIN_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/login
+  SELFSERVICE_FLOWS_REGISTRATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/registration
+  SELFSERVICE_FLOWS_VERIFICATION_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/verification
+  SELFSERVICE_FLOWS_ERROR_UI_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/error
+  SELFSERVICE_FLOWS_LOGOUT_AFTER_DEFAULT_BROWSER_RETURN_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5173}/auth/logged-out
   COURIER_SMTP_CONNECTION_URI: ${COURIER_SMTP_CONNECTION_URI:-smtp://mail:1025/?disable_starttls=true}
   COURIER_SMTP_FROM_ADDRESS: ${COURIER_SMTP_FROM_ADDRESS:-login@tjuclaw.agentwego.com}
   SECRETS_COOKIE: local-development-cookie-secret-not-for-production
@@ -45,7 +45,7 @@ services:
     env_file:
       - path: .env.local
         required: false
-    ports: ["127.0.0.1:${AUTH_KRATOS_PORT:-14433}:4433"]
+    ports: ["127.0.0.1:${AUTH_KRATOS_PORT:-4433}:4433"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       mail: { condition: service_started }
@@ -54,7 +54,7 @@ services:
     security_opt: [no-new-privileges:true]
   mail:
     image: axllent/mailpit:v1.27.8
-    ports: ["127.0.0.1:${AUTH_MAIL_PORT:-18025}:8025"]
+    ports: ["127.0.0.1:${AUTH_MAIL_PORT:-8025}:8025"]
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]

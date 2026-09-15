@@ -15,12 +15,13 @@ const devDirectory = join(root, 'ops/local/auth-dev');
 const statePath = development ? join(devDirectory, 'state.json') : join(root, 'ops/local/auth-test-stack.json');
 const project = development ? 'tjuclaw-auth-dev' : 'tjuclaw-auth-test';
 const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/compose.yaml'];
-const identityPort = development ? 14436 : 14435;
-const mailPort = development ? 18027 : 18026;
+const identityPort = development ? 4433 : 14435;
+const mailPort = development ? 8025 : 18026;
 const capPort = development ? 13302 : 13301;
-const apiPort = development ? 18088 : 18089;
-const publicOrigin = development ? 'http://127.0.0.1:1420' : 'http://127.0.0.1:1423';
-let runtime, api, web, stopping = false;
+const apiPort = development ? 8080 : 18089;
+const publicOrigin = development ? 'http://127.0.0.1:5173' : 'http://127.0.0.1:1423';
+let runtime, api, web, docs, stopping = false;
+
 const secret = () => randomBytes(24).toString('hex');
 const compose = (args, env) => spawnSync('docker', [...composeArgs, ...args], { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit', timeout: 180000 });
 export function isReusableKratosDevState(saved, directory) {
@@ -73,19 +74,43 @@ async function json(base, path, options = {}) {
   if (res.status < 200 || res.status >= 300 || res.value === null) throw new Error(`Bootstrap request failed: ${path} HTTP ${res.status}`);
   return res.value;
 }
+async function overlayProductModel(env) {
+  let text = '';
+  try {
+    text = await readFile(join(root, '.env.auth.local'), 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return env;
+  }
+  const allow = new Set(['NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_DAILY_QUOTA']);
+  const next = { ...env };
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    if (!allow.has(key) || next[key]) continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    next[key] = value;
+  }
+  return next;
+}
+
+async function stopChild(child) {
+  if (!child || child.exitCode !== null) return;
+  child.kill('SIGTERM');
+  await Promise.race([new Promise(resolveExit => child.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
+  if (child.exitCode === null) child.kill('SIGKILL');
+}
 async function cleanup(exitCode = 0) {
   if (stopping) return;
   stopping = true;
-  if (api && api.exitCode === null) {
-    api.kill('SIGTERM');
-    await Promise.race([new Promise(resolveExit => api.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
-    if (api.exitCode === null) api.kill('SIGKILL');
-  }
-  if (web && web.exitCode === null) {
-    web.kill('SIGTERM');
-    await Promise.race([new Promise(resolveExit => web.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
-    if (web.exitCode === null) web.kill('SIGKILL');
-  }
+  await stopChild(api);
+  await stopChild(web);
+  await stopChild(docs);
+
   if (runtime && !development) {
     const result = compose(['down', '--volumes', '--remove-orphans'], runtime.env);
     if (result.status !== 0) exitCode = 1;
@@ -137,8 +162,19 @@ try {
     await mkdir(dirname(statePath), { recursive: true, mode: 0o700 });
     await writeFile(statePath, JSON.stringify(runtime), { mode: 0o600, flag: 'wx' });
   } else {
-    runtime.env = { ...runtime.env, AUTH_BROWSER_URL: publicOrigin, ...mailConfig.composeEnv };
+    if (runtime.env.AUTH_BROWSER_URL && runtime.env.AUTH_BROWSER_URL !== publicOrigin) {
+      runtime.site = undefined;
+    }
+    runtime.env = {
+      ...runtime.env,
+      AUTH_BROWSER_URL: publicOrigin,
+      AUTH_KRATOS_PORT: String(identityPort),
+      AUTH_MAIL_PORT: String(mailPort),
+      AUTH_CAP_PORT: String(capPort),
+      ...mailConfig.composeEnv,
+    };
   }
+
   console.log(`Starting isolated Kratos, Cap and ${mailConfig.mode === 'real' ? 'real-delivery SMTP' : 'captured-mail'} services.`);
   if (compose(['up', '--detach'], runtime.env).status !== 0) {
     const logs = spawnSync('docker', [...composeArgs, 'logs', '--no-color', '--tail', '35', 'kratos'], { cwd: root, env: { ...process.env, ...runtime.env }, encoding: 'utf8' });
@@ -167,25 +203,37 @@ try {
     console.log(`Local identity services ready; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `captured mailbox: http://127.0.0.1:${mailPort}`}`);
     process.exit(0);
   }
-  const executable = join(directory, 'tjuclaw-api');
-  const build = spawnSync('go', ['build', '-o', executable, './cmd/api'], { cwd: join(root, 'backend'), stdio: 'inherit', timeout: 120000 });
-  if (build.status !== 0) throw new Error('API build failed');
-  api = spawn(executable, [], { cwd: directory, stdio: 'inherit', env: {
+  const backendDir = join(root, 'backend');
+  const apiEnv = await overlayProductModel({
     ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, DATABASE_URL: '',
     TASK_DATA_DIR: join(directory, 'tasks'), AUTH_PROVIDER: 'kratos',
     APP_PUBLIC_URL: publicOrigin, KRATOS_PUBLIC_URL: identityBase,
     AUTH_COOKIE_KEY: runtime.cookieKey,
     CAP_URL: capBase, CAP_SITE_KEY: site.siteKey, CAP_SECRET_KEY: site.secretKey,
-  } });
+  });
+
+  if (development) {
+    api = spawn('go', ['run', 'github.com/air-verse/air@v1.67.4', '-c', '.air.toml'], { cwd: backendDir, stdio: 'inherit', env: apiEnv });
+  } else {
+    const executable = join(directory, 'tjuclaw-api');
+    const build = spawnSync('go', ['build', '-o', executable, './cmd/api'], { cwd: backendDir, stdio: 'inherit', timeout: 120000 });
+    if (build.status !== 0) throw new Error('API build failed');
+    api = spawn(executable, [], { cwd: directory, stdio: 'inherit', env: apiEnv });
+  }
+
   api.on('error', () => { console.error('Isolated API could not start'); void cleanup(1); });
   api.on('exit', code => { if (!stopping) { console.error(`Isolated API exited (${code})`); void cleanup(1); } });
   await ready(`http://127.0.0.1:${apiPort}`, '/auth/flow');
-  console.log(`Kratos + Cap API ready at 127.0.0.1:${apiPort}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
+  console.log(`Kratos + Cap API ready at 127.0.0.1:${apiPort}${development ? ' (Air live reload)' : ''}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
   if (process.argv.includes('--web')) {
     web = spawn('pnpm', ['--dir', 'frontend', 'dev'], { cwd: root, stdio: 'inherit', env: process.env });
     web.on('error', () => { console.error('Web client could not start'); void cleanup(1); });
     web.on('exit', code => { if (!stopping) { console.error(`Web client exited (${code})`); void cleanup(code ?? 1); } });
+    docs = spawn('pnpm', ['--dir', 'docs', 'exec', 'next', 'dev', '--hostname', '127.0.0.1', '--port', '3000'], { cwd: root, stdio: 'inherit', env: process.env });
+    docs.on('error', () => { console.error('Docs could not start'); void cleanup(1); });
+    docs.on('exit', code => { if (!stopping) { console.error(`Docs exited (${code})`); void cleanup(code ?? 1); } });
   }
+
 } catch (error) {
   console.error(error.message);
   await cleanup(1);
