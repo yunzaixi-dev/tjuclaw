@@ -121,7 +121,7 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ops/ansible/ansible.cfg
         run: |
-          for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel; do
+          for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel deploy-weknora; do
             uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
           done
           node --test ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs

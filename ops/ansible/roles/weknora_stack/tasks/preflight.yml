@@ -1,0 +1,58 @@
+---
+- name: Validate WeKnora app listen address format
+  ansible.builtin.assert:
+    that:
+      - weknora_app_listen_addr is defined
+      - (weknora_app_listen_addr.split(':') | length) == 2
+      - weknora_app_listen_addr.startswith('127.0.0.1:') or weknora_app_listen_addr.startswith('localhost:')
+    fail_msg: >-
+      weknora_app_listen_addr must bind strictly to loopback (127.0.0.1:PORT).
+      Refusing to expose the WeKnora API publicly.
+
+- name: Validate WeKnora UI listen address format
+  ansible.builtin.assert:
+    that:
+      - weknora_ui_listen_addr is defined
+      - (weknora_ui_listen_addr.split(':') | length) == 2
+      - weknora_ui_listen_addr.startswith('127.0.0.1:') or weknora_ui_listen_addr.startswith('localhost:')
+    fail_msg: >-
+      weknora_ui_listen_addr must bind strictly to loopback (127.0.0.1:PORT).
+      Administer WeKnora through an SSH tunnel, not a public origin.
+
+- name: Reject unpinned or vulnerable WeKnora versions
+  ansible.builtin.assert:
+    that:
+      - weknora_version != 'latest'
+      - weknora_version is regex('^v[0-9]+\\.[0-9]+\\.[0-9]+$')
+      - (weknora_version | regex_replace('^v', '')) is version('0.8.0', '>=')
+    fail_msg: >-
+      weknora_version must be a pinned tag at v0.8.0 or newer (CVE-2026-22688 and
+      related fixes). Do not deploy latest or pre-0.8.0 images.
+
+- name: Refuse WeKnora Docker sandbox
+  ansible.builtin.assert:
+    that:
+      - not (weknora_sandbox_docker_enabled | bool)
+    fail_msg: >-
+      weknora_sandbox_docker_enabled must stay false. Mounting docker.sock is
+      equivalent to host root and is out of scope for this stack.
+
+- name: Count optional LLM settings
+  ansible.builtin.set_fact:
+    weknora_llm_configured_count: >-
+      {{
+        (
+          (1 if (weknora_llm_base_url | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_llm_api_key | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_llm_model_name | default('') | trim | length > 0) else 0)
+        )
+      }}
+
+- name: Assert LLM settings are empty or complete
+  ansible.builtin.assert:
+    that:
+      - (weknora_llm_configured_count | int == 0) or (weknora_llm_configured_count | int == 3)
+    fail_msg: >-
+      Incomplete LLM configuration. Set weknora_llm_base_url, weknora_llm_api_key
+      and weknora_llm_model_name together, or leave all three empty and configure
+      models in the WeKnora UI after first boot.

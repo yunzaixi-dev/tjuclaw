@@ -10,6 +10,12 @@ task ops:newapi:deploy
 task ops:zitadel:deploy
 ```
 
+For the isolated WeKnora knowledge engine, copy `weknora.example.yml` to ignored
+`ops/local/weknora.yml` and use `task ops:weknora:deploy`. Listeners stay on
+loopback 18180/18181. Combined memory ceiling is about 1.4 GiB — do not share
+the 2 GiB core host with identity, NewAPI, crawler and the API. WeKnora is not
+product identity and not library ACL. See [../weknora/README.md](../weknora/README.md).
+
 For the independent Cap CAPTCHA service, use `task ops:cap:deploy` with ignored
 `ops/local/cap.yml`. Its dashboard listens on loopback port 3300 and is accessed
 through an SSH tunnel; Valkey has no published port. See [CAP.md](CAP.md) for

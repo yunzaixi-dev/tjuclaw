@@ -51,6 +51,12 @@ Real configuration, credentials and runtime state stay in ignored `ops/local/`
 or other private storage. Do not mount repository roots, Docker sockets or private
 research into build containers. Do not operate existing clusters without approval.
 
+
+`weknora/` is the isolated knowledge engine (loopback UI 18180, app 18181). It is
+not identity and not a public origin. Local: `task weknora:up`. Cloud:
+`task ops:weknora:deploy` with ignored `ops/local/weknora.yml` on a host with
+spare RAM — not the 2 GiB core box. See `weknora/README.md`.
+
 `auth/` contains the local ZITADEL/PostgreSQL/Mailpit stack, identity policy,
 Chinese email templates and production SMTP instructions. Unlike root Compose,
 this stack has persistent development identities. Development uses the configured

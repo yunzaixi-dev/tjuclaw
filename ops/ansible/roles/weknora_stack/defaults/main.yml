@@ -1,0 +1,36 @@
+---
+weknora_base_dir: /opt/tjuclaw-weknora
+weknora_project_name: tjuclaw-weknora
+weknora_app_listen_addr: "127.0.0.1:18181"
+weknora_ui_listen_addr: "127.0.0.1:18180"
+
+weknora_version: "v0.8.0"
+weknora_app_image: "wechatopenai/weknora-app:{{ weknora_version }}"
+weknora_ui_image: "wechatopenai/weknora-ui:{{ weknora_version }}"
+weknora_docreader_image: "wechatopenai/weknora-docreader:{{ weknora_version }}"
+weknora_postgres_image: "paradedb/paradedb:v0.22.2-pg17"
+weknora_redis_image: "redis:7.0-alpine"
+
+weknora_postgres_mem_limit: "384m"
+weknora_redis_mem_limit: "64m"
+weknora_docreader_mem_limit: "384m"
+weknora_app_mem_limit: "512m"
+weknora_ui_mem_limit: "96m"
+
+weknora_logging_max_size: "10m"
+weknora_logging_max_file: "3"
+weknora_health_timeout_seconds: 180
+weknora_health_delay_seconds: 3
+
+weknora_db_user: weknora
+weknora_db_name: WeKnora
+weknora_disable_registration: true
+weknora_sandbox_docker_enabled: false
+weknora_bootstrap_admin_email: ""
+
+weknora_llm_base_url: ""
+weknora_llm_api_key: ""
+weknora_llm_model_name: ""
+
+weknora_simulate: false
+weknora_become: true

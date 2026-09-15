@@ -19,7 +19,10 @@ tasks:
     cmds: [node scripts/doctor.mjs]
   dev:
     desc: Run Web client and Go API with local Kratos/Cap dev services (Ctrl+C stops both)
-    deps: [web:dev, auth:dev]
+    cmds:
+      - node scripts/dev-ports.mjs web
+      - node scripts/dev-ports.mjs api
+      - node scripts/auth-test-stack.mjs --dev --web
   web:dev:
     desc: Run Web client on loopback port 1420
     cmds:
@@ -111,6 +114,7 @@ tasks:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-crawler.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-cap.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-zitadel.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-weknora.yml --syntax-check
   ops:test:
     desc: Verify origin, API deployment and identity secret preservation locally
     cmds:
@@ -167,6 +171,15 @@ tasks:
       - test -f ops/local/crawler.yml
     cmds:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-crawler.yml -e @ops/local/crawler.yml
+  ops:weknora:deploy:
+    desc: Deploy isolated WeKnora knowledge stack on loopback (needs spare RAM, not the 2GiB core host)
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/weknora.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-weknora.yml -e @ops/local/weknora.yml
   ops:newapi:origin:deploy:
     desc: Deploy the dedicated NewAPI HTTPS origin (requires a provisioned TLS PEM)
     env:
@@ -256,6 +269,12 @@ tasks:
     desc: Run crawler regressions against isolated PostgreSQL (Docker or explicit test URL)
     dir: crawler
     cmds: [bun run test:integration]
+  weknora:up:
+    desc: Start isolated WeKnora on loopback 18180/18181 (keeps volumes)
+    cmds: [node scripts/weknora-stack.mjs up]
+  weknora:down:
+    desc: Stop local WeKnora without deleting knowledge volumes
+    cmds: [node scripts/weknora-stack.mjs down]
   api:test:
     desc: Run Go tests
     dir: backend

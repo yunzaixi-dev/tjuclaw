@@ -5,7 +5,7 @@ import http from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveAuthDevMailConfig } from './auth-mail-config.mjs';
 
 // Tests are disposable; --dev keeps identities and credentials across restarts.
@@ -20,9 +20,31 @@ const mailPort = development ? 18027 : 18026;
 const capPort = development ? 13302 : 13301;
 const apiPort = development ? 18088 : 18089;
 const publicOrigin = development ? 'http://127.0.0.1:1420' : 'http://127.0.0.1:1423';
-let runtime, api, stopping = false;
+let runtime, api, web, stopping = false;
 const secret = () => randomBytes(24).toString('hex');
 const compose = (args, env) => spawnSync('docker', [...composeArgs, ...args], { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit', timeout: 180000 });
+export function isReusableKratosDevState(saved, directory) {
+  return saved?.directory === directory
+    && saved.provider === 'kratos'
+    && Boolean(saved.cookieKey)
+    && Boolean(saved.env?.CAP_ADMIN_KEY)
+    && Boolean(saved.env?.AUTH_KRATOS_PORT);
+}
+function composeResetEnv(saved) {
+  return {
+    CAP_ADMIN_KEY: saved?.env?.CAP_ADMIN_KEY || 'legacy-reset',
+    AUTH_KRATOS_PORT: saved?.env?.AUTH_KRATOS_PORT || saved?.env?.AUTH_IDENTITY_PORT || String(identityPort),
+    AUTH_MAIL_PORT: saved?.env?.AUTH_MAIL_PORT || String(mailPort),
+    AUTH_CAP_PORT: saved?.env?.AUTH_CAP_PORT || String(capPort),
+  };
+}
+async function discardUnusableDevState(saved) {
+  console.log('Local development identity state is not Kratos; recreating isolated Kratos credentials.');
+  const result = compose(['down', '--volumes', '--remove-orphans'], composeResetEnv(saved));
+  if (result.status !== 0) throw new Error('Could not remove leftover local identity volumes; check Docker and retry.');
+  await rm(statePath, { force: true });
+}
+
 function request(base, path, { method = 'GET', headers = {}, body } = {}) {
   return new Promise((resolveRequest, reject) => {
     const data = body === undefined ? undefined : JSON.stringify(body);
@@ -59,6 +81,11 @@ async function cleanup(exitCode = 0) {
     await Promise.race([new Promise(resolveExit => api.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
     if (api.exitCode === null) api.kill('SIGKILL');
   }
+  if (web && web.exitCode === null) {
+    web.kill('SIGTERM');
+    await Promise.race([new Promise(resolveExit => web.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
+    if (web.exitCode === null) web.kill('SIGKILL');
+  }
   if (runtime && !development) {
     const result = compose(['down', '--volumes', '--remove-orphans'], runtime.env);
     if (result.status !== 0) exitCode = 1;
@@ -69,6 +96,7 @@ async function cleanup(exitCode = 0) {
   }
   process.exit(exitCode);
 }
+async function main() {
 if (process.argv.includes('--down')) {
   try { runtime = JSON.parse(await readFile(statePath, 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; process.exit(0); }
@@ -90,8 +118,8 @@ try {
   try {
     const saved = JSON.parse(await readFile(statePath, 'utf8'));
     if (!development) throw new Error('Existing isolated test stack state; run node scripts/auth-test-stack.mjs --down first');
-    if (saved.directory !== devDirectory || saved.provider !== 'kratos' || !saved.env?.CAP_ADMIN_KEY || !saved.cookieKey) throw new Error('Invalid local development state; refusing to replace credentials. Run task auth:down if switching from ZITADEL.');
-    runtime = saved;
+    if (isReusableKratosDevState(saved, devDirectory)) runtime = saved;
+    else await discardUnusableDevState(saved);
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (!runtime && development) {
     const volumes = spawnSync('docker', ['volume', 'ls', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.Name}}'], { encoding: 'utf8' });
@@ -153,7 +181,17 @@ try {
   api.on('exit', code => { if (!stopping) { console.error(`Isolated API exited (${code})`); void cleanup(1); } });
   await ready(`http://127.0.0.1:${apiPort}`, '/auth/flow');
   console.log(`Kratos + Cap API ready at 127.0.0.1:${apiPort}; ${mailConfig.mode === 'real' ? 'real SMTP configured' : `mailbox: http://127.0.0.1:${mailPort}`}`);
+  if (process.argv.includes('--web')) {
+    web = spawn('pnpm', ['--dir', 'frontend', 'dev'], { cwd: root, stdio: 'inherit', env: process.env });
+    web.on('error', () => { console.error('Web client could not start'); void cleanup(1); });
+    web.on('exit', code => { if (!stopping) { console.error(`Web client exited (${code})`); void cleanup(code ?? 1); } });
+  }
 } catch (error) {
   console.error(error.message);
   await cleanup(1);
+}
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
 }

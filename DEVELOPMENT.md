@@ -13,6 +13,10 @@
 - Browser traffic is same-origin `/api/*`. Vite and Nginx remove `/api` once;
   Go routes do not include that prefix. Native clients need a separately reviewed
   native session transport, not relaxed CORS or browser cookies stored as tokens.
+- WeKnora is the knowledge engine only. Do not proxy it as `/api`, mix its
+  users with Kratos, or treat a WeKnora tenant key as a product session.
+  omp reads WeKnora over loopback with an explicit API key after an operator
+  creates the knowledge base. Library ACL stays in the Go API.
 
 ## Frontend
 

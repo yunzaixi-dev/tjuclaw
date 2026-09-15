@@ -1,0 +1,103 @@
+# Isolated WeKnora knowledge stack. Loopback only. Not product identity.
+name: tjuclaw-weknora-dev
+
+services:
+  postgres:
+    image: paradedb/paradedb:v0.22.2-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - weknora_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7.0-alpine
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - weknora_internal
+
+  docreader:
+    image: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-v0.8.0}
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      DOCREADER_ODL_HYBRID: ${DOCREADER_ODL_HYBRID:-off}
+    volumes:
+      - docreader-tmp:/tmp/docreader
+    networks:
+      - weknora_internal
+
+  app:
+    image: wechatopenai/weknora-app:${WEKNORA_VERSION:-v0.8.0}
+    restart: unless-stopped
+    env_file:
+      - ../local/weknora/.env
+    ports:
+      - "127.0.0.1:${WEKNORA_APP_HOST_PORT:-18181}:8080"
+    volumes:
+      - data-files:/data/files
+      - docreader-tmp:/tmp/docreader:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      WEKNORA_SANDBOX_DOCKER_ENABLED: "false"
+      OLLAMA_OPTIONAL: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      docreader:
+        condition: service_started
+    networks:
+      - weknora_internal
+      - default
+
+  frontend:
+    image: wechatopenai/weknora-ui:${WEKNORA_VERSION:-v0.8.0}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-18180}:80"
+    environment:
+      APP_HOST: app
+      APP_PORT: "8080"
+      APP_SCHEME: http
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-zh-CN}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - weknora_internal
+      - default
+
+volumes:
+  postgres-data:
+  redis-data:
+  data-files:
+  docreader-tmp:
+
+networks:
+  weknora_internal:
+    internal: true

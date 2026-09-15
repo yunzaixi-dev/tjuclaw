@@ -1,0 +1,148 @@
+services:
+  postgres:
+    image: {{ weknora_postgres_image }}
+    container_name: {{ weknora_project_name }}-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.db
+    volumes:
+      - weknora_pg_data:/var/lib/postgresql/data
+    networks:
+      - weknora_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ weknora_db_user }} -d {{ weknora_db_name }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: {{ weknora_postgres_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+
+  redis:
+    image: {{ weknora_redis_image }}
+    container_name: {{ weknora_project_name }}-redis
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    env_file:
+      - .env.app
+    volumes:
+      - weknora_redis_data:/data
+    networks:
+      - weknora_internal
+    deploy:
+      resources:
+        limits:
+          memory: {{ weknora_redis_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+
+  docreader:
+    image: {{ weknora_docreader_image }}
+    container_name: {{ weknora_project_name }}-docreader
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      DOCREADER_IMAGE_OUTPUT_DIR: /tmp/docreader
+      DOCREADER_ODL_HYBRID: off
+    volumes:
+      - weknora_docreader_tmp:/tmp/docreader
+    networks:
+      - weknora_internal
+    deploy:
+      resources:
+        limits:
+          memory: {{ weknora_docreader_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+
+  app:
+    image: {{ weknora_app_image }}
+    container_name: {{ weknora_project_name }}-app
+    restart: unless-stopped
+    env_file:
+      - .env.app
+    ports:
+      - "{{ weknora_app_listen_addr }}:8080"
+    volumes:
+      - weknora_data_files:/data/files
+      - weknora_docreader_tmp:/tmp/docreader:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      WEKNORA_SANDBOX_DOCKER_ENABLED: "false"
+      OLLAMA_OPTIONAL: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      docreader:
+        condition: service_started
+    networks:
+      - weknora_internal
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: {{ weknora_app_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+
+  frontend:
+    image: {{ weknora_ui_image }}
+    container_name: {{ weknora_project_name }}-frontend
+    restart: unless-stopped
+    ports:
+      - "{{ weknora_ui_listen_addr }}:80"
+    environment:
+      APP_HOST: app
+      APP_PORT: "8080"
+      APP_SCHEME: http
+      DEFAULT_LOCALE: zh-CN
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - weknora_internal
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: {{ weknora_ui_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+
+volumes:
+  weknora_pg_data:
+  weknora_redis_data:
+  weknora_data_files:
+  weknora_docreader_tmp:
+
+networks:
+  weknora_internal:
+    internal: true

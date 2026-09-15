@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
 import { prependToolPath } from '../frontend/scripts/native-env.mjs';
+import { isReusableKratosDevState } from './auth-test-stack.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -155,4 +156,31 @@ test('email auth policy keeps browser identity boundaries and local mail isolate
   assert.equal(zitadelCompose.services['zitadel-db'].ports, undefined);
   assert.match(read('ops/images/nginx.conf'), /limit_req_status 429/);
   assert.match(read('ops/images/nginx.conf'), /access_log off/);
+});
+
+test('ZITADEL leftover development state is not reused for Kratos task dev', () => {
+  const directory = '/tmp/tjuclaw-auth-dev';
+  assert.equal(isReusableKratosDevState({
+    directory,
+    cookieKey: 'cookie',
+    env: { CAP_ADMIN_KEY: 'cap', AUTH_IDENTITY_PORT: '14436' },
+  }, directory), false);
+  assert.equal(isReusableKratosDevState({
+    directory,
+    provider: 'kratos',
+    cookieKey: 'cookie',
+    env: { CAP_ADMIN_KEY: 'cap', AUTH_KRATOS_PORT: '14436' },
+  }, directory), true);
+  assert.match(read('scripts/auth-test-stack.mjs'), /recreating isolated Kratos credentials/);
+});
+
+test('task dev starts the Web client only after the Kratos API is ready', () => {
+  const tasks = parse(read('Taskfile.yml')).tasks;
+  assert.equal(tasks.dev.deps, undefined);
+  assert.deepEqual(tasks.dev.cmds, [
+    'node scripts/dev-ports.mjs web',
+    'node scripts/dev-ports.mjs api',
+    'node scripts/auth-test-stack.mjs --dev --web',
+  ]);
+  assert.match(read('scripts/auth-test-stack.mjs'), /process\.argv\.includes\('--web'\)/);
 });

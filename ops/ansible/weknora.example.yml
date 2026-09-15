@@ -1,0 +1,26 @@
+---
+# Copy this file to ops/local/weknora.yml
+# WeKnora is the knowledge engine only. It is not product identity.
+
+weknora_base_dir: "/opt/tjuclaw-weknora"
+weknora_project_name: tjuclaw-weknora
+weknora_app_listen_addr: "127.0.0.1:18181"
+weknora_ui_listen_addr: "127.0.0.1:18180"
+weknora_version: "v0.8.0"
+
+# ~1.4 GiB combined ceiling. Do not share the 2 GiB core host with identity,
+# NewAPI, crawler and the API. Use a host with verified spare RAM.
+weknora_postgres_mem_limit: "384m"
+weknora_redis_mem_limit: "64m"
+weknora_docreader_mem_limit: "384m"
+weknora_app_mem_limit: "512m"
+weknora_ui_mem_limit: "96m"
+
+weknora_disable_registration: true
+weknora_sandbox_docker_enabled: false
+# weknora_bootstrap_admin_email: "admin@example.invalid"
+
+# Optional OpenAI-compatible gateway (all-or-none). NewAPI on the same host:
+# weknora_llm_base_url: "http://host.docker.internal:3000/v1"
+# weknora_llm_api_key: "REPLACE_WITH_NEWAPI_KEY"
+# weknora_llm_model_name: "tju-llm"

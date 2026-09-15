@@ -1,0 +1,156 @@
+---
+- name: Run preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Ensure target directory structure exists
+  ansible.builtin.file:
+    path: "{{ weknora_base_dir }}"
+    state: directory
+    owner: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Manage durable secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Check previous deployment files for potential rollback
+  block:
+    - name: Stat existing compose.yaml
+      ansible.builtin.stat:
+        path: "{{ weknora_base_dir }}/compose.yaml"
+      register: weknora_existing_compose_stat
+
+    - name: Stat existing .env.app
+      ansible.builtin.stat:
+        path: "{{ weknora_base_dir }}/.env.app"
+      register: weknora_existing_app_env_stat
+
+    - name: Slurp previous compose.yaml if present
+      ansible.builtin.slurp:
+        path: "{{ weknora_base_dir }}/compose.yaml"
+      register: weknora_previous_compose_slurp
+      when: weknora_existing_compose_stat.stat.exists
+
+    - name: Slurp previous .env.app if present
+      ansible.builtin.slurp:
+        path: "{{ weknora_base_dir }}/.env.app"
+      register: weknora_previous_app_env_slurp
+      when: weknora_existing_app_env_stat.stat.exists
+      no_log: true
+
+    - name: Record previous configuration state
+      ansible.builtin.set_fact:
+        weknora_had_previous_deployment: "{{ weknora_existing_compose_stat.stat.exists }}"
+        weknora_previous_compose_content: "{{ weknora_previous_compose_slurp.content | b64decode if weknora_existing_compose_stat.stat.exists else '' }}"
+        weknora_previous_app_env_content: "{{ weknora_previous_app_env_slurp.content | b64decode if weknora_existing_app_env_stat.stat.exists else '' }}"
+      no_log: true
+
+- name: Render .env.db file with strict permissions
+  ansible.builtin.template:
+    src: env.db.j2
+    dest: "{{ weknora_base_dir }}/.env.db"
+    owner: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render .env.app file with strict permissions
+  ansible.builtin.template:
+    src: env.app.j2
+    dest: "{{ weknora_base_dir }}/.env.app"
+    owner: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    mode: "0600"
+  no_log: true
+
+- name: Render docker compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ weknora_base_dir }}/compose.yaml"
+    owner: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    mode: "0644"
+
+- name: Deploy containers and verify health with automated rollback
+  when: not (weknora_simulate | bool)
+  block:
+    - name: Start WeKnora data services
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" up -d postgres redis docreader
+      register: weknora_data_up
+      changed_when: "'Started' in (weknora_data_up.stdout + weknora_data_up.stderr) or 'Created' in (weknora_data_up.stdout + weknora_data_up.stderr)"
+
+    - name: Wait for PostgreSQL container to become healthy
+      ansible.builtin.command:
+        cmd: docker inspect --format={% raw %}'{{.State.Health.Status}}'{% endraw %} "{{ weknora_project_name }}-postgres"
+      register: weknora_db_health
+      until: weknora_db_health.stdout | trim == 'healthy'
+      retries: 30
+      delay: 2
+      changed_when: false
+
+    - name: Start WeKnora app and UI
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+      register: weknora_app_up
+      changed_when: "'Started' in (weknora_app_up.stdout + weknora_app_up.stderr) or 'Created' in (weknora_app_up.stdout + weknora_app_up.stderr)"
+
+    - name: Verify WeKnora health endpoint (/health)
+      ansible.builtin.uri:
+        url: "http://{{ weknora_app_listen_addr }}/health"
+        method: GET
+        status_code: 200
+        timeout: 3
+        use_proxy: false
+      register: weknora_health_check
+      until: weknora_health_check.status | default(0) == 200
+      retries: "{{ ((weknora_health_timeout_seconds | int) / (weknora_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+      delay: "{{ weknora_health_delay_seconds }}"
+
+  rescue:
+    - name: Deployment failed health check - trigger rollback
+      ansible.builtin.debug:
+        msg: "WeKnora deployment failed readiness check. Initiating automated rollback (preserving volumes)..."
+
+    - name: Stop failed WeKnora app and UI
+      ansible.builtin.command:
+        cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" stop app frontend
+      ignore_errors: true
+
+    - name: Restore previous compose.yaml and .env.app if present
+      when: weknora_had_previous_deployment | bool
+      block:
+        - name: Restore previous compose.yaml
+          ansible.builtin.copy:
+            content: "{{ weknora_previous_compose_content }}"
+            dest: "{{ weknora_base_dir }}/compose.yaml"
+            mode: "0644"
+
+        - name: Restore previous .env.app
+          ansible.builtin.copy:
+            content: "{{ weknora_previous_app_env_content }}"
+            dest: "{{ weknora_base_dir }}/.env.app"
+            mode: "0600"
+          no_log: true
+
+        - name: Restart app with previous configuration
+          ansible.builtin.command:
+            cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+
+        - name: Verify restored service health
+          ansible.builtin.uri:
+            url: "http://{{ weknora_app_listen_addr }}/health"
+            status_code: 200
+            timeout: 3
+            use_proxy: false
+          register: weknora_rollback_health
+          until: weknora_rollback_health.status | default(0) == 200
+          retries: 20
+          delay: 3
+
+    - name: Fail deployment task with explicit error
+      ansible.builtin.fail:
+        msg: >-
+          Deployment of WeKnora stack failed readiness check (/health did not return 200).
+          Automated rollback completed. Previous service restored: {{ weknora_had_previous_deployment }}.
+          Database and file volumes were strictly preserved.

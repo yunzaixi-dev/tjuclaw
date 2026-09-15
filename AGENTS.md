@@ -39,6 +39,10 @@ Browser / Tauri WebView
 Public crawler (Bun + dedicated PostgreSQL) → RSS / replay feed
   public campus events only; private library ACL stays in the Go API
 
+WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
+  loopback UI :18180 and app :18181; omp uses WEKNORA_BASE_URL + X-API-Key
+  not product identity; not a public origin; not library ACL
+
 tjucli / tjucli-server → public course catalog (cs.tjuse.com)
   sandbox grants via TJUCLI_GRANTS_FILE; no campus login credentials
 ```
@@ -57,6 +61,9 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
   the Kratos OTP cutover is verified.
 - Crawler owns configured public sources only. Never share its database with
   identity or product API stores.
+- WeKnora is the knowledge engine. Never share its database with Kratos, the
+  crawler, or the product API. Do not merge WeKnora users with product identities.
+  Do not enable its Docker sandbox or publish its UI.
 - `cli/skills/tjucli/` must be loaded into the product runtime, not only the
   developer's global Pi. Current CLI scope is public courses.
 
@@ -103,8 +110,8 @@ rtk task build          # web, docs, api, cli (not native)
 | `task cli:server:dev` | Requires `TJUCLI_GRANTS_FILE` — see `cli/TOOL_SERVER.md` |
 | `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
 | `task crawler:crawl` / `task crawler:import` | One-shot real sources vs synthetic fixtures |
+| `task weknora:up` / `task weknora:down` | Isolated WeKnora on `:18180`/`:18181`; down keeps volumes |
 | `task linux:build` / `task windows:build` / `task android:build` | Host-specific; Android is unsigned arm64 debug APK |
-| `task compose:up` / `task compose:smoke` / `task compose:down` | Local Web+API containers, not production |
 
 `task dev` uses real SMTP from ignored `ops/auth/.env.local` by default. Set
 `AUTH_DEV_MAIL_MODE=captured` for Mailpit. Disposable tests always use captured
@@ -114,9 +121,11 @@ API with `API_PROXY_TARGET`. Smoke a running dev proxy with
 
 Ops deploy tasks (`task ops:api:deploy`, `task ops:identity:deploy`, …) need
 explicit ignored inventories and verified artifacts. NewAPI is an operations
-gateway, never a second product identity. Cap running does not enforce captcha
-until the API verifies tokens. Read `ops/auth/README.md` before auth policy or
-deploy changes. Never apply an isolated identity policy to a shared cluster.
+gateway, never a second product identity. WeKnora is the knowledge engine on
+loopback only; `task ops:weknora:deploy` needs spare RAM and must not share the
+2 GiB core host. Cap running does not enforce captcha until the API verifies
+tokens. Read `ops/auth/README.md` before auth policy or deploy changes. Never
+apply an isolated identity policy to a shared cluster.
 
 ## Code Conventions & Common Patterns
 
@@ -192,6 +201,7 @@ history.
 | `cli/TJUCLI.md`, `cli/TOOL_SERVER.md` | Command and grant contracts |
 | `crawler/src/index.ts`, `crawler/src/app.ts` | Feed server + scheduler |
 | `ops/auth/README.md`, `ops/ci/README.md` | Auth policy; CI/release |
+| `ops/weknora/README.md` | Isolated WeKnora knowledge stack |
 | `docs/src/`, `docs/content/docs/` | Fumadocs app and reviewed content |
 
 ## Runtime/Tooling Preferences
@@ -206,9 +216,10 @@ history.
 | Agent CLI | Prefer `rtk` for eligible commands |
 
 Ports: Web `1420`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
-workspace/audit-ui tests `1424`, docs `3030`, crawler `3031`, ZITADEL API `18088`,
-raw API `8080`, tool server `18090`, Mailpit `18027`. `scripts/dev-ports.mjs`
-clears this checkout's Web/API listeners; unknown processes and `:8080` stay.
+workspace/audit-ui tests `1424`, docs `3030`, crawler `3031`, WeKnora UI `18180`,
+WeKnora app `18181`, ZITADEL API `18088`, raw API `8080`, tool server `18090`,
+Mailpit `18027`. `scripts/dev-ports.mjs` clears this checkout's Web/API
+listeners; unknown processes and `:8080` stay.
 
 Vite dev proxy: `/api` → `API_PROXY_TARGET` or `http://127.0.0.1:18088`
 (development) else `:8080`. Tauri reads `frontend/package.json`; Rust crate
