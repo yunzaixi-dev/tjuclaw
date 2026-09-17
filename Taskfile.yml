@@ -265,6 +265,11 @@ tasks:
     desc: Import synthetic events into the configured crawler PostgreSQL database
     dir: crawler
     cmds: [bun run fixture:import]
+  crawler:weknora:inject:
+    desc: Inject processed crawler items into local WeKnora (requires API key and knowledge base id)
+    dir: crawler
+    cmds:
+      - bun run weknora:inject -- {{.CLI_ARGS}}
   crawler:check:
     desc: Typecheck crawler module
     dir: crawler

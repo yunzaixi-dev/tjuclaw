@@ -112,6 +112,7 @@ rtk task build          # web, docs, api, cli (not native)
 | `task cli:server:dev` | Requires `TJUCLI_GRANTS_FILE` — see `cli/TOOL_SERVER.md` |
 | `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
 | `task crawler:crawl` / `task crawler:import` | One-shot real sources vs synthetic fixtures |
+| `task crawler:weknora:inject` | Push derived Markdown into local WeKnora; needs `WEKNORA_API_KEY` and `WEKNORA_KNOWLEDGE_BASE_ID` |
 | `task weknora:up` / `task weknora:down` | Isolated WeKnora on `:18180`/`:18181`; down keeps volumes |
 | `task linux:build` / `task windows:build` / `task android:build` | Host-specific; Android is unsigned arm64 debug APK |
 
