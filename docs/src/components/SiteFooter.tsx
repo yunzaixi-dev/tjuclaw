@@ -37,20 +37,9 @@ export function SiteFooter({
             <h4 className="wiki-footer-heading">核心导航</h4>
             <ul className="wiki-footer-links">
               <li><Link href="/">平台首页</Link></li>
-              <li><Link href="/docs">快速开始与入门</Link></li>
-              <li><Link href="/docs/blog">技术专栏首页</Link></li>
-              <li><Link href="/docs/blog/architecture">总体架构</Link></li>
-              <li><Link href="/docs/blog/guide">使用指南</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="wiki-footer-heading">核心技术博客</h4>
-            <ul className="wiki-footer-links">
-              <li><Link href="/docs/blog/client-matrix">客户端矩阵</Link></li>
-              <li><Link href="/docs/blog/sandbox-security">Agent 沙箱安全</Link></li>
-              <li><Link href="/docs/blog/storage-compute">存算分离架构</Link></li>
-              <li><Link href="/docs/blog/deployment-ops">云边协同部署</Link></li>
+              <li><Link href="/docs">平台设计与概览</Link></li>
+              <li><Link href="/docs/quickstart">快速开始</Link></li>
+              <li><Link href="/docs/blog/data-pipeline">《数据的复杂采集、脱敏、归一与向量化》</Link></li>
             </ul>
           </div>
 

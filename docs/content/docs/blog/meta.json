@@ -1,16 +1,8 @@
 {
-  "title": "技术专栏",
-  "description": "TJUClaw 架构演进与核心技术攻坚系列博客",
-  "defaultOpen": true,
+  "title": "技术博客",
   "pages": [
-    "index",
-    "architecture",
-    "storage-compute",
-    "sandbox-security",
-    "memory-system",
-    "campus-protocols",
-    "client-matrix",
-    "deployment-ops",
-    "guide"
+    "data-pipeline",
+    "why-pi-as-agent-harness",
+    "agent-platform"
   ]
 }

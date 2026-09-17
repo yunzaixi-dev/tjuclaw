@@ -4,14 +4,8 @@
     "index",
     "quickstart",
     "---技术博客---",
-    "blog/index",
-    "blog/architecture",
-    "blog/storage-compute",
-    "blog/sandbox-security",
-    "blog/memory-system",
-    "blog/campus-protocols",
-    "blog/client-matrix",
-    "blog/deployment-ops",
-    "blog/guide"
+    "blog/data-pipeline",
+    "blog/why-pi-as-agent-harness",
+    "blog/agent-platform"
   ]
 }
