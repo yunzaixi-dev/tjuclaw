@@ -126,7 +126,7 @@ test('real library persistence and cross-identity isolation', async ({ page, req
   const title = `Note for user A ${Date.now()}`;
   const body = 'Details owned by A';
   await page.getByRole('button', { name: '新建笔记', exact: true }).click();
-  await expect(page.getByLabel('标题', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('正文', { exact: true })).toBeVisible();
   await page.getByLabel('标题', { exact: true }).fill(title);
   await expect(page.getByRole('treeitem', { name: title })).toBeVisible();
   await page.getByLabel('正文', { exact: true }).fill(body);
