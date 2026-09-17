@@ -105,7 +105,7 @@ function updateMarkdownFiles(dir) {
       let changed = false;
 
       for (const [orig, webp] of convertedMap.entries()) {
-        const regex = new RegExp(`(?<=[(\\/]|^)${orig.replace('.', '\\.')}(?=[)\\s"\']|$)`, 'g');
+        const regex = new RegExp(`(?<=[(\\/]|^)${orig.replace('.', '\\.')}(?=[)\\s"']|$)`, 'g');
         if (regex.test(content)) {
           content = content.replace(regex, webp);
           changed = true;
