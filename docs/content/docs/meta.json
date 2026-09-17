@@ -6,6 +6,10 @@
     "---技术博客---",
     "blog/data-pipeline",
     "blog/why-pi-as-agent-harness",
-    "blog/agent-platform"
+    "blog/backend-architecture",
+    "blog/code-execution-and-sandbox",
+    "blog/why-cli-as-agent-tool",
+    "blog/cross-platform-clients",
+    "blog/repository-and-cicd"
   ]
 }

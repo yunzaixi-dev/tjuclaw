@@ -17,7 +17,7 @@ description: 为什么我们放弃了 LangChain/LangGraph 等重量级框架？�
 
 下图清晰展示了两种架构在核心哲学、系统拓扑与任务交付模式上的本质演进：
 
-![从 Chatbox 到 Agent Harness 架构范式演进图](/images/chatbox-vs-agent-harness.webp)
+![从 Chatbox 到 Agent Harness 架构范式演进图](./images/chatbox-vs-agent-harness.webp)
 
 时至今日，大量 Agent 应用的本质依然是在构建一个更为复杂的 **Chatbox（对话界面）**：
 

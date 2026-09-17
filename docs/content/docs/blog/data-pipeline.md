@@ -64,7 +64,7 @@ pi agent
 
 ## 总体架构全景
 
-![TJUClaw 数据采集、存储、脱敏、归一、向量化与检索全链路架构图](/images/data-pipeline-architecture.webp)
+![TJUClaw 数据采集、存储、脱敏、归一、向量化与检索全链路架构图](./images/data-pipeline-architecture.webp)
 
 整个数据管道清晰划分为六个核心阶段，每个阶段各司其职、协同流转：
 

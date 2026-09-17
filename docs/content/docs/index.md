@@ -64,6 +64,10 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 
 TJUClaw 涵盖了客户端跨端、网关会话、沙箱调度、知识检索与数据抓取等多项技术栈。为了探讨系统演进与核心工程细节，我们开启了技术博客专栏：
 
-1. [《数据的复杂采集、脱敏、归一与向量化》](/docs/blog/data-pipeline)：从杂乱现实世界的 HTML、PDF、Word 到统一规范的 Markdown 与向量空间，深度解析数据管道中的技术攻坚细节。
-2. [《为什么我们选择 Pi 作为 Agent 底座》](/docs/blog/why-pi-as-agent-harness)：从 Chatbox 与 Harness 的范式之辨出发，探讨我们为何放弃 LangChain/LangGraph 而选择轻量图灵完备的 Pi 作为核心执行环境。
-3. [《从零构建云端智能体平台：后端、沙箱与运行时》](/docs/blog/agent-platform)：深入解析 TJUClaw 在 Go 业务 API 网关、腾讯云微隔离执行沙箱与 Agent 运行时架构中的核心设计与工程落地。
+1. [《数据的复杂采集、脱敏、归一与向量化》](./blog/data-pipeline.md)：从杂乱现实世界的 HTML、PDF、Word 到统一规范的 Markdown 与向量空间，深度解析数据管道中的技术攻坚细节。
+2. [《为什么我们选择 Pi 作为 Agent 底座》](./blog/why-pi-as-agent-harness.md)：从 Chatbox 与 Harness 的范式之辨出发，探讨我们为何放弃 LangChain/LangGraph 而选择轻量图灵完备的 Pi 作为核心执行环境。
+3. [《祖传前后端架构，但是 2026》](./blog/backend-architecture.md)：在微服务与重型框架泛滥的 2026 年，反思后端服务的真实职责——深度解析基于 Go 标准库、HttpOnly 强同源防线与存储插拔的服务端架构设计。
+4. [《智能体的代码执行、文件系统，与隔离沙箱》](./blog/code-execution-and-sandbox.md)：深入解析 TJUClaw 在 Go 业务 API 网关、腾讯云微隔离执行沙箱与 Agent 运行时架构中的核心设计与工程落地。
+5. [《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》](./blog/why-cli-as-agent-tool.md)：反思复杂 MCP 与臃肿 RPC 框架的过度封装，深度解析为什么我们将智能体的所有校园能力收敛为 Unix 哲学标准的确定性 CLI。
+6. [《跨平台智能体客户端的实现：Web、桌面端与移动端》](./blog/cross-platform-clients.md)：一套代码全端运行——深入剖析基于 React 19、Tailwind CSS 4 与 Tauri v2 的多端客户端架构设计、OKLCH 视觉系统与安全会话流。
+7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深入剖析 TJUClaw 从 Git 子模块拓扑到 GitHub Actions 的交付实践。

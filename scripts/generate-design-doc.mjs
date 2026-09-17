@@ -3,28 +3,41 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const sourceMdxPath = path.join(repoRoot, 'docs/content/docs/index.mdx');
+const sourcePath = path.join(repoRoot, 'docs/content/docs/index.md');
+const legacyPath = path.join(repoRoot, 'docs/content/docs/index.mdx');
 const targetDesignPath = path.join(repoRoot, 'DESIGN.md');
+const targetReadmePath = path.join(repoRoot, 'README.md');
 
-if (!fs.existsSync(sourceMdxPath)) {
-  console.error(`Error: Source file not found at ${sourceMdxPath}`);
+const resolvedSourcePath = fs.existsSync(sourcePath) ? sourcePath : legacyPath;
+
+if (!fs.existsSync(resolvedSourcePath)) {
+  console.error(`Error: Source file not found at ${sourcePath} or ${legacyPath}`);
   process.exit(1);
 }
 
-const raw = fs.readFileSync(sourceMdxPath, 'utf8');
+const raw = fs.readFileSync(resolvedSourcePath, 'utf8');
 
 // Strip YAML frontmatter
-let content = raw.replace(/^---[\s\S]*?---\n*/, '');
+const body = raw.replace(/^---[\s\S]*?---\n*/, '').trimStart();
 
-// Prepend auto-generated header notice and official docs link
-const header = `<!-- AUTO-GENERATED from docs/content/docs/index.mdx. DO NOT EDIT DIRECTLY. -->
-<!-- Run \`task docs:design\` to regenerate. -->
+// 1. 生成 DESIGN.md（附带克制的评委与读者指引提示）
+const designHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NOT EDIT DIRECTLY. -->
+<!-- Run \`task docs:sync\` or \`task docs:design\` to regenerate. -->
 
-> **提示**：本文档同步自 [tjuclaw.cloud](https://tjuclaw.cloud/) 官方文档。如需保持最佳阅读体验，请访问官方网站：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)
+> **提示**：关于 TJUClaw 的完整系统设计、数据管道、沙箱安全、原生 CLI 与跨平台客户端实现等详细技术细节，建议访问官方文档站查阅：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)（兼容镜像：[https://wiki.tjuclaw.cloud/](https://wiki.tjuclaw.cloud/)）。
 
 `;
 
-const finalDoc = header + content.trimStart();
+fs.writeFileSync(targetDesignPath, designHeader + body, 'utf8');
+console.log(`Successfully synced ${targetDesignPath} from ${path.relative(repoRoot, resolvedSourcePath)}`);
 
-fs.writeFileSync(targetDesignPath, finalDoc, 'utf8');
-console.log(`Successfully generated ${targetDesignPath} from docs/content/docs/index.mdx`);
+// 2. 生成 README.md（同步 index 首页内容，附带克制的在线文档与仓库导航提示）
+const readmeHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NOT EDIT DIRECTLY. -->
+<!-- Run \`task docs:sync\` or \`task docs:design\` to regenerate. -->
+
+> **提示**：本文档与官方文档站首页保持同步。如需浏览完整开发手册、API 规范与技术长文专栏，请访问：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)。
+
+`;
+
+fs.writeFileSync(targetReadmePath, readmeHeader + body, 'utf8');
+console.log(`Successfully synced ${targetReadmePath} from ${path.relative(repoRoot, resolvedSourcePath)}`);

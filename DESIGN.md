@@ -1,101 +1,73 @@
-<!-- AUTO-GENERATED from docs/content/docs/index.mdx. DO NOT EDIT DIRECTLY. -->
-<!-- Run `task docs:design` to regenerate. -->
+<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NOT EDIT DIRECTLY. -->
+<!-- Run `task docs:sync` or `task docs:design` to regenerate. -->
 
-> **提示**：本文档同步自 [tjuclaw.cloud](https://tjuclaw.cloud/) 官方文档。如需保持最佳阅读体验，请访问官方网站：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)
+> **提示**：关于 TJUClaw 的完整系统设计、数据管道、沙箱安全、原生 CLI 与跨平台客户端实现等详细技术细节，建议访问官方文档站查阅：[https://tjuclaw.cloud/](https://tjuclaw.cloud/)（兼容镜像：[https://wiki.tjuclaw.cloud/](https://wiki.tjuclaw.cloud/)）。
 
 # 介绍 TJUClaw
 
-> “让整个校园，成为 Agent 可编程的世界。”
-
-TJUClaw 是由我个人独立设计并开发的天津大学专属通用智能体（AI Agent）平台。
-
-它的诞生，源于我长期重度使用各类前沿 Coding Agent 的真实实践与思考。在见证了智能体从“纯文本闲聊”走向“能够阅读代码、调用工具、改写现实世界系统状态”的演进后，我发现：**通用 Agent 的核心威力在于确定性的工具契约与安全可控的执行闭环，而校园正是最需要被这一范式重构的真实场景。**
-
-因此，我提取了业界成熟 Coding Agent harness 的核心优点，并在 TJUClaw 中贯彻了**极简与务实的工程哲学**——舍弃过度复杂的中间编排层，保持内核边界极致纯粹，从而维持长期的可维护性与高可扩展性。
+TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台。平台围绕校园学习与日常事务场景设计，通过将校园公开信息与高频服务抽象为确定性工具接口，配合隔离执行环境，帮助学生完成课程资料检索、空闲教室查询等任务并交付可校验的结果。
 
 ---
 
-## 快速开始 (Quickstart)
+## 快速开始
 
-无需复杂的环境配置，即可直接体验 TJUClaw 的全端 Agent 能力：
+可以通过以下方式直接体验平台功能：
 
-- **Web 云端免安装版**：直接访问 [https://tjuclaw.cloud/](https://tjuclaw.cloud/) 即开即用，享受完整的任务流转与会话管理；
-- **多平台原生客户端**：在官网首页可直接下载适用于日常高频使用的原生安装包：
+- **Web 端**：访问 [https://tjuclaw.cloud/](https://tjuclaw.cloud/)，直接使用工作台创建和管理任务；
+- **原生客户端**：可在首页获取对应平台的安装包：
   - **Windows**: 64 位安装程序（`.exe`）
   - **Linux**: Debian / Ubuntu 软件包（`.deb`）
-  - **Android**: 移动端安装包（`.apk`）
+  - **Android**: 安装包（`.apk`）
 
-> 如需在本地搭建完整开发与源码调试环境，请查阅独立的：[快速开始指南 (Quickstart)](https://tjuclaw.cloud/docs/quickstart)。
-
----
-
-## 代码仓库划分与开源矩阵 (Repositories)
-
-为保持系统高内聚、低耦合与长期独立演进，TJUClaw 采用多仓协同与 Git Submodule 依赖锁定的现代化架构：
-
-| 仓库名称 / 职责 | 开源状态 | 语言与核心工具链 | 定位与说明 | 源码链接与 Submodule 路径 |
-| :--- | :--- | :--- | :--- | :--- |
-| **集成总仓 (tjuclaw)** | 评审受控公开 | TypeScript / Node.js `>= 22`<br />Next.js 16.3 / Fumadocs | **工程集成、文档站与云边运维**<br />包含全局 Taskfile 调度、Ansible 部署声明与 EdgeOne 部署规范 | [github.com/yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw)<br />对应路径：根目录 (`.`) |
-| **客户端仓库 (tjuclaw-client)** | 完全开源 (Public) | TypeScript / React 19.2<br />Vite 6 / Tauri v2 (Rust 1.97) | **多端原生客户端与 Web 工作空间**<br />构建 Web (EdgeOne 加速)、Windows (`.exe`)、Linux (`.deb`) 与 Android (`.apk`) | [github.com/yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client)<br />对应路径：`frontend/` |
-| **服务端仓库 (tjuclaw-server)** | 竞赛私有 (Private) | Go 1.27.0 | **核心业务 API、任务状态与安全网关**<br />对接 Ory Kratos 会话体系，驱动 PostgreSQL 与 MeiliSearch 检索 | [github.com/yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server)<br />对应路径：`backend/` |
-| **校园能力 CLI (tjucli)** | 竞赛私有 (Private) | Go 1.27.0 | **确定性校园工具协议与 Tool Server**<br />自包含 Go CLI，将课程平台、空闲教室等抽象为 Agent 标准工具 | [github.com/yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli)<br />对应路径：`cli/` |
-| **情报采集服务 (tjuclaw-crawler)** | 竞赛私有 (Private) | TypeScript / Bun 1.3.14<br />PostgreSQL / RSS 2.0 | **校园动态情报摄取与 RSS 事件流**<br />输出标准化增量事件与资料库变更流，统一沉淀至 PostgreSQL，供智能体检索与文件系统持续同步 | [github.com/yunzaixi-dev/tjuclaw-crawler](https://github.com/yunzaixi-dev/tjuclaw-crawler)<br />对应路径：`crawler/` |
+> 本地源码调试与完整开发环境搭建步骤，请参考：[快速开始指南 (Quickstart)](https://tjuclaw.cloud/docs/quickstart)。
 
 ---
 
-## 传承与反思：从微北洋移动端与云原生运维到 Agent-Native
+## 模块划分与仓库矩阵
 
-在动手构建 TJUClaw 之前，我曾参与过微北洋（WePeiyang）移动端的研发，并在后续个人网站与独立项目的建设中积累了大量的后端研发与 Kubernetes 集群容器化的经验。
+> **主要仓库说明**：TJUClaw 的主要开发仓库托管于 GitHub。由于全平台自动化构建、跨端编译矩阵（Linux / Windows / Android）以及多项前沿集成测试强依赖 GitHub Actions 提供的 CI/CD 算力支持，如需检出最新完整源码、追踪流水线状态或提交 Issue / PR，请直接访问 GitHub 对应仓库。
 
-这些跨越客户端交互、后端服务与容器基础设施的复合经历，不仅让我对天津大学内部各类校园服务的实际数据流转与接口边界有了真实体认，更促使我深入反思“传统应用开发模式”在面对学生碎片化、偶发性需求时的痛点：
-- **从“为每个功能写死原生界面”到“由 Agent 动态解决”**：在微北洋做移动端时，我们习惯了为查成绩、找教室、下资料等每一个具体场景去绘制 UI、对接接口并反复发版。但在大模型时代，学生的核心诉求其实是“直达结果”。通过构建通用的 Agent 平台，我们可以将离散的校园服务沉淀为标准工具，把繁琐交互收敛为自然的意图表达；
-- **从 K8s 实践中领悟存算分离架构**：亲手维护 Kubernetes 集群的经历让我深刻体会到，有状态与无状态的混杂是系统复杂性与运维灾难的根源。在 TJUClaw 中，我坚定践行了“存算分离”的设计思想——将执行环境（无状态的 Sandbox / Agent 运行时）与持久化状态（COS 对象存储、PostgreSQL 结构化数据、独立长期记忆）彻底解耦。这种克制而清晰的物理边界，赋予了平台极高的横向伸缩弹性与长期免维护的工程稳定性；
-- **从历史项目的维护阵痛中领悟架构极简与风格统一**：亲历过多代人迭代后逐渐臃肿、规范失范的庞大代码仓库，让我深切体会到“熵增”对工程寿命与协作心智的毁灭性打击。在 TJUClaw 中，我将“克制的极简”与“严密的设计风格一致性”确立为第一原则——全平台（Web/桌面/移动端）共享一致的 UI 设计系统与交互规范，后端契约极致精简，严格杜绝无节制的过度封装与风格割裂，确保整个系统在长期演进中依然优雅、易读且高度可维护。
+| 仓库 / 模块 | 访问级别 | GitHub 仓库地址 | 技术栈 | 职责与说明 | 本地路径 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **tjuclaw** | 开源 | [yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw) | TypeScript · Next.js 16.3 · Fumadocs | **总集成仓与文档**<br />包含 Taskfile 统一指令、文档站与 Ansible 部署配置 | 根目录 (`.`) |
+| **tjuclaw-client** | 开源 | [yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client) | TypeScript · React 19 · Tauri v2 | **多端客户端**<br />构建 Web 端及 Windows、Linux、Android 客户端 | `frontend/` |
+| **tjuclaw-server** | 开源 | [yunzaixi-dev/tjuclaw-server](https://github.com/yunzaixi-dev/tjuclaw-server) | Go 1.27 | **业务 API 与会话网关**<br />处理业务逻辑、任务状态管理与认证鉴权 | `backend/` |
+| **tjucli** | 开源 | [yunzaixi-dev/tjucli](https://github.com/yunzaixi-dev/tjucli) | Go 1.27 | **命令行工具与 Tool Server**<br />将校园公开服务封装为标准输入输出的 CLI 工具 | `cli/` |
+| **tjuclaw-crawler** | 闭源 | [yunzaixi-dev/tjuclaw-crawler](https://github.com/yunzaixi-dev/tjuclaw-crawler) | TypeScript · Bun · PostgreSQL | **公开情报采集**<br />采集校园公开信息，生成增量事件流与结构化数据 | `crawler/` |
+---
+
+## 核心架构设计
+
+系统设计遵循职责隔离与可验证原则，主要体现在以下几个维度：
+
+### 1. 跨平台客户端
+基于同一套前端组件与状态逻辑构建 Web 与各桌面/移动平台客户端，保持交互与视觉一致，支持在 PC 端创建任务并在移动端查看进度。
+
+### 2. 存算分离
+任务执行环境与数据存储分离。智能体操作在无状态的临时沙箱中运行，任务元数据、文件与长期记忆由独立的存储系统（PostgreSQL、对象存储 COS 等）承接。
+
+### 3. 沙箱隔离与执行安全
+对于涉及文件下载与脚本运行的流程，调度隔离沙箱执行；敏感认证信息统一使用同源 HttpOnly Cookie 管理，凭据不暴露给大模型上下文。
+
+### 4. 记忆与检索
+区分当前任务上下文的工作记忆与长期偏好记忆；结合自托管知识检索引擎 WeKnora，实现文档知识的检索与召回。
+
+### 5. 确定性工具接口
+将校园公开服务封装为强类型的独立命令行工具 `tjucli`，输出标准 JSON，通过命令执行状态码和文件哈希（SHA-256）验证执行结果。
+
+### 6. 云边协同部署
+静态站点部署于 EdgeOne 边缘网络，动态 API 请求通过网关反向代理至后端服务容器，多平台客户端通过自动化流水线完成构建与测试。
 
 ---
 
-## 设计理念与开发哲学
+## 技术博客与深度专题 (Engineering Blog)
 
-### 1. 精美的跨平台原生客户端：终结割裂，多端会话与数据无缝同步
-在使用市面上各类 Coding Agent 的长期体验中，我遇到的最大痛点之一就是**极其割裂的客户端形态**：要么被强行绑定在本地 TUI 或特定 IDE 中断联，要么依赖迟滞的纯网页，移动端更是长期处于荒漠。
-- **全端体验矩阵**：基于 React 19 + Vite + Tauri 打造统一审美的高性能客户端，覆盖 Web（EdgeOne 加速）、Windows（`.exe`）、Linux（`.deb`）与 Android（`.apk`）；
-- **跨端会话无缝漫游**：电脑下发、手机实时看流式进度，状态与长期记忆云端权威同步。
-- **详细设计请阅读**：[客户端与全端同步架构 (Client Matrix)](https://tjuclaw.cloud/docs/client-matrix)
+TJUClaw 涵盖了客户端跨端、网关会话、沙箱调度、知识检索与数据抓取等多项技术栈。为了探讨系统演进与核心工程细节，我们开启了技术博客专栏：
 
-### 2. 存算彻底分离与极简内核：抵抗工程熵增
-坚决拒绝盲目堆砌沉重且脆弱的分布式微服务。
-- **无状态计算沙箱**：Agent 执行环境容器化、无状态化，用完即毁；
-- **权威存储中心化**：持久化数据交由专业存储基础设施（PostgreSQL、对象存储 COS、轻量向量库），实现系统的高可用与弹性伸缩。
-- **详细设计请阅读**：[极简架构与存算分离 (Storage & Compute)](https://tjuclaw.cloud/docs/storage-compute) 与 [系统总体架构 (Architecture)](https://tjuclaw.cloud/docs/architecture)
-
-### 3. 确定性沙箱与执行安全：腾讯云 Agent Sandbox
-大模型不可信，必须在确定性的安全轨道内行动。
-- **工业级托管沙箱**：基于腾讯云 Agent Sandbox 提供微隔离、秒级启动、用完即毁的安全执行环境；
-- **身份永不裸露**：区分公开数据与私有鉴权，敏感认证依托 Ory Kratos 企业级同源 Cookie，绝不让大模型接触密码凭据。
-- **详细设计请阅读**：[确定性沙箱与执行安全 (Sandbox Security)](https://tjuclaw.cloud/docs/sandbox-security)
-
-### 4. 可进化的长期记忆：越用越懂学生的专属智能体
-彻底告别“单次会话结束即遗忘”的割裂。
-- **层次化记忆沉淀**：结合工作记忆（当前会话）与长期情境记忆（学生偏好、高频场景、历史决策）；
-- **轻量混合召回**：向量检索结合关键词快速匹配，在不污染窗口的前提下精准唤醒记忆。
-- **详细设计请阅读**：[长期记忆系统架构 (Memory System)](https://tjuclaw.cloud/docs/memory-system)
-
-### 5. 校园能力协议化：Unix 哲学驱动的工具管道
-将天大真实校园服务封装为标准可消费的系统指令。
-- **结构化工具契约**：独立自包含的 Go CLI 工具 `tjucli`，输出严格类型化的 JSON；
-- **消除幻觉与黑盒**：智能体通过执行真实工具并校验退出码与文件指纹，杜绝虚假回答。
-- **详细设计请阅读**：[校园能力协议 (tjucli & Skills)](https://tjuclaw.cloud/docs/campus-protocols)
-
-### 6. 现代云边协同与持续工程交付
-从第一天起就以生产级标准进行工程构建与自动化交付。
-- **边缘托管与加速**：静态站点与资源托管于 EdgeOne 边缘节点，核心 API 经 HAProxy 调度至受控容器；
-- **自动化持续集成**：跨 Web、Linux、Windows、Android 的多端自动化 CI/CD 流水线，保证每一次迭代的高可信度。
-- **详细设计请阅读**：[云边协同与现代化部署 (Deployment & Ops)](https://tjuclaw.cloud/docs/deployment-ops) 与 [快速开始指南 (Quickstart)](https://tjuclaw.cloud/docs/quickstart)
-
----
-
-## 愿景
-
-TJUClaw 的终极目标，不仅仅是做一个“好用的校园助手”，而是探索一种新的生活与学习交互范式：
-
-**将复杂的校园基础设施抽象为严谨的工具协议，赋予智能体感知与行动的能力；让学生从繁琐低效的检索与机械操作中解放出来，真正步入 Agent-Native 的智慧校园时代。**
+1. [《数据的复杂采集、脱敏、归一与向量化》](./blog/data-pipeline.md)：从杂乱现实世界的 HTML、PDF、Word 到统一规范的 Markdown 与向量空间，深度解析数据管道中的技术攻坚细节。
+2. [《为什么我们选择 Pi 作为 Agent 底座》](./blog/why-pi-as-agent-harness.md)：从 Chatbox 与 Harness 的范式之辨出发，探讨我们为何放弃 LangChain/LangGraph 而选择轻量图灵完备的 Pi 作为核心执行环境。
+3. [《祖传前后端架构，但是 2026》](./blog/backend-architecture.md)：在微服务与重型框架泛滥的 2026 年，反思后端服务的真实职责——深度解析基于 Go 标准库、HttpOnly 强同源防线与存储插拔的服务端架构设计。
+4. [《智能体的代码执行、文件系统，与隔离沙箱》](./blog/code-execution-and-sandbox.md)：深入解析 TJUClaw 在 Go 业务 API 网关、腾讯云微隔离执行沙箱与 Agent 运行时架构中的核心设计与工程落地。
+5. [《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》](./blog/why-cli-as-agent-tool.md)：反思复杂 MCP 与臃肿 RPC 框架的过度封装，深度解析为什么我们将智能体的所有校园能力收敛为 Unix 哲学标准的确定性 CLI。
+6. [《跨平台智能体客户端的实现：Web、桌面端与移动端》](./blog/cross-platform-clients.md)：一套代码全端运行——深入剖析基于 React 19、Tailwind CSS 4 与 Tauri v2 的多端客户端架构设计、OKLCH 视觉系统与安全会话流。
+7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深入剖析 TJUClaw 从 Git 子模块拓扑到 GitHub Actions 的交付实践。

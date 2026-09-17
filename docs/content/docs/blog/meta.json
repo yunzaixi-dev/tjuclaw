@@ -3,6 +3,10 @@
   "pages": [
     "data-pipeline",
     "why-pi-as-agent-harness",
-    "agent-platform"
+    "backend-architecture",
+    "code-execution-and-sandbox",
+    "why-cli-as-agent-tool",
+    "cross-platform-clients",
+    "repository-and-cicd"
   ]
 }

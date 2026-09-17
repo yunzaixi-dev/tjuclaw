@@ -97,8 +97,14 @@ tasks:
     cmds:
       - pnpm --filter @tjuclaw/docs build
   docs:design:
-    desc: Export docs homepage to DESIGN.md at repository root
+    desc: Export docs homepage to DESIGN.md and README.md at repository root
     cmds: [node scripts/generate-design-doc.mjs]
+  docs:sync:
+    desc: Sync docs homepage to DESIGN.md and README.md
+    cmds: [node scripts/generate-design-doc.mjs]
+  docs:webp:
+    desc: Automatically convert images in docs and screenshots to WebP format and update markdown references
+    cmds: [node scripts/convert-docs-webp.mjs]
   docs:serve:
     desc: Serve built documentation
     cmds: [pnpm --filter @tjuclaw/docs start]
