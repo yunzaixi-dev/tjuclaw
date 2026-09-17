@@ -76,3 +76,18 @@
       Incomplete S3/COS archive configuration. Either all 5 parameters (crawler_s3_endpoint,
       crawler_s3_region, crawler_s3_bucket, crawler_s3_access_key_id, crawler_s3_secret_access_key)
       must be non-empty, or all 5 must be left empty to disable S3 archiving.
+
+- name: Assert overseas proxy hosts are not set without a proxy URL
+  ansible.builtin.assert:
+    that:
+      - crawler_overseas_proxy | default('') | trim | length > 0
+    fail_msg: crawler_overseas_proxy_hosts requires crawler_overseas_proxy.
+  when: (crawler_overseas_proxy_hosts | default('') | trim | length > 0)
+
+- name: Assert overseas proxy is an HTTP CONNECT URL
+  ansible.builtin.assert:
+    that:
+      - crawler_overseas_proxy.startswith('http://')
+      - (crawler_overseas_proxy | regex_search('\\s')) is none
+    fail_msg: crawler_overseas_proxy must be an HTTP CONNECT URL (http://host:port).
+  when: (crawler_overseas_proxy | default('') | trim | length > 0)

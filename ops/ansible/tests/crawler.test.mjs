@@ -86,6 +86,8 @@ test('crawler_stack role preflight assertions, configuration rendering, and secr
 
     // Verify S3 config is omitted by default when not configured
     assert.ok(!envAppContent.includes('CRAWLER_S3_ENDPOINT'), 'S3 config should not be rendered when empty');
+    assert.ok(!envAppContent.includes('CRAWLER_OVERSEAS_PROXY'), 'overseas proxy should not be rendered when empty');
+
 
     // 2. Secret preservation on subsequent run
     const secondRun = runPlaybook(baseVars);
@@ -156,6 +158,27 @@ test('crawler_stack role preflight assertions, configuration rendering, and secr
     assert.ok(envAppS3.includes('CRAWLER_S3_ACCESS_KEY_ID=TEST_KEY'));
     assert.ok(envAppS3.includes('CRAWLER_S3_SECRET_ACCESS_KEY=TEST_SECRET'));
     assert.ok(envAppS3.includes('CRAWLER_S3_PREFIX=tju-archive/'));
+
+    const proxyRun = runPlaybook({
+      ...baseVars,
+      crawler_overseas_proxy: 'http://172.24.0.1:3128',
+    });
+    assert.equal(proxyRun.status, 0, proxyRun.stdout + proxyRun.stderr);
+    const envAppProxy = readFileSync(envAppPath, 'utf8');
+    assert.ok(envAppProxy.includes('CRAWLER_OVERSEAS_PROXY=http://172.24.0.1:3128'));
+    assert.ok(!envAppProxy.includes('CRAWLER_OVERSEAS_PROXY_HOSTS'));
+
+    const badProxyScheme = runPlaybook({
+      ...baseVars,
+      crawler_overseas_proxy: 'socks5://127.0.0.1:1080',
+    });
+    assert.notEqual(badProxyScheme.status, 0, 'Must reject non-HTTP overseas proxy');
+
+    const hostsWithoutProxy = runPlaybook({
+      ...baseVars,
+      crawler_overseas_proxy_hosts: 'sharepoint.com',
+    });
+    assert.notEqual(hostsWithoutProxy.status, 0, 'Must reject overseas proxy hosts without a proxy URL');
 
     // 9. Sources file rollback verification
     // Modify sources file, then run playbook; verify sources.json is restored on rollback if backup was taken

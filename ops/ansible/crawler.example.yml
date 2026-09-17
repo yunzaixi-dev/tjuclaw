@@ -30,3 +30,7 @@ crawler_app_mem_limit: "192m"
 # crawler_s3_access_key_id: "PLACEHOLDER_KEY_ID"
 # crawler_s3_secret_access_key: "PLACEHOLDER_SECRET_KEY"
 # crawler_s3_prefix: ""
+
+# HTTP CONNECT proxy for Microsoft attachment downloads. Campus hosts stay direct.
+# crawler_overseas_proxy: "http://172.24.0.1:3128"
+# crawler_overseas_proxy_hosts: "microsoftpersonalcontent.com,sharepoint.com"
