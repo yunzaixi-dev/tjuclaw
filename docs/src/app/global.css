@@ -961,6 +961,20 @@ html > body[data-scroll-locked] {
   text-decoration: underline;
 }
 
+.wiki-footer-restore {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--wiki-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.wiki-footer-restore:hover {
+  color: var(--wiki-accent);
+  text-decoration: underline;
+}
+
 @media (max-width: 960px) {
   .wiki-footer-grid {
     grid-template-columns: 1fr 1fr;

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ContestBannerRestore } from '@/components/SiteBanner';
 
 interface FooterProps {
   icpNumber?: string;
@@ -107,6 +108,7 @@ export function SiteFooter({
               <img src="/images/gongan.png" alt="" width={16} height={16} />
               {policeNumber}
             </a>
+            <ContestBannerRestore />
           </div>
         </div>
       </div>
