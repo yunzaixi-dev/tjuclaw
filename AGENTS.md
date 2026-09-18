@@ -18,7 +18,8 @@ competition mirror. Current implemented slice: same-origin email OTP or password
 (password still requires a verified email), knowledge workspace after login
 (`/api/libraries|entries|sessions|account/model`, publish/subscribe/market, local file
 blobs, note search), draft task save, and public-course CLI. Agent execution, WeKnora
-retrieval, COS, and SSH are not wired yet — do not claim runs have started or completed.
+retrieval, product-API object storage, and SSH are not wired yet — do not claim runs
+have started or completed.
 
 
 Public surfaces:
@@ -46,7 +47,7 @@ Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / 对象
   writing the same 对象存储 bucket; private library ACL stays in the Go API
 
 WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
-  loopback UI :18180 and app :18181; omp uses WEKNORA_BASE_URL + X-API-Key
+  loopback UI :18180 and app :18181; Pi uses WEKNORA_BASE_URL + X-API-Key
   not product identity; not a public origin; not library ACL
 
 tjucli / tjucli-server → public course catalog (cs.tjuse.com)
