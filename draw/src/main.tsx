@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Excalidraw } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 
-const KEY = 'draw.tjuclaw.cloud';
+const KEY = 'excalidraw.tjuclaw.cloud';
 
 function loadScene() {
   try {

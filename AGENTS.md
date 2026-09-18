@@ -25,7 +25,7 @@ Public surfaces:
 
 - `https://tjuclaw.cloud` — Docs homepage, documentation, downloads (`wiki.tjuclaw.cloud` is a compatible Docs alias)
 - `https://app.tjuclaw.cloud` — product Web app; browser auth stays under `/api/*`
-- `https://draw.tjuclaw.cloud` — static Excalidraw board (local persistence only; no product auth)
+- `https://excalidraw.tjuclaw.cloud` — static Excalidraw board (local persistence only; no product auth)
 - `auth.tjuclaw.cloud` — API origin, not a browser app origin
 
 Keep Docs and client deployments independent.
@@ -86,7 +86,7 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 | `cli/` | Private submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
 | `crawler/` | Private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
 | `docs/` | Next.js 16 + Fumadocs; content in `docs/content/docs/` |
-| `draw/` | Static Excalidraw board for EdgeOne (`draw.tjuclaw.cloud`); own lockfile |
+| `draw/` | Static Excalidraw board for EdgeOne (`excalidraw.tjuclaw.cloud`); own lockfile |
 | `ops/` | Auth compose, Ansible, CI notes. Inventories stay in ignored `ops/local/` |
 | `scripts/` | Dev ports, git policy, auth stack, GitLab release helpers |
 | `private/`, `research/` | Local only. Never copy into Docs, client `src/`, or Docker build inputs |
