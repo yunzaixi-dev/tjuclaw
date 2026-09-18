@@ -46,7 +46,7 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 基于同一套前端组件与状态逻辑构建 Web 与各桌面/移动平台客户端，保持交互与视觉一致，支持在 PC 端创建任务并在移动端查看进度。
 
 ### 2. 存算分离
-任务执行环境与数据存储分离。智能体操作在无状态的临时沙箱中运行，任务元数据、文件与长期记忆由独立的存储系统（PostgreSQL、对象存储 COS 等）承接。
+任务执行环境与数据存储分离。智能体操作在无状态的临时沙箱中运行；业务记录由 PostgreSQL 承接，文件字节走对象存储（对象存储）。
 
 ### 3. 沙箱隔离与执行安全
 对于涉及文件下载与脚本运行的流程，调度隔离沙箱执行；敏感认证信息统一使用同源 HttpOnly Cookie 管理，凭据不暴露给大模型上下文。
@@ -62,14 +62,14 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 
 ---
 
-## 技术博客与深度专题 (Engineering Blog)
+## 技术博客 (Engineering Blog)
 
-TJUClaw 涵盖了客户端跨端、网关会话、沙箱调度、知识检索与数据抓取等多项技术栈。为了探讨系统演进与核心工程细节，我们开启了技术博客专栏：
+各子系统在设计、实现与踩坑上的记录：
 
 1. [《数据的复杂采集、脱敏、归一与向量化》](./blog/data-pipeline.md)：以线上学院站与课程网盘的真实体量为上游，说明从公开 HTML/PDF 到 Canonical Markdown、WeKnora、文档溯源与 Agent 检索的目标管道。
-2. [《为什么我们选择 Pi 作为 Agent 底座》](./blog/why-pi-as-agent-harness.md)：从 Chatbox 与 Harness 的范式之辨出发，探讨我们为何放弃 LangChain/LangGraph 而选择轻量图灵完备的 Pi 作为核心执行环境。
-3. [《祖传前后端架构，但是 2026》](./blog/backend-architecture.md)：在微服务与重型框架泛滥的 2026 年，反思后端服务的真实职责——深度解析基于 Go 标准库、HttpOnly 强同源防线与存储插拔的服务端架构设计。
-4. [《智能体的代码执行、文件系统，与隔离沙箱》](./blog/code-execution-and-sandbox.md)：深入解析 TJUClaw 在 Go 业务 API 网关、腾讯云微隔离执行沙箱与 Agent 运行时架构中的核心设计与工程落地。
-5. [《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》](./blog/why-cli-as-agent-tool.md)：反思复杂 MCP 与臃肿 RPC 框架的过度封装，深度解析为什么我们将智能体的所有校园能力收敛为 Unix 哲学标准的确定性 CLI。
-6. [《跨平台智能体客户端的实现：Web、桌面端与移动端》](./blog/cross-platform-clients.md)：一套代码全端运行——深入剖析基于 React 19、Tailwind CSS 4 与 Tauri v2 的多端客户端架构设计、OKLCH 视觉系统与安全会话流。
-7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深入剖析 TJUClaw 从 Git 子模块拓扑到持续集成流水线的交付实践。
+2. [《为什么我们选择 Pi 作为 Agent 底座》](./blog/why-pi-as-agent-harness.md)：对比 Chatbox 与 Harness 两种形态，说明为何不采用 LangChain/LangGraph、Pi 在产品执行链里的位置，以及它当前的状态。
+3. [《祖传前后端架构，但是 2026》](./blog/backend-architecture.md)：一次浏览器请求要穿过几个域名？拆开 TJUClaw 的真实拓扑——Go 标准库、两级边缘接力、只剥一次的前缀，与一张不认客户端的会话门禁。
+4. [《智能体的代码执行、文件系统，与隔离沙箱》](./blog/code-execution-and-sandbox.md)：代码执行的生命周期、工作区文件系统与腾讯云沙箱的隔离边界，以及 `tjucli-server` 的单次授权代理。
+5. [《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》](./blog/why-cli-as-agent-tool.md)：对比 MCP、SDK 与独立二进制三条路，说明确定性 JSON 封套、双模运行与原子落盘的取舍。
+6. [《跨平台智能体客户端的实现：Web、桌面端与移动端》](./blog/cross-platform-clients.md)：单一代码仓库驱动 Web、Linux、Windows 与 Android；Tauri v2 宿主、OKLCH 语义令牌与同源会话流。
+7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：Git 子模块拓扑、两分支模型、跨平台构建矩阵与两步发版，以及三个 EdgeOne Makers 项目的静态部署。
