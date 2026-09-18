@@ -25,6 +25,7 @@ Public surfaces:
 
 - `https://tjuclaw.cloud` — Docs homepage, documentation, downloads (`wiki.tjuclaw.cloud` is a compatible Docs alias)
 - `https://app.tjuclaw.cloud` — product Web app; browser auth stays under `/api/*`
+- `https://draw.tjuclaw.cloud` — static Excalidraw board (local persistence only; no product auth)
 - `auth.tjuclaw.cloud` — API origin, not a browser app origin
 
 Keep Docs and client deployments independent.
@@ -85,12 +86,13 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 | `cli/` | Private submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
 | `crawler/` | Private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
 | `docs/` | Next.js 16 + Fumadocs; content in `docs/content/docs/` |
+| `draw/` | Static Excalidraw board for EdgeOne (`draw.tjuclaw.cloud`); own lockfile |
 | `ops/` | Auth compose, Ansible, CI notes. Inventories stay in ignored `ops/local/` |
 | `scripts/` | Dev ports, git policy, auth stack, GitLab release helpers |
 | `private/`, `research/` | Local only. Never copy into Docs, client `src/`, or Docker build inputs |
 
 Each component owns its lockfile, version, and CI. Root pnpm workspace is `docs/`
-only; `frontend/` has a separate lockfile. Do not treat submodule dirs as ordinary
+only; `frontend/` and `draw/` have separate lockfiles. Do not treat submodule dirs as ordinary
 folders.
 
 ## Development Commands
@@ -99,7 +101,7 @@ Root `Taskfile.yml` is the command entry. In agent sessions prefix with `rtk`.
 Do not load root `.env.local` (PAT-bearing) into Task or client builds.
 
 ```bash
-rtk task setup          # frozen pnpm (root+frontend), bun (crawler), git hooks
+rtk task setup          # frozen pnpm (root+frontend+draw), bun (crawler), git hooks
 rtk task doctor
 rtk task dev            # Web :5173 + docs :3000 + Kratos API :8080 with Air reload (Docker)
 rtk task check          # portable lint + types + tests + git:check
@@ -112,6 +114,7 @@ rtk task build          # web, docs, api, cli (not native)
 | `task auth:dev` | Isolated Kratos/PostgreSQL/Cap/Valkey + API `:8080` (Air reloads on Go changes) |
 | `task api:dev` | Low-level API on `:8000` with Air; never reclaimed by `task dev` |
 | `task docs:dev` | Docs on `:3000` (occupied port is reported, not killed) |
+| `task draw:dev` / `task draw:build` | Excalidraw board on `:5175`; static `draw/dist` for EdgeOne |
 | `task cli:build` / `task cli:test` | `cli/bin/tjucli`, `cli/bin/tjucli-server`; `go test -race ./...` |
 | `task cli:server:dev` | Requires `TJUCLI_GRANTS_FILE` — see `cli/TOOL_SERVER.md` |
 | `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
@@ -223,7 +226,7 @@ history.
 | Orchestration | Task 3; Docker for auth/crawler tests; Ansible via `uv` |
 | Agent CLI | Prefer `rtk` for eligible commands |
 
-Ports: Web `5173`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
+Ports: Web `5173`, draw `5175`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
 workspace/audit-ui tests `1424`, docs `3000`, crawler `3031`, WeKnora UI `18180`,
 WeKnora app `18181`, Kratos `4433`, Kratos-backed API `8080`, raw API `8000`,
 tool server `18090`, Mailpit `8025`. `scripts/dev-ports.mjs` clears this
@@ -231,7 +234,7 @@ checkout's Web/API listeners; unknown processes and `:8000` stay.
 
 Vite `/api` proxies to `API_PROXY_TARGET` or `http://127.0.0.1:8080`.
 Tauri reads `frontend/package.json`; Rust crate version is internal. Do not
-merge frontend into the root pnpm workspace.
+merge frontend or draw into the root pnpm workspace.
 
 
 Client Actions own Web/Linux/Android/Windows builds and UI/workspace regressions.

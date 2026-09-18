@@ -12,6 +12,7 @@ tasks:
     cmds:
       - pnpm install --frozen-lockfile
       - pnpm --dir frontend install --frozen-lockfile
+      - pnpm --dir draw install --frozen-lockfile
       - (cd crawler && bun install --frozen-lockfile)
       - pnpm git:setup
   doctor:
@@ -37,6 +38,15 @@ tasks:
   web:preview:
     desc: Preview built Web client on loopback port 4173
     cmds: [pnpm --dir frontend preview]
+  draw:dev:
+    desc: Run static Excalidraw board on loopback port 5175
+    cmds: [pnpm --dir draw dev]
+  draw:build:
+    desc: Build static Excalidraw board
+    cmds: [pnpm --dir draw build]
+  draw:preview:
+    desc: Preview built Excalidraw board on loopback port 4175
+    cmds: [pnpm --dir draw preview]
   ui:install:
     desc: Install the Chromium browser used by UI regression tests
     cmds: [pnpm exec playwright install chromium]
