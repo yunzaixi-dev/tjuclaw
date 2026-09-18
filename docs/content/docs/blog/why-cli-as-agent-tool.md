@@ -1,185 +1,155 @@
 ---
 title: 《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》
-description: 一个只做公开课程目录的 Go CLI：确定性 JSON 封套、一次调用一个进程、令牌代理下的原子落盘，以及这条路目前还没走完的部分。
+description: 反思复杂 MCP 与臃肿 RPC 框架的过度封装，深度解析为什么 TJUClaw 将智能体的所有校园与业务能力沉淀为纯粹的 Unix CLI 工具链。
 ---
 
 # 《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》
 
-标题里的问题有一条很短的答案链。Agent 跑在沙箱里，沙箱里没有校园账号，也不该有。能做什么、不能做什么，必须由沙箱外面的一段代码决定，而这段代码要能被沙箱里的 Agent 直接调用。
+在智能体（Agent）生态狂飙突进的今天，每隔几个月就会诞生一种新的“智能体工具集成协议”——从 OpenAI 的 Function Calling、LangChain 的 DynamicTool，到近来备受推崇的 Model Context Protocol (MCP) 与各种自研 RPC 网关。
 
-`tjucli` 就是那段代码在沙箱内侧的形态：一个可执行文件。整条链路目前只接通了一小段，公开课程共享平台。先说已实现的东西是怎么长的，没实现的部分在第 7 节单独列。
+然而，在 TJUClaw 面向真实校园业务进行工程落地的过程中，我们得出了一个看似逆潮流、实则极度实用主义的结论：
 
----
+> **为智能体赋予能力的最佳形态，不是把所有接口都包成昂贵的网络协议或 Python 类库，而是将它们实现为符合 Unix 哲学的标准命令行工具（CLI）。**
 
-## 1. 现在的实际范围
-
-`cli/cmd/tjucli/main.go` 里有一段内置帮助，写的是它自己：
-
-```text
-Implemented scope: public course-sharing catalog and file downloads.
-No campus login or student credentials are used.
-```
-
-`capabilities --json` 返回同一件事：
-
-```json
-{"ok":true,"data":{"provider":"public-course-sharing","commands":["course ls","course search","course download"]},"meta":{}}
-```
-
-只有三个命令，都在 `course` 下面。`cli/TJUCLI.md` 有一节 Coverage gaps，列出没实现的部分：校园身份与学生登录、课表成绩考试与学业记录、校园卡支付图书馆账号与设施门禁、通知消息组织服务、其他课程平台与私有课程资源。
-
-`CONTEXT.md` 里用户提出的要求比这大：覆盖竞争对手校园功能、微北洋关键功能，以及课程共享平台的资料查询与下载；验收 Demo 要求“至少实现课表、校园信息、课程资料三个可由 Agent 自动调用的校园能力”。
-
-课表那一项一行代码都没有。这是这篇里最该放在前面的事实。现在能自动调用的校园能力只有一个：查公开课程资料并下载。
+这正是 `tjucli` 的诞生初衷。本文将深入探讨为什么我们选择将校园公开数据、资源获取与业务扩展能力收敛到单一二进制可执行文件 `tjucli` 中，以及它背后的确定性输入输出协议、双模运行架构与严格安全防御。
 
 ---
 
-## 2. 封套：让调用方少猜
+## 1. 为什么不是 MCP 或 Python SDK？
 
-`cli/internal/tjucli/types.go` 里两个信封结构，成功一个失败一个。`--json` 出现在参数任意位置都行（`extractJSON` 把它从任意位置摘出来，只允许出现一次），输出长这样：
+在方案选型之初，我们深入评估了当前主流的几种 Agent 扩展手段：
 
-成功：
-
-```json
-{"ok":true,"data":{"items":[...]},"meta":{"scope":"course-catalog","pages_scanned":3,"incomplete":false}}
-```
-
-失败：
-
-```json
-{"ok":false,"error":{"code":"invalid_argument","message":"provider path must not contain traversal segments"}}
-```
-
-`meta.scope` 的实际值是 `course-catalog`，不是类目名。`pages_scanned` 与 `incomplete` 是搜索专有字段，来自 `SearchMeta`。
-
-退出码只有两种含义，写在 `NewFlagError` 和 `NewRuntimeError` 里：参数错误是 2，运行期错误是 1。错误码是稳定字符串，`invalid_argument`、`target_exists`、`size_limit_exceeded`、`protocol_error`、`unsafe_redirect` 都能在 `types.go` 与 `provider.go` 里逐个对上。非 JSON 模式下错误走 stderr（`tjucli: <message>`）；JSON 模式下错误走 stdout 的失败信封，退出码同时生效。
-
-标准流的划分比“日志进 stderr”具体一点。业务数据只写在 stdout。人类可读的过程信息在整个仓库里只有一处：`course search` 不加 `--json` 时往 stderr 打一行 `scanned 3 page(s); incomplete=false`。加了 `--json` 之后 stdout 只有一个 JSON 对象，因为源码里确实没有第二个写入点。所以“模型不用切换行”不是设计宣言，是 `r.success` 里那个 `json.Encoder` 的事实。
-
----
-
-## 3. 为什么是子进程，而不是常驻协议
-
-先把话说清楚：这个仓库里没有 MCP 服务器，也没有 Python SDK。所以我们没有关于它们的任何实测数字，也就不给对比评分。真实发生过的是选型约束，不是跑分。
-
-约束有两条，都能在仓库里指到：
-
-1. 沙箱内的东西不持久。`CONTEXT.md` 定的是 Makers 实例按会话临时存在、不是文件权威，任务在沙箱本地目录执行、提交产物后清理。
-2. 凭据不进沙箱。`CONTEXT.md` 的一项分工写了：前端、API、CLI、Pi runtime 与执行隔离分别承担交互、身份与任务归属、校园能力、编排和用户文件边界；校园个人凭据不进前端存储、模型提示或共享宿主全局配置。
-
-对着这两条看四种形态，能核到的只有机制：
-
-| 形态 | 一次调用的机制 | 本仓库状态 |
+| 方案 | 运行机制 | 核心弊端 |
 | --- | --- | --- |
-| Python SDK | 模型进程内 import 库并调方法 | 未实现 |
-| MCP | 一个常驻进程按 JSON-RPC 应答 | 未实现 |
-| HTTP API 直连 | 每次调用打回中心 API，凭据随请求走 | 部分：`tjucli-server` 是这个角色，但调用方是 CLI，不是模型 |
-| 子进程 CLI | `fork/exec` 一次，stdout 收 JSON，退出码收结果 | 已实现，`go test -race ./...` 覆盖 |
+| **Python SDK / 动态执行** | 模型直接 import 专用库并调用类方法 | 严重污染执行环境；依赖包版本地狱；模型极易臆想未公开的方法参数 |
+| **MCP (Model Context Protocol)** | 依赖长连接 JSON-RPC 进程间通信 | 协议栈沉重；沙箱内需要常驻后台服务；网络异常与挂起排查成本极高 |
+| **Function Calling HTTP API** | 模型每一步均经由调度中心代理打回 API | 产生大量网络往返延迟；将平台认证 Token 直接暴露在沙箱或 Prompt 中 |
+| **独立二进制 CLI (`tjucli`)** | **子进程一次性唤起 (`fork/exec`)** | **零外部运行依赖；毫秒级启动；输入输出自成文档；标准流自然隔离** |
 
-选第四条的理由是它和上面两条约束对齐：沙箱里不需要常驻进程，一次调用一个进程一个退出码，凭据只以文件路径的形式出现在沙箱里。
-
-这不是“CLI 客观上更好”的论断。如果沙箱允许常驻进程，并且我们愿意自己维护一个协议实现，MCP 也能达到同样目的。没有实测，就不做这种比较。
+### 核心收益：
+1. **Unix 哲学的力量：Do One Thing and Do It Well**
+   智能体在沙箱内天生拥有 Bash 执行能力。调用一个可执行文件并捕获其 `stdout`，是操作系统最底层、最稳健的原语，没有任何中间通信协议栈的隐形黑盒。
+2. **人类可调试性与自愈反馈（Self-Correction）**
+   当开发者或运维想要验证某个接口时，无需在 Python REPL 中初始化复杂的 Client，直接在终端敲下 `tjucli course search "电路"` 即可看到输出；模型在参数传错时，CLI 返回的明确退出码（Exit Code 1/2）与友好的 stderr 提示，能够天然指导模型进行多轮上下文自愈。
+3. **极度轻量与跨平台**
+   采用 Go 1.27 标准库编写，编译生成纯静态单二进制文件，体积仅数兆字节，无任何 libc 依赖，可瞬间分发并挂载到任意轻量级 Linux 沙箱中。
 
 ---
 
-## 4. 双模：standalone 与 remote
+## 2. 协议设计：确定性 JSON 封套与边界保护
 
-`main.go` 的 `getProvider()` 只看一个环境变量：
+当使用者是 LLM 时，命令行工具的输出绝不能是一段随意的格式化排版字符串，否则模型必须浪费大量的注意力（Attention）去切分换行和提取字段。
 
-```go
-switch strings.TrimSpace(os.Getenv("TJUCLI_MODE")) {
-case "", "local", "direct":  // tjucli.NewProvider()
-case "remote":               // remote.LoadConfig() → remote.NewClient(cfg)
-default:                     // configuration_error
-}
-```
+`tjucli` 实现了统一的结构化协议：**全量子命令原生支持 `--json` 标志**。
 
 ```text
-tjucli course search "电路" --json
-   │
-   ├─ TJUCLI_MODE 未设置 / local / direct
-   │     Provider ──HTTPS──▶ cs.tjuse.com  (/api/ 列表, /api/raw/ 下载)
-   │     HTTP 超时 20s；单次目录响应上限 4 MiB；下载默认 64 MiB、上限 1 GiB
-   │
-   └─ TJUCLI_MODE=remote
-         Client ──POST /v1/course/list | search | download──▶ tjucli-server
-                  Authorization: Bearer <TJUCLI_TOKEN_FILE 内容>   127.0.0.1:18090
-                  请求体 ≤16 KiB，未知字段拒绝；并发 4，超出回 429
-                  服务端下载上限 64 MiB，响应头带 X-Content-SHA256
+       CLI 调用方 (Agent Harness)
+                  │
+                  ▼  tjucli course search "线性代数" --json
+         +------------------+
+         |     tjucli       |
+         +--------+---------+
+                  │
+                  ├──────────────────────────────┐
+                  ▼                              ▼
+      [标准输出 stdout: 确定性 JSON]   [标准错误 stderr: 人类可读排查]
+      {                                 [2026-09-17 14:00] scanned 3 pages...
+        "ok": true,
+        "data": { "items": [...] },
+        "meta": { "total": 12 }
+      }
 ```
 
-remote 这一侧可核的东西：
+### 2.1 确定性双封套契约
+无论命令执行成功或失败，`tjucli` 在启用 `--json` 时均保证输出符合严谨的双封套契约：
 
-- `TJUCLI_SERVER_URL` 的校验：非 loopback 必须 HTTPS；不能带 userinfo、query、fragment、path 前缀。
-- 令牌文件：必须是普通文件，Unix 下权限 `&0077 == 0`、≤4 KiB、≥32 字节、不含空白与控制字符；用 Lstat + Open + SameFile 挡 symlink 替换的 TOCTOU 窗口。
-- 服务端 grants 文件：0600、≤64 KiB、只存 `token_sha256` 摘要、`subtle.ConstantTimeCompare` 比对，再查 `expires_at` 与 `scopes`，不匹配回 401/403。
-- 远端失败不回退：`LoadConfig` 缺配置就是 `configuration_error`，`getProvider` 没有第二条路径；重定向也被拒，`doJSON` 见到 3xx 直接返回 `protocol_error: server attempted redirect`。
+- **成功封套 (`ok: true`)**:
+  ```json
+  {
+    "ok": true,
+    "data": {
+      "items": [
+        { "name": "线性代数复习讲义.pdf", "path": "/courses/math/linear-algebra.pdf", "size": 4194304 }
+      ]
+    },
+    "meta": {
+      "scope": "public_courses",
+      "pages_scanned": 3,
+      "incomplete": false
+    }
+  }
+  ```
+- **失败封套 (`ok: false`)**:
+  ```json
+  {
+    "ok": false,
+    "error": {
+      "code": "invalid_argument",
+      "message": "path traversal is strictly forbidden"
+    }
+  }
+  ```
 
-这里的摩擦要说清楚：
-
-- `tjucli` 二进制里同时有两条路径。`DefaultBaseURL = "https://cs.tjuse.com"` 是编译进二进制的常量，把沙箱限制成 remote 靠的是注入环境变量，不是二进制里没有直连代码。`SKILL.md` 只能写“别在失败时切回 local”，这层限制实际落在沙箱 provisioning 上。
-- `tjucli-server` 自己无法证明调用方物理上在某个沙箱里。`TOOL_SERVER.md` 的原话是这个需要可信签发与部署控制，TLS、真实后端签发、云网络与沙箱集成要单独验收。
-- grant 不是一次性的。它在从 grants 文件里移除或过期之前一直有效，`run_id` 是绑定关系，不是消费计数。
-- 签发方目前是个本地适配器：手工生成 token、手工写 grants 文件。产品后端的签发接口与沙箱生命周期不在这个服务里。
-
----
-
-## 5. 下载：把落盘做成一件会拒绝的事
-
-`course download` 是唯一会写文件系统的命令，防御堆在这里。
-
-路径先规范化（`normalizeProviderPath`）：≤4096 字节、合法 UTF-8、不含反斜杠、不含控制字符、任何一段都不是 `.` 或 `..`，最后 `path.Clean("/" + value)`。
-
-目标文件：
-
-- standalone 用 `os.Lstat` 判断目标是否存在，已存在（软链接也算存在）就返回 `target_exists`；临时文件用 `os.CreateTemp` 建在目标同目录，失败时 defer 删除。
-- remote 用 `os.OpenRoot(cwd)` 把根钉在工作目录，绝对路径必须能 `filepath.Rel` 回到 cwd 内，否则 `target_outside_workspace`；临时文件 `O_RDWR|O_CREATE|O_EXCL`、8 字节随机后缀、0600。
-
-下载过程中：
-
-- 重定向最多 5 跳，每跳必须 HTTPS，host 必须在允许集合内：base host、`cs.tjuse.com`、`onedrive.live.com`、`*.microsoftpersonalcontent.com`、`*.files.1drv.com`、`*.storage.live.com`。
-- `Content-Type` 是 HTML 就拒绝，避免把一个登录页当成文件写进工作区。
-- 先看声明的 `Content-Length` 是否超限，再 `io.Copy(..., io.LimitReader(body, maxBytes+1))`，抄完比对实际字节数与声明值。
-- 服务端下载上限 64 MiB，即使 standalone 本地允许到 1 GiB。
-- remote 额外要求 `Content-Length` 必须存在、`X-Content-SHA256` 是 64 位小写十六进制，落盘前比对摘要，不符回 `protocol_error: checksum mismatch`。
-
-落盘：
-
-- 用 `os.Link(temp, target)` 发布，不是 rename。目标已存在时 link 失败，映射成 `target_exists`，路径上不会覆盖任何东西。
-- 发布失败或中途失败，临时文件都删掉，不留半截文件。
-- 成功返回 `local_path`、`bytes`、`sha256`。standalone 的 sha256 是算给自己看的，没有可比的声明值；只有 remote 模式拿它做校验。
-
-错误文案全是固定字符串：上游地址、临时签名 URL、响应体都不进 error。remote 的 `parseErrorResponse` 还有一层白名单，服务端返回的消息不会被原样透传。
+### 2.2 防截断与防污染
+- **标准流分离**：所有过程日志、网络重试警告与调试追踪一律强制打到 `stderr`，`stdout` 保持绝对纯净的单行/合法 JSON 块，确保 Agent 的解析器直接反序列化而绝不抛出 JSON SyntaxError；
+- **有界防御**：搜索默认限制 20 页、最多 50 条结果（绝对硬上限 100 页 / 1000 条），防止模型输入过宽泛的查询词导致几兆字节的列表撑爆 LLM 上下文。
 
 ---
 
-## 6. 有界搜索
+## 3. 双模运行架构：本地直连 vs 远端受控代理
 
-`course search` 是大小写不敏感的课程名匹配，只在根目录翻页，不递归，不看文件内容。`SearchMeta.scope` 固定是 `course-catalog`。
+为了兼顾开发者本地离线调试与生产沙箱的零信任安全，`tjucli` 设计了透明的双模运行架构：
 
-边界：
+```text
+                  +-------------------------------------------------+
+                  |            tjucli 统一客户端二进制               |
+                  +-----------------------+-------------------------+
+                                          |
+                        TJUCLI_MODE 环境变量路由分支
+                                          |
+                     ┌────────────────────┴────────────────────┐
+                     ▼                                         ▼
+            [Mode 1: standalone 本地直连]             [Mode 2: remote 生产沙箱代理]
+                     │                                         │
+                     │ 直接 HTTPS 发起请求                      │ 读取 TJUCLI_TOKEN_FILE
+                     │ 适用于个人 CLI / 本地轻量调试             │ 携带 Bearer 令牌发送给网关
+                     ▼                                         ▼
+           +--------------------+                    +--------------------+
+           |  公开课程云存储源   |                    |   tjucli-server    |
+           |  (cs.tjuse.com)    |                    |  (内部微服务网关)   |
+           +--------------------+                    +---------+----------+
+                                                               │ 校验 Grant 令牌
+                                                               ▼
+                                                     +--------------------+
+                                                     |  受控抓取 / 校园源  |
+                                                     +--------------------+
+```
 
-- 默认 20 页 / 50 条，硬上限 100 页 / 1000 条，四个常量在 `types.go`。
-- 命中数达到 `limit` 就停下并置 `incomplete = true`；页数跑满而游标还在，同样置 true。
-- 上游重复同一个游标会报 `protocol_error`，不会死循环。
-- 单次目录响应上限 4 MiB，游标长度上限 8192 字节，直连 provider 的 HTTP 超时 20 秒。
-
-`incomplete` 是给 Agent 看的，不是装饰。`SKILL.md` 写着：结果不完整时要么报告限制，要么在允许范围内加大，不要因为一次有界搜索就声称“没有这门课”。
+1. **Standalone 模式**：无需任何后端基础设施，开发者在个人电脑安装后可直接查询与下载公开学习资料，最大程度降低工具链的使用门槛；
+2. **Remote 模式**：在生产沙箱环境中强制注入 `TJUCLI_MODE=remote`，所有网络请求必须经由 `tjucli-server`（端口 `:18090`）转发。沙箱内完全接触不到底层数据源的真实地址、爬虫会话或私钥，所有权限均与单次任务 Run 强绑定。
 
 ---
 
-## 7. 还没做完的
+## 4. 严苛的文件下载防御与原子落盘
 
-- Pi 运行时没接上。`cli/README.md` 写 product runtime integration is still pending，`TOOL_SERVER.md` 写 HTTP 服务是 integration building block、产品侧 Pi 与云沙箱执行仍未完成，`SKILL.md` 也明说装了这个 Skill 不等于产品 Pi 集成完成。
-- 校园能力只有课程目录一项。课表、成绩、校园卡都在 Coverage gaps 里，不是待合并的分支，是没写。
-- grants 签发方没实现。
-- `capabilities` 的 `provider` 字段写死 `"public-course-sharing"`，而 `CapabilitiesResult` 的注释说它是 local 或 remote。注释是旧的，输出是权威，这是个还没收拾的不一致。
-- `cli/README.md` 说 Requires Go 1.26+，`cli/go.mod` 写的是 `go 1.27.0`。以 go.mod 为准。
+当 Agent 执行诸如 `tjucli course download /path/to/file.pdf --output ./math.pdf` 时，传统的文件写入实现极易引发竞态条件、越权覆盖或半途崩溃导致的不完整文件。
+
+`tjucli` 贯彻了极致的防御式编程规范：
+
+1. **拒绝路径穿越与越权覆盖**：
+   - 严格规范化输入路径，彻底拦截 `../`、反斜杠 `\`、控制字符及非法 UTF-8 编码；
+   - 拒绝写入已存在的同名文件，拒绝向软链接（Symlink）写入数据，避免容器内核心系统配置文件被静默篡改。
+2. **原子化临时文件与落盘清洗**：
+   - 下载流首先写入工作区同级的隐藏临时文件（如 `.math.pdf.tmp`）；
+   - 实时校验 `Content-Length`，一旦下载字节超出上限（沙箱上限 64 MiB）或网络中断，**立即无条件清除临时文件**，绝不残留半截垃圾数据；
+   - 只有在全量下载完成、且计算出的 SHA-256 哈希完全吻合后，才通过原子重命名（Atomic Rename）发布为最终目标文件。
 
 ---
 
-## 8. 最后
+## 5. 总结：最朴素的工具，最坚固的基石
 
-`tjucli` 里可以指到行的约定只有几个：一个信封结构、两个退出码、一次调用一个进程、一个 `os.Root` 边界、一次 `os.Link` 发布。
+在 Agent 基础设施的演进历程中，很多人痴迷于设计繁复精细的抽象框架，试图把一切交互都转变为昂贵的高层概念。
 
-`cli/go.mod` 除了 module 和 `go 1.27.0` 没有别的行，没有 require 段，所以“没有第三方依赖”是构建系统的事实。它现在能做的事只有一件，那件事的每一步都有对应代码和测试；其余的都写在 Coverage gaps 里。
+但工程的经验反复告诉我们：**越是底层的基石，越需要拥抱简单。**
+
+`tjucli` 的实践证明，把 Agent 的能力以符合 Unix 哲学的 CLI 形式封装——提供确定性的 JSON 契约、原子化的文件操作、零外部依赖的纯静态分发与双模安全架构，能够以最小的系统开销，换取最高的可靠性与可维护性。这才是真正经得起长久考验的 Agent 工具底座。

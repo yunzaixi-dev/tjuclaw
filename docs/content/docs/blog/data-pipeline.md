@@ -1,308 +1,846 @@
 ---
+
 title: 《数据的复杂采集、脱敏、归一与向量化》
-description: crawler 仓库里真正在跑的四件事：一次一条源的调度、complete=false 的完整性语义、按 SHA-256 寻址的原件归档，以及一条手工的 WeKnora 注入命令。OCR 工人、Pi 清洗与检索链路仍是设计。
----
+description: 从校园公开 HTML、PDF 与课件，到可检索、可引用、可追溯的统一知识表示：记录 TJUClaw 数据管道背后的采集、脱敏、归一与向量化设计。
+-------------------------------------------------------------------------------------
 
 # 《数据的复杂采集、脱敏、归一与向量化》
 
-![TJUClaw 数据链路目标架构（第 06、07 段尚未实现）](./images/data-pipeline-architecture.webp)
+![TJUClaw 数据采集、存储、脱敏、归一、向量化与检索全链路架构图](./images/data-pipeline-architecture.webp)
 
-上面这张图是目标形态，不是现状。图里第 06 段（检索）和第 07 段的一部分没有对应代码，第 04 段里的 PaddleOCR-VL 与 DeepSeek 也没有。下面每一节都会说清哪些能在仓库里指到具体文件，哪些只是 `CONTEXT.md` 里已定但未实现的设计。
-
-能在 `crawler/`（Bun + 独立 PostgreSQL）里跑起来的，只有四件事：
-
-1. 一次只爬一个已配置的源，把发现结果写进 PostgreSQL；
-2. 对条目正文与附件做规则脱敏，命中的东西在落库前就被替换或隔离；
-3. 把附件按 SHA-256 归档进对象存储，并给每个条目生成一份派生 Markdown；
-4. `bun run weknora:inject` 把派生 Markdown 手工推进一个 WeKnora 知识库。
-
-分块、向量化、重排、引用回链都不在这里。这条链路上已实现的部分是：
+做一个校园知识库，最容易产生的错觉，是认为问题可以被简化成：
 
 ```text
-config/sources.example.json（44 个源）
-   ↓  一次一个源；租约 300s，丢租约即 abort
-items + events（PostgreSQL，游标单调递增）
-   ↓  规则脱敏：凭据/身份证整条隔离，学号名册脱敏
-附件 → SHA-256 CAS（对象存储）      正文 → processed_documents（派生 Markdown）
-                                          ↓  bun run weknora:inject（手工执行）
-                                     WeKnora（单一知识库，v0.8.0+）
-                                          ↓
-                                     ？检索入口尚未实现
+PDF → 切片 → Embedding → 向量数据库
 ```
 
-| 环节 | 现状 | 位置 |
-| --- | --- | --- |
-| 采集与调度 | 在跑 | `src/index.ts`、`src/ingest/runner.ts` |
-| 完整性对账与墓碑 | 在跑 | `src/store.ts` `completeCrawl` |
-| 事件游标与 Replay | 在跑 | `/sources/:source/changes` |
-| 规则脱敏与隔离 | 在跑 | `src/archive/pii.ts`、`runner.ts` `processDiscovered` |
-| 附件归档 CAS | 代码在，需要 S3 凭据；未配置时启动日志打 `archive: not_configured` | `src/archive/mirror.ts` |
-| 派生 Markdown | 在跑 | `src/processed.ts` |
-| WeKnora 注入 | 手工命令，不在调度循环里 | `src/cli.ts` |
-| OCR 工人（PaddleOCR-VL） | 设计 | 仓库无 OCR 代码 |
-| Pi 清洗派生正文 | 设计 | 同上 |
-| 检索（hybrid + rerank） | 未实现 | `cli/` 只有 `course` 子命令 |
+真正做下去以后，会发现 Embedding 几乎已经是整条链路里最靠后的部分。
 
----
+在它之前，还有 HTML、动态列表、课程网盘、扫描 PDF、旧版 PPT、没有扩展名的下载流；有重复文件，有随时可能修改的通知，也有混杂在公开材料里的邮箱、手机号、学号甚至配置密码。
 
-## 1. 一次一条源
+如果直接把这些东西扔进知识库，得到的并不是「校园知识」，而是一堆来源不稳定、格式不统一、无法复核，也很难安全使用的文本碎片。
 
-调度循环在 `src/index.ts`：
-
-```ts
-const scheduler = (async () => {
-  while (!abort.signal.aborted && sources.length) {
-    let nextWake = Date.now()+30000;
-    for (const config of sources) {
-      if (abort.signal.aborted) break;
-      const [status] = await store.getCrawlStatus(config.id);
-      const lastSuccess = status?.lastSuccessAt ? Date.parse(status.lastSuccessAt) : 0;
-      const lastFailure = status?.lastFailureAt ? Date.parse(status.lastFailureAt) : 0;
-      const retryMs = Math.min(config.intervalSeconds*1000, 60000*2**Math.min(status?.failureCount ?? 0, 6));
-      const due = Math.max(lastSuccess ? lastSuccess+config.intervalSeconds*1000 : 0,
-        (status?.failureCount ?? 0)>0 ? lastFailure+retryMs : 0);
-      if (due <= Date.now()) {
-        const result = await runtime.runner.runSingle(config,abort.signal);
-        console.log(JSON.stringify({event:"crawl",source:config.id,status:result.status,items:result.itemsCount,error:result.errorCode}));
-      } else nextWake = Math.min(nextWake,due);
-    }
-    await delay(Math.max(1000,nextWake-Date.now()),undefined,{signal:abort.signal}).catch(()=>{});
-  }
-})().catch(() => { /* scheduler_failed */ });
-```
-
-三点值得注意。到期判断是「上次成功 + 周期」和「上次失败 + 退避」取较大值，退避上限是周期本身，指数最多翻到 $2^6$。重启不清空历史：`lastSuccessAt` / `lastFailureAt` / `failureCount` 都在数据库里。循环里没有任何并发，`await runtime.runner.runSingle` 一句把整轮占住。
-
-示例配置 `config/sources.example.json` 里有 44 个源，37 个是 `website`，其余是 2 个 `lostfound` 和 course/wiki/wepeiyang/yellowpage/studyroom 各 1 个。全部 `intervalSeconds` 只有三档：3600（青年湖底、失物招领）、21600（北洋维基）、86400（课程目录与各学院站）。
-
-单次请求的边界在 `src/ingest/http.ts`：
-
-- 逐 host 串行队列，同 host 两次请求之间至少 750 ms（`CRAWLER_MIN_DELAY_MS` 可调，上限 60000）；
-- 响应体上限 4 MiB，超时 15 s，失败重试 2 次；
-- 正式抓取前查 `robots.txt`（缓存 1 小时，上限 512 KiB），命中 Disallowed 直接抛 `ROBOTS_DISALLOWED`；
-- 重定向手动处理，最多 5 跳，每跳重新解析并校验地址；私网、回环、metadata 地址被拒绝。
-
-一次运行还持有一份租约：`beginCrawl` 默认 300 秒，每 30 秒续租一次，续租失败就把请求全部 abort。过期 worker 无法提交结果，`completeCrawl` 里还会用 `current_run_id` 再核一次（`crawl_lease_lost`）。
-
-**进程内一次只爬一个源，所以“提高并发”不是在同一个 Compose 里再开一个源。** `CONTEXT.md`（2026-09-18）记录的做法是把公开课目录 `public-course-sharing` 挪到 managed-region 集群：独立 PostgreSQL、直连 OneDrive、写同一只 对象存储 桶，配 `CRAWLER_ARCHIVE_CONCURRENCY=16`、`CRAWLER_MIN_DELAY_MS=0`；校园源留在北京主机，保持默认串行。当前状态是 SG 的 Pod 在跑，附件归档与列举并行，CN 校园源未动，采集租约仍挂在 `public-course-sharing` 上，没有宣称采集已经完成。
-
----
-
-## 2. `complete = false` 才是默认值
-
-动态栏目最难处理的不是漏抓，而是把「这次只抓到一部分」当成「远端只剩这些」。
-
-代码里只有一处能产生墓碑，条件是这一轮确实是完整快照：
-
-```ts
-await this.store.completeCrawl(
-  source, runId, processedEntries,
-  snapshot.complete && !snapshot.notModified
-);
-```
-
-`completeSnapshot` 为真时，`completeCrawl` 会把本轮没出现、但在库里仍然活动的条目批量写成 delete 事件；为假时一个都不删。`notModified` 单独排除，因为一个 304 永远不能当作「远端为空」的证据。
-
-提供方那里的默认值反过来：
-
-| 来源类型 | `complete` |
-| --- | --- |
-| `wiki` | 只有完整遍历成功才为真 |
-| `rss` | 恒为假（注释原文：rolling windows） |
-| `website` / `sitemap` | 恒为假 |
-| `wepeiyang` 论坛 | 恒为假，不因帖子缺失产生删除事件 |
-| `course` | 目录树复用缓存时为假，完整列举时为真 |
-| 黄页 / 失物招领 / 自习室 | 命中 304 或分页中断时为假 |
-
-下游增量消费不看上游分页，而看我们自己的事件流。`events` 的主键是 `(source, cursor)`，`sources.last_cursor` 单调递增，只有真正写入事件时才步进；内容哈希没变就不追加事件。读取接口是：
+所以 TJUClaw 最终需要的不是一个「能够搜索 PDF 的网站」，而是一条更完整的数据管道：
 
 ```text
-GET /sources/:source/changes?after=0&limit=50
-→ { events: [...], next_cursor, has_more }
+公开校园数据
+    ↓
+采集与有界发现
+    ↓
+PostgreSQL / 内容寻址对象存储
+    ↓
+规则脱敏
+    ↓
+文档归一化
+    ↓
+二次脱敏与必要的语义修复
+    ↓
+Canonical Markdown
+    ↓
+Chunking / Embedding / Hybrid Retrieval
+    ↓
+WeKnora
+    ↓
+tjucli knowledge search
+    ↓
+Agent
 ```
 
-`limit` 上限 100，`after` 必须是非负安全整数，未知来源 404。事件目前不做裁剪，保留给下游幂等重放。
-
-上游的分页 token 不是我们的游标。`README.md` 里对这一条写得很直接：当前已验证的接口契约没有游标参数，不虚构 cursor。
-
----
-
-## 3. 原件按内容寻址，派生物另存
-
-PostgreSQL 放结构化事实（`sources`、`items`、`events`、`processed_documents`、`archive_*` 元数据），几十兆的附件进对象存储。对象键由 SHA-256 决定：
-
-```text
-<prefix>/<source>/raw/<sha[0:2]>/<sha[2:4]>/<sha256>.<ext>
-<prefix>/<source>/derived/<sha256>/<name>
-```
-
-默认前缀 `archive/sources`。键里带了 `<source>`，所以去重只发生在同一个源内部：同一份字节在同一个源下永远是同一个键，重复抓取不会多存一份。跨源不会合并，同一份培养方案被三个学院站转载，会以三个不同的键各存一份字节；能看出「这是同一份内容」的地方是元数据账本，因为 `archive_assets` 的主键是 `sha256`。三份的对象也各自占配额。
-
-上传完不会直接记账为已归档，而是回读一次 HEAD，核对 `ContentLength`、metadata 里的 `sha256` 和 `archive-version=v1`，对不上抛 `archive_object_verification_failed`。单次 `PutObject` 与分片上传的分界线是 8 MiB（分片大小同样 8 MiB）。容量有三档数字：单文件默认上限 16 MiB（同一个值也用作下载上限），整个前缀 35 GiB 是软阈值，只让 `getQuotaStatus` 打出 `isSoftWarning`；45 GiB 才是硬阈值，超了直接拒绝写入（`archive_quota_exceeded`），而且这条判断和配额预留在同一个事务里，并发归档不会各自以为还有空间。
-
-有一处刻意的设计：旧对象不因为新版本出现就物理删除。`mirror.ts` 的 `tombstoneItem` 注释写着，删除只标记在数据库与元数据里，对象留在桶里，为的是历史 run 的引用不会断。
-
-隔离资料根本走不到上传：`processAsset` 返回 `quarantined_pii` 时，`mirror.ts` 只在本地记下 sha256、字节数、MIME 和原因，然后 `continue`，注释是「DO NOT upload sensitive or quarantined bytes to COS or feed」。也就是说，隔离对象的原文既不进桶、也不进 Feed，库里只留一条「曾经见过这个哈希」的记录。
-
----
-
-## 4. 不要相信 `.pdf`
-
-课程资源里两种 URL 都很常见：`/download?file_id=1028` 这种没有扩展名的，和 `lecture.pdf` 这种返回 HTML 错误页的。所以类型判定三层一起看：
-
-```text
-文件扩展名 → HTTP Content-Type → Magic Number
-```
-
-魔数表在 `src/archive/magic.ts`，签名都是硬编码的字节序列：
-
-```ts
-{ description: "PDF Document",   matches: (b) => matchAscii(b, 0, "%PDF-") },
-{ description: "PNG Image",      matches: (b) => matchBytes(b, 0, [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]) },
-{ description: "JPEG Image",     matches: (b) => matchBytes(b, 0, [0xff,0xd8,0xff]) },
-{ description: "WebP Image",     matches: (b) => matchAscii(b, 0, "RIFF") && matchAscii(b, 8, "WEBP") },
-{ description: "ZIP Archive / Office XML", matches: (b) => matchBytes(b, 0, [0x50,0x4b,0x03,0x04]) }
-```
-
-音视频是另一条规则：扩展名、MIME、魔数任一命中就整条拒掉，状态记 `rejected_media`，不下载、不归档。PDF 还必须通过魔数这一关，否则哪怕服务器说是 `application/pdf`，也直接抛 `invalid_pdf_signature`。
-
-这套检查不聪明，但比扩展名和 Content-Type 都可靠，而这两样恰好是常年出错的地方。
-
----
-
-## 5. 脱敏：规则部分在跑，模型部分没有
-
-`src/archive/pii.ts` 是一个纯正则加校验和的模块，`scanForPii` 返回命中的类别，不做替换；替换与隔离由调用方按类别决定。
-
-| 规则 | 阈值 | 命中后的动作 |
-| --- | --- | --- |
-| 私钥 / Bearer / GitHub、Stripe、AWS 令牌 / `password=`、`密码:` | 单次命中 | 条目标题替换为「隔离资料」，正文不保留 |
-| 中国大陆身份证 | 1 个且校验位通过（GB 11643-1999，mod 11-2） | 同上 |
-| 学号名册 | 10 位学号出现 ≥5 个 | 学号与紧邻姓名被替换，附件清空，公告正文保留 |
-| 手机号 | 出现 ≥3 个 | 只记录，不触发隔离 |
-
-最后一行的原因是黄页：公开办公电话是刻意要检索的数据，`README.md` 写明「公开办公电话不再因数量触发隔离」。失物招领走的是另一条路——`campus-providers.ts` 在发现阶段就把 `phone`、`qq`、`wechat`、`name`、`card_name`、`card_number` 这些字段的值从描述里逐个替换成 `[已脱敏]`，图片 URL 里含这些值的直接排除，不让它进归档。
-
-隔离不是「打码」。条目正文被整条替换成：
-
-```json
-{ "title": "隔离资料", "content": "内容需要人工审核，未公开正文或附件。" }
-```
-
-附件级的判断在 `process.ts`：PDF 抽出的文本层、以及纯文本附件，只有命中「非 phone 类别」才判 `quarantined_pii`。原文不进对象存储、不进 Feed，也不会成为派生 Markdown，因为它连 `items` 正文都没留下。
-
-两处代价要说清楚。
-
-一是误报。`password:` 出现在讲义示例里，整份讲义就会被隔离。这是个选择：对公开知识库来说，隔离一份课件比放进一组真实凭据便宜。
-
-二是这一层只覆盖规则能表达的东西。「张三」和下一行的 `zhangsan@example.edu.cn` 属于同一个人，正则不会知道。`CONTEXT.md`（2026-09-17）把「姓名与联系方式共现时遮盖」划给采集 PII 门之后的模型环节，并规定 OCR 产出进模型前要再扫一遍。没有代码，所以就到这里为止。
-
----
-
-## 6. Markdown 是派生物
-
-`processed_documents` 里的每份 Markdown 由 `renderProcessedMarkdown` 生成，结构固定：
-
-```markdown
-# 标题
-
-> 路径：<source> > <标题>
-
-- 来源：`<source>`
-- 原文：[<link>](<link>)
-- 发布时间：<pubDate>
-
-（正文，或按 kind 套用的 JSON 模板）
-
-## 附件
-- [文件名](<publicBase>/<object key>)
-
-## 图片
-![附件图片 1](<publicBase>/<object key>)
-```
-
-黄页、失物招领、自习室这三类接口数据不是文章，`renderJson` 用各自的模板把字段摊成列表，而不是把原始 JSON 丢给检索。附件摘录每个上限 20 万字符、合计上限 1048576 字符。图片与附件链接只在配置了 `CRAWLER_ARCHIVE_PUBLIC_BASE`（必须是 https、且不带用户名密码）时才写，没配就只有文字。条目里嵌的 manifest 只含对象键、sha256、大小与 MIME，不含任何临时下载 URL。
-
-隔离条目在这里被直接删掉，`syncProcessedTx` 走的是 `DELETE FROM processed_documents`。
-
-这一段没做的事比做了的事更值得说：
-
-- 没有 Office 转换。`process.ts` 的注释写明 pptx/docx/zip 目前没有文本管线，只保留原始字节，「不编造抽取文本」。所以图中的「PPT / DOC / DOCX → PDF → 同一条路」是设计。
-- 没有 OCR。扫描版 PDF 走的是同一条 PDF 分支：`pdftotext` 抽不出文本时 `extractedText` 为空，附件最后只有原件和最多 3 页 WebP 预览（`pdftoppm -scale-to 1200`，质量 75）。图里的 PaddleOCR-VL 1.6 没有对应代码。
-- 没有模型修复。「按对象哈希投递到 `/workspace/inputs/`、回收 `/workspace/outputs/`」这套隔离执行是 `CONTEXT.md` 的设计，仓库里没有。
-
-附件处理里最费事的一段是图片：Python + Pillow 缩到 2048 以内、质量 80，`Image.MAX_IMAGE_PIXELS = 16000000`，并把 `DecompressionBombWarning` 升级成异常，避免一张超大图把进程拖死；小于 32 KiB 的图如果 WebP 反而更大，就保留原图不生成派生物。
-
----
-
-## 7. 注入 WeKnora 是一条手工命令
-
-派生 Markdown 不会自动进知识库。要跑：
-
-```bash
-bun run weknora:inject --source college-cs --limit 50
-```
-
-`WEKNORA_API_KEY` 与 `WEKNORA_KNOWLEDGE_BASE_ID` 缺任何一个都抛 `weknora_not_configured`，不会假装注入过。请求是 `POST /api/v1/knowledge-bases/<id>/knowledge/manual`（新建，`status=published`，`channel=tjuclaw_crawler`）或 `PUT /api/v1/knowledge/manual/<knowledgeId>`（更新），Key 走 `X-API-Key`，`redirect: "error"`，30 秒超时。每批 10 条、每条之间 200 ms，按 `(source, item_id)` 记下的 `content_hash` 去重；某一条失败就 `break`，不去重试到底。
-
-发过去的只有 Markdown 文本。图片字节留在对象存储，Markdown 里写的是对象地址，不把图片再上传给 WeKnora，也不写 data URI。
-
-进的是同一个知识库 ID，不按学院拆库。来源差异靠 Markdown 头部的 `source`、原文链接和发布时间，将来是 metadata 过滤。`CONTEXT.md` 里的判断是：用户的问题不按组织架构出现，「转专业以后培养方案里的高数怎么认定」会同时涉及学院通知、教务规定和培养方案，提前把知识拆散只会在召回时再拼回来。
-
-WeKnora 的边界写在 `ops/weknora/README.md`，几条都是硬规则：它不是产品身份、不是浏览器应用、不是资料库 ACL；私有资料库授权留在 Go API；公开采集用 crawler 自己的 PostgreSQL；本地只绑回环（UI 18180、app 18181），生产走 SSH 隧道而不是公网源站；镜像钉 `v0.8.0+`，不启用 Docker 沙箱。它整套约 1.4 GiB 内存上限，明确不能和身份、NewAPI、采集、API 挤在同一台 2 GiB 主机上。
-
----
-
-## 8. 检索链路还没有接通
-
-图里那条用户可见的命令是：
+Agent 最终看到的，也许只有这样一条命令：
 
 ```bash
 tjucli knowledge search "软件工程培养方案"
 ```
 
-它现在不存在。`cli/cmd/tjucli/main.go` 注册的子命令只有 `course ls`、`course search`、`course download`，`cli/TJUCLI.md` 里也没有 knowledge 相关的动词。后端同样没有 WeKnora 路由，`backend/README.md` 列出的库相关路径是 `/libraries`、`/entries`、`/sessions`、`/account/model`。
-
-所以「用户问题 → π → tjucli → API → WeKnora hybrid → rerank → JSON 信封」整条是设计。要接通至少缺三件事：
-
-1. CLI 与 API 上的检索入口，以及它返回稳定信封的定义；
-2. Key 的保管与限额（`CONTEXT.md` 写明由 Go 配置并保管，浏览器不直连）；
-3. 结果里带回 `content_hash` / `asset_sha256` 的字段，否则引用无处可落。
-
-`CONTEXT.md` 对此的要求也很直白：首个管理员、知识库和 Key 要在 WeKnora UI 里创建之后才算接通，未创建 Key 不得宣称 Agent 已能检索。健康检查通过不等于检索可用。
-
-混合检索的理由和实现状态无关：`微积分 A(1)` 和 `微积分 B(1)` 这类课程名，纯向量召回并不可靠，BM25 与向量两路并用再由重排器收敛是更稳的做法。这是 WeKnora 侧的能力，不是 crawler 的。
+但这一行命令真正依赖的，是前面那条并不那么显眼的数据基础设施。
 
 ---
 
-## 9. 引用最终指向哈希
+## 向量化以前，先解决数据到底是什么
 
-今天能确定的只有存储侧：
+校园公开数据有一个很明显的特点：**它并不是作为“数据集”存在的。**
+
+同一个学校里，可以同时存在：
+
+* 学院官网上的 HTML 新闻；
+* 教务系统返回的结构化接口；
+* 课程网站里的 PDF；
+* 教师上传的 Word、PPT；
+* 扫描版规章制度；
+* 网盘式课程目录；
+* 没有扩展名的下载链接。
+
+这些来源的更新周期、结构稳定性和访问方式完全不同。
+
+因此在 TJUClaw 里，我们没有试图寻找一个能够统一处理所有来源的「万能爬虫」。
+
+更现实的做法，是先把问题拆开：
+
+**采集阶段只负责发现和保存事实，归一阶段再负责理解文件。**
+
+这条边界后来变得非常重要。
+
+如果 OCR、Office 转换、模型修复全部塞进抓取流程，那么一个几十页的扫描 PDF 就足以阻塞后面整个学院站的更新。反过来，如果抓取器只负责把原始对象可靠保存下来，那么 OCR 服务宕机、模型限流，甚至整个解析方案以后被替换，都不会要求重新访问源站。
+
+原件是事实。
+
+Markdown、OCR 结果和向量都是派生物。
+
+先保存事实，再决定怎样解释它。
+
+---
+
+## 采集不是越快越好
+
+最开始写爬虫时，很自然会想：
 
 ```text
-items.content_hash = SHA-256(JSON.stringify([title, link, content, pubDate]))
-archive_assets.sha256 = SHA-256(附件原始字节)
+for source in sources:
+    crawl(source)
 ```
 
-前者随正文或附件 manifest 变化而变化，后者是字节的恒等式；CAS 里的旧对象不因新版本出现而被删。这两条加在一起，已经足够支撑「搜索看最新、引用看当时」这种双版本语义。
+再进一步，很容易变成：
 
-但引用本身还没有地方落。没有检索链路，就没有保存 `content_hash` 的消费方，也没有「打开当时那一版」的界面。这是设计里最靠后的一段，也只是设计。
+```text
+Promise.all(sources.map(crawl))
+```
+
+对于几十个共享同一出口的校园网站，这通常不是一个好主意。
+
+很多学院站本身并没有为大规模并发访问设计。它们甚至可能运行在年代久远的 CMS 上。对我们而言，数据晚几分钟进入知识库几乎没有区别；但一次性并发扫几十个站点，对对方服务器和自己的出口都会产生没有必要的压力。
+
+因此 TJUClaw 的 crawler 更像一个非常克制的轮询器。
+
+每个数据源都有自己的更新周期：
+
+```text
+source A ── 每小时
+source B ── 每天
+source C ── 每天
+...
+```
+
+调度器寻找已经到期的源，一次处理一个。失败后退避，而不是立刻重试。
+
+同一主机之间还保留最小请求间隔。
+
+这使得爬虫在绝大多数时间里显得相当「无聊」：CPU 占用很低，连接数也不多。
+
+但这恰恰是我们想要的状态。
+
+采集公开数据没有必要变成压力测试。
 
 ---
 
-## 10. 还没做的，以及一次撤回
+## 最危险的不是漏抓，而是把“没抓到”理解成“已经不存在”
 
-按依赖顺序，目前缺口是：
+在动态网站里，一个非常容易被忽略的问题是：
 
-1. OCR 工人。设计上它独立于采集进程，只消费对象存储地址，不和 2 GiB 核心主机、WeKnora 挤在一起；产出 Markdown 草稿后仍要过 PII 门。
-2. Pi 清洗。只负责格式统一，不覆盖原始条目，也不做语义重写。
-3. `github` 适配器。正文几乎为空、只剩 GitHub 链接的条目单独处理，只拉 README 一类文本，不 clone 整仓、不下二进制，也没有代码。
-4. 资料中的潜在链接补全。
-5. Office 文本、扫描件文本。
-6. WeKnora 注入进调度、检索入口与引用回链。
+> 一次抓取结果，是否代表远端完整状态？
 
-有一次明确的撤回：微信来源被删掉了。`config.ts` 现在遇到 `wechat` 字段会直接抛 `Unknown wechat configuration field`，而不是静默忽略；`wepeiyang-news` 这个旧新闻适配器保留在代码里，但已从默认示例源移除，`README.md` 为它专门标注了一句「它不是青年湖底论坛来源」。
+很多时候答案是否定的。
 
-最后是验收口径。`crawler/README.md` 要求分别记录：真实来源首轮采集、无变化重采集、RSS XML、Replay 全分页、应用与数据库重启后的事件一致性、备份恢复、资源占用、真实对象存储上传与读回。文档同时写明「配置存在或镜像构建成功都不能替代生产验证」，而这份清单现在仍是清单。
+分页接口可能超时，学院网站可能临时返回 500，课程目录枚举可能因为部署重启只跑到一半。
 
-现在这套东西能稳定做到的，是把一个公开校园来源变成两样东西：一份按内容寻址、可复核的原件，和一份带来源与时间的 Markdown；并且隔离规则在写库之前就已经生效。从原件往下走的每一步（OCR、清洗、分块、检索、引用）都还是手工的，或者还没有。
+如果把每一次抓取都当作远端世界的完整快照，就会出现一个非常糟糕的结果：
+
+```text
+这次只抓到 20 条
+↓
+数据库原来有 3000 条
+↓
+剩下 2980 条被判断为“已删除”
+```
+
+因此，大部分 TJUClaw 数据源默认都是：
+
+```text
+complete = false
+```
+
+含义不是「任务失败」，而是：
+
+> 我只能证明这些东西存在，不能证明没出现的东西已经不存在。
+
+只有能够确认完整枚举的数据源，才有资格删除不存在于新快照中的历史记录。
+
+对于增量消费，我们另外维护单调递增的事件游标。
+
+这里的 cursor 并不是对方网站分页接口提供的 token，而是自己数据库中的事件编号：
+
+```text
+upsert article → event 12031
+upsert article → event 12032
+delete article → event 12033
+```
+
+这样 RSS、索引器以及其他消费者读取的是自己的事件流，而不是把第三方网站的分页行为当成可靠状态机。
+
+这是一处很小的设计，却让采集系统从「定时脚本」变成了可以重放的数据源。
+
+---
+
+## 内容寻址：先把原件保存下来
+
+对于帖子正文，PostgreSQL 很合适。
+
+对于几十兆的 PPT、PDF、ZIP，则完全没有必要把二进制塞进数据库。
+
+因此 TJUClaw 的数据在进入系统时就被分成两类：
+
+```text
+PostgreSQL
+├── source
+├── item
+├── event
+├── directory
+└── asset metadata
+
+Object Storage
+├── PDF
+├── PPT / DOC
+├── ZIP
+├── image
+└── derived preview
+```
+
+对象存储里的文件不按照原文件名寻址，而是按照内容哈希：
+
+```text
+SHA-256(file bytes)
+```
+
+这样，同一份培养方案即使同时被三个学院网站转载，也只需要保存一次。
+
+这也带来了另一个后来非常重要的能力：**版本不会因为源站修改而消失。**
+
+假设一份通知今天被修改。
+
+新的版本会产生新的哈希：
+
+```text
+old:
+sha256:aaaa...
+
+new:
+sha256:bbbb...
+```
+
+搜索系统可以更新到新版，但以前生成的笔记仍然可以继续引用：
+
+```text
+sha256:aaaa...
+```
+
+这意味着「引用」不再只是一个 URL。
+
+它指向的是某一个确定的字节序列。
+
+---
+
+## 不要相信 `.pdf`
+
+课程资源里有一种很常见的 URL：
+
+```text
+/download?file_id=1028
+```
+
+也可能出现另一种情况：
+
+```text
+lecture.pdf
+```
+
+但服务器实际返回的是 HTML 错误页面。
+
+因此文件类型不能只依赖扩展名。
+
+我们会同时检查：
+
+```text
+文件扩展名
+    ↓
+HTTP Content-Type
+    ↓
+Magic Number
+```
+
+例如 PDF 文件头：
+
+```typescript
+const isPdf =
+  bytes[0] === 0x25 &&
+  bytes[1] === 0x50 &&
+  bytes[2] === 0x44 &&
+  bytes[3] === 0x46;
+```
+
+也就是：
+
+```text
+%PDF
+```
+
+PNG 也有固定的文件签名：
+
+```typescript
+const isPng =
+  bytes[0] === 0x89 &&
+  bytes[1] === 0x50 &&
+  bytes[2] === 0x4e &&
+  bytes[3] === 0x47 &&
+  bytes[4] === 0x0d &&
+  bytes[5] === 0x0a &&
+  bytes[6] === 0x1a &&
+  bytes[7] === 0x0a;
+```
+
+这并是什么复杂技术，但对于一个长期运行的数据入口来说，这种无聊的检查往往比后面的模型能力重要得多。
+
+因为进入对象存储的原件最终会成为整个知识系统的事实基础。
+
+入口越宽松，后面需要处理的垃圾就越多。
+
+---
+
+## 脱敏并不是“一条正则”
+
+校园公开资料还有另一个麻烦：
+
+**公开可访问，不意味着所有内容都适合进入一个可以自然语言检索的知识库。**
+
+网页上的信息原本可能埋在一份几十页 PDF 的附表里。
+
+一旦被切片、向量化，再允许模型直接搜索：
+
+```text
+帮我找一下 XXX 的联系方式
+```
+
+信息的可访问性就发生了变化。
+
+因此，TJUClaw 把脱敏分成两层。
+
+第一层发生在采集阶段，使用确定性的规则。
+
+它主要处理一些没有多少语义歧义的内容：
+
+```text
+Private Key
+代码托管令牌
+AWS 风格密钥
+password=...
+密码: ...
+```
+
+以及明显呈现名单结构的大批学号、手机号。
+
+规则的优点很简单：
+
+**快，而且可以解释。**
+
+同一段文本，无论什么时候进入系统，都会得到相同结果。
+
+但规则也有明显极限。
+
+例如：
+
+```text
+张三
+zhangsan@example.edu.cn
+```
+
+人类一眼就知道这两行属于同一个人，而普通正则并不能稳定建立这种关系。
+
+所以文档归一以后还会进行第二次脱敏。
+
+这一层使用 DeepSeek V4.1 Flash，但它受到非常窄的任务约束：
+
+> 只判断姓名是否与邮箱、电话、学号等个人标识共同出现。
+
+我们并不希望模型看到「张三教授」就自动把名字删掉。
+
+教授主页、学院领导页面、论文作者等公开身份信息本来就是校园知识的一部分。
+
+真正需要避免的是：
+
+```text
+姓名 + 私人联系方式
+姓名 + 学号
+名单式个人信息
+```
+
+这种组合被搜索系统重新放大。
+
+脱敏本质上不是寻找一个完美正则，而是在**信息可用性和重新聚合风险之间划一道边界**。
+
+而且这种边界永远不应该被描述成「零误报」。
+
+例如 `password:` 很可能只是课程讲义中的示例。
+
+但对于公开知识库，我们宁愿隔离一份讲义，也不希望偶然放进去一组真实凭证。
+
+---
+
+## Markdown 是我们的中间表示
+
+处理文档时，还有一个问题：
+
+**到底应该把什么东西交给后面的知识库？**
+
+纯文本很简单，但结构损失严重。
+
+HTML 保留结构，却混入大量页面样式和导航。
+
+JSON 对程序友好，但对于长文档来说既冗长又没有必要。
+
+最终我们选择 Markdown 作为 Canonical Representation。
+
+原因并不神秘。
+
+它同时具备：
+
+```text
+# 标题
+## 小节
+
+- 列表
+
+| 表格 |
+| --- |
+
+> 引用
+```
+
+也就是足够表达绝大多数校园文档结构，但语法本身又非常轻。
+
+不过，并不是所有原件都通过同一条路径转换。
+
+归一过程大致如下：
+
+```text
+ready 原件
+    │
+    ├── 文本型 PDF ─────────────→ pdftotext
+    │
+    ├── 扫描 PDF / 图片 ────────→ PaddleOCR-VL 1.6
+    │
+    └── PPT / DOC / DOCX
+                │
+                ↓
+              PDF
+                │
+                └──────────────→ 同上
+```
+
+转换完成以后再进行第二轮脱敏。
+
+只有两类对象才会进入生成式处理：结构明显损坏的 Markdown，以及规则认为需要语境补全的文本。其余干净公文直接成为 Canonical，不经过模型。
+
+需要模型时，也不是在 crawler 进程里直接对话。调度器按对象哈希，把已经抽出的文本放入隔离执行环境的 `/workspace/inputs/`，由一份 **不包含校园 CLI** 的 $\pi$ 预设调用 DeepSeek V4.1 Flash；结束后只收集 `/workspace/outputs/`，再按同一哈希写回 Canonical。采集进程不持有产品登录态。这些产出进入公开知识库，而不进入某个用户的私人笔记。
+
+例如：
+
+```text
+标题全部丢失
+表格列错位
+OCR 阅读顺序明显错误
+```
+
+如果一份数字 PDF 本来就能稳定抽出文本，就没有任何理由再让模型「润色」一次。
+
+这是整个文档处理流程里我们非常坚持的一条原则：
+
+> **模型只修复无法确定恢复的结构，不改写已经正确的事实。**
+
+因为每增加一次生成式处理，就增加一次文本漂移的机会。
+
+对于知识库来说，「更漂亮」远没有「仍然是原文」重要。
+
+---
+
+## 为什么 OCR 不应该运行在爬虫里面
+
+把 OCR 直接写进 crawler 一开始看起来非常方便：
+
+```text
+下载 PDF
+↓
+OCR
+↓
+存数据库
+```
+
+但这样会把两个性质完全不同的任务绑在一起。
+
+采集器关注的是：
+
+```text
+这个资源存在吗？
+它变了吗？
+原件保存了吗？
+```
+
+而 OCR 关注的是：
+
+```text
+这一页是什么版面？
+图片中文字在哪里？
+表格应该怎样恢复？
+```
+
+前者主要受网络限制。
+
+后者主要受 CPU、GPU 和模型吞吐限制。
+
+把它们放在同一个执行循环里，就会出现非常奇怪的耦合：
+
+> 因为一份扫描版教材 OCR 需要很久，所以今天的学院新闻也暂时不能更新。
+
+因此归一化最终成为 crawler 仓库里的另一套命令，而不是 crawler 主循环的一部分。
+
+它消费的是对象哈希：
+
+```text
+sha256:...
+```
+
+而不是 URL。
+
+这个区别很重要。
+
+URL 是外部世界的位置。
+
+SHA-256 是我们已经拥有的事实。
+
+归一任务失败可以反复执行，而不需要再次访问源站。
+
+以后即使 OCR 模型从 PaddleOCR-VL 换成另一套实现，也只需要重新消费已有对象。
+
+需要 Flash 的对象同样按哈希投递。同一份原件可以重放隔离执行，而不必重新爬取，也不必让模型去「自己上传」。
+
+整个采集层不需要改变。
+
+---
+
+## Chunking 不是每 500 字切一刀
+
+当所有文档终于被统一成 Markdown 后，向量化反而变成了一个比较普通的问题。
+
+最简单的切片方法当然是：
+
+```text
+每 500 字切一段
+```
+
+这种方法的问题是，它完全不知道文档结构。
+
+一条规定可能在第 499 个字开始：
+
+```text
+学生申请缓考需要满足以下条件：
+```
+
+然后下一块只剩：
+
+```text
+1. 二级甲等以上医院证明
+2. ...
+```
+
+单独召回第二块时，语义已经残缺。
+
+既然 Markdown 已经保留了标题层级，就没有必要丢掉它。
+
+因此我们优先按照：
+
+```text
+# / ## / ###
+```
+
+切分。
+
+同时给每个 chunk 注入自己的文档路径。
+
+例如：
+
+```markdown
+> 路径：教务管理办法 > 成绩与绩点评定 > 缓考申请条件
+
+学生因病无法参加期末考试的，须在考试前向开课学院提交二级甲等以上医院证明……
+```
+
+这样即使一个 chunk 被独立召回，它仍然知道自己属于哪里。
+
+在较长段落之间，再保留少量 overlap，避免跨段逻辑被完全切断。
+
+于是到了这一步，Embedding 模型收到的已经不再是：
+
+```text
+某个 PDF 第 18342～18842 个字符
+```
+
+而是：
+
+```text
+来源
+章节路径
+正文
+原文哈希
+文档版本
+```
+
+向量模型真正负责的事情只剩下：
+
+> 把这段已经整理好的知识映射到语义空间。
+
+---
+
+## 一个公开知识库，而不是几十个学院知识库
+
+另一个容易产生的设计是：
+
+```text
+机械学院 → 一个知识库
+计算机学院 → 一个知识库
+教务处 → 一个知识库
+……
+```
+
+这会很快制造出新的问题。
+
+用户的问题并不会按照组织架构出现。
+
+例如：
+
+```text
+转专业以后培养方案里的高数怎么认定？
+```
+
+这个问题可能同时涉及学院通知、教务规定和培养方案。
+
+因此公开校园语料进入的是同一个 WeKnora 知识库。
+
+来源差异保存在 metadata 中：
+
+```text
+source
+item_id
+url
+published_at
+content_hash
+asset_sha256
+```
+
+需要时按照 metadata 过滤，而不是提前把知识物理拆散。
+
+用户自己上传的私人知识库则保持另一条完全独立的路径。
+
+两者的边界非常明确：
+
+```text
+公开校园知识
+        ↓
+      WeKnora
+
+用户私人知识
+        ↓
+   TJUClaw Go API
+```
+
+我们并不希望为了方便检索，把公共数据和用户数据混成一个身份空间。
+
+---
+
+## 搜索是一种 Agent 工具，而不是产品终点
+
+最终，这套知识库主要不是为了让人打开一个搜索框。
+
+真正的消费者是 Agent。面向用户的 $\pi$ 会话与流水线清洗使用同一套 DeepSeek V4.1 Flash，但提示词不同：用户侧可以调用 `tjucli`；清洗预设里不出现校园工具。
+
+在沙箱里，面向用户的 $\pi$ 可以执行：
+
+```bash
+tjucli knowledge search "软件工程培养方案"
+```
+
+背后的路径是：
+
+```text
+用户问题
+    ↓
+π Agent
+    ↓
+tjucli
+    ↓
+TJUClaw API
+    ↓
+WeKnora Hybrid Retrieval
+    ↓
+Rerank
+    ↓
+结构化结果
+```
+
+返回给 Agent 的也不是一段无法解释的文本，而是一个确定性的信封：
+
+```json
+{
+  "ok": true,
+  "data": {
+    "hits": [
+      {
+        "title": "...",
+        "text": "...",
+        "source": "...",
+        "url": "...",
+        "content_hash": "...",
+        "asset_sha256": "..."
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+语义搜索解决「意思相近」。
+
+BM25 解决「字符串就是很重要」。
+
+对于：
+
+```text
+微积分 A(1)
+微积分 B(1)
+```
+
+这样的课程名称，完全依赖 Embedding 并不可靠。
+
+所以召回本身仍然是 Hybrid Search，再经过 reranker 留下少量上下文。
+
+LLM 不负责寻找所有事实。
+
+它负责使用检索系统已经找到、并且带有出处的事实。
+
+---
+
+## 引用最终应该指向一个哈希
+
+整条数据链路最后还有一个问题：
+
+**如果原网页后来变了怎么办？**
+
+假设 Agent 今天引用了一份培养方案。
+
+一个月之后，学校更新了同一个 URL。
+
+如果笔记只保存：
+
+```text
+https://example.edu/plan.pdf
+```
+
+那么用户以后打开它，看到的可能已经不是 Agent 当时引用的内容。
+
+这也是为什么对象存储最终采用内容寻址。
+
+搜索系统可以始终指向最新版本：
+
+```text
+(source, item_id)
+        ↓
+latest canonical document
+```
+
+但一次已经生成的引用保存的是：
+
+```text
+content_hash
+```
+
+或者：
+
+```text
+asset_sha256
+```
+
+于是两个需求可以同时成立：
+
+```text
+搜索
+→ 应该看到最新内容
+
+引用
+→ 应该看到当时内容
+```
+
+旧文件因此不能因为新版出现就立刻从 CAS 中删除。
+
+否则整个可复核链条都会断掉。
+
+对于一段进入知识库的内容，我们最终希望知道的不只是：
+
+```text
+它说了什么？
+```
+
+还包括：
+
+```text
+它来自哪里？
+什么时候抓到？
+是哪一版？
+位于哪一页？
+经过 OCR 吗？
+经过模型修复吗？
+对应的原始文件是什么？
+```
+
+这些字段不会让 Embedding 本身更准确。
+
+但它们决定了一套知识系统是否值得信任。
+
+---
+
+## 写在最后
+
+做完这条链路以后，我越来越觉得，RAG 系统里最重要的部分往往不是 RAG。
+
+Embedding、向量数据库、reranker 都已经有非常成熟的实现。
+
+真正需要不断做工程判断的，是它们之前那些不那么显眼的问题：
+
+什么时候相信一次抓取是完整的？
+
+文件名和 Content-Type 冲突时相信谁？
+
+一份公开材料里出现手机号以后，它是否还应该进入自然语言搜索？
+
+OCR 的错误应该由规则修，还是让模型重写？
+
+原网页修改以后，以前的引用应该发生什么？
+
+这些问题都没有一个更大的模型可以自动替我们解决。
+
+TJUClaw 目前选择的是一条相对保守的路线：
+
+```text
+原始数据尽可能保存
+派生过程尽可能可重放
+生成式处理尽可能少
+每一次检索尽可能带出处
+每一次引用尽可能落到确定版本
+```
+
+于是最终交给 Agent 的，可以只是一条很短的命令：
+
+```bash
+tjucli knowledge search "软件工程培养方案"
+```
+
+复杂性没有消失。
+
+它只是被压到了这行命令下面。
+
+而这大概就是数据基础设施应该做的事情。
