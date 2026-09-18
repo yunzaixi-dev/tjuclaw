@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Banner } from 'fumadocs-ui/components/banner';
 
 const CONTEST_BANNER_ID = 'tjuclaw-contest-2026';
@@ -28,16 +28,25 @@ export function SiteBanner() {
   );
 }
 
-export function ContestBannerRestore() {
-  const [hidden, setHidden] = useState(false);
+// useSyncExternalStore 在 subscribe 引用变化时会重新订阅，故保持在模块级
+const subscribeBannerDismissal = (onChange: () => void) => {
+  window.addEventListener('storage', onChange);
+  return () => window.removeEventListener('storage', onChange);
+};
 
-  useEffect(() => {
-    try {
-      setHidden(localStorage.getItem(CONTEST_BANNER_STORAGE_KEY) === 'true');
-    } catch {
-      setHidden(false);
-    }
-  }, []);
+export function ContestBannerRestore() {
+  // 服务端快照固定为未关闭，避免 hydration 不一致
+  const hidden = useSyncExternalStore(
+    subscribeBannerDismissal,
+    () => {
+      try {
+        return localStorage.getItem(CONTEST_BANNER_STORAGE_KEY) === 'true';
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
 
   if (!hidden) return null;
 
