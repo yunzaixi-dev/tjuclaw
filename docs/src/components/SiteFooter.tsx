@@ -7,7 +7,7 @@ interface FooterProps {
 }
 
 export function SiteFooter({
-  icpNumber = process.env.NEXT_PUBLIC_ICP_NUMBER,
+  icpNumber = process.env.NEXT_PUBLIC_ICP_NUMBER || '津ICP备2026013377号',
   policeNumber = process.env.NEXT_PUBLIC_POLICE_BEIAN,
   policeUrl = process.env.NEXT_PUBLIC_POLICE_URL,
 }: FooterProps) {
@@ -39,7 +39,9 @@ export function SiteFooter({
               <li><Link href="/">平台首页</Link></li>
               <li><Link href="/docs">平台设计与概览</Link></li>
               <li><Link href="/docs/quickstart">快速开始</Link></li>
-              <li><Link href="/docs/blog/data-pipeline">《数据的复杂采集、脱敏、归一与向量化》</Link></li>
+              <li><Link href="/docs/about">关于我们</Link></li>
+              <li><Link href="/docs/terms">用户协议</Link></li>
+              <li><Link href="/docs/privacy">隐私政策</Link></li>
             </ul>
           </div>
 

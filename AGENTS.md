@@ -40,8 +40,9 @@ Browser / Tauri WebView
       → optional PostgreSQL task/run/library stores
 
 
-Public crawler (Bun + dedicated PostgreSQL) → RSS / replay feed
-  public campus events only; private library ACL stays in the Go API
+Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / 对象存储 archive
+  campus sources on the CN Compose host; Microsoft/OneDrive on managed-region Talos
+  writing the same 对象存储 bucket; private library ACL stays in the Go API
 
 WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
   loopback UI :18180 and app :18181; omp uses WEKNORA_BASE_URL + X-API-Key
@@ -61,8 +62,11 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
   ownership. Check each property explicitly.
 - Never auto-link existing accounts by email. Keep the old identity database until
   the Kratos OTP cutover is verified.
-- Crawler owns configured public sources only. Never share its database with
-  identity or product API stores.
+- Crawler owns configured public sources only. Never share a crawler database with
+  identity, product API, WeKnora, or another regional crawler. One process crawls
+  one source at a time; run Microsoft attachments on managed-region instead of opening a
+  second source on the CN box. `task ops:crawler:deploy` is campus Compose only.
+  The external crawler is a Flux app in `agentwego/infra`, not an Ansible host.
 - WeKnora is the knowledge engine. Never share its database with Kratos, the
   crawler, or the product API. Do not merge WeKnora users with product identities.
   Do not enable its Docker sandbox or publish its UI.

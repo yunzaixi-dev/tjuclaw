@@ -38,7 +38,7 @@ description: 为什么我们放弃了 LangChain/LangGraph 等重量级框架？�
     - **Agent Loop（自主决策 · 工具调用 · 迭代执行）**：驱动感知与行动的多轮反馈循环；
     - **Execution Environment（沙箱 · 资源 · 网络 · 安全隔离）**：图灵完备的隔离容器环境；
     - **原生接入系统能力**：`Filesystem`（文件系统读写）、`Shell / CLI`（命令行终端）、`Search (tjucli)`（专属校园工具）、`Browser`（受控浏览器模拟）、`Code`（代码编译运行）；
-    - **External Systems**：安全对接外部真实存储系统，包括业务关系数据库（Database）、基于 WeKnora 的向量知识库（Knowledge Base）、以及 对象存储 对象存储（Object Storage）。
+    - **External Systems**：安全对接外部真实存储系统，包括业务关系数据库（Database）、基于 WeKnora 的向量知识库（Knowledge Base）、以及对象存储（Object Storage）。
 
 模型被置于真实的执行环境中，不再只是回答问题，而是能够自主调用工具、操作文件、交付结果、完成任务。
 
@@ -63,7 +63,7 @@ description: 为什么我们放弃了 LangChain/LangGraph 等重量级框架？�
 - **网络交互** $\to$ CLI / API
 - **长期任务** $\to$ Agent Loop + Session 状态管理
 
-对 Agent 而言，它无需感知底层运行的是 WeKnora、PostgreSQL、对象存储 还是特定的知识库 SDK。它只需要执行：
+对 Agent 而言，它无需感知底层运行的是 WeKnora、PostgreSQL、对象存储还是特定的知识库 SDK。它只需要执行：
 
 ```bash
 tjucli knowledge search "..."

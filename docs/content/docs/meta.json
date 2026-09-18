@@ -10,6 +10,10 @@
     "blog/code-execution-and-sandbox",
     "blog/why-cli-as-agent-tool",
     "blog/cross-platform-clients",
-    "blog/repository-and-cicd"
+    "blog/repository-and-cicd",
+    "---关于与合规---",
+    "about",
+    "terms",
+    "privacy"
   ]
 }
