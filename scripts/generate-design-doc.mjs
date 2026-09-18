@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 const repoRoot = process.cwd();
 const sourcePath = path.join(repoRoot, 'docs/content/docs/index.md');
@@ -8,19 +10,6 @@ const legacyPath = path.join(repoRoot, 'docs/content/docs/index.mdx');
 const targetDesignPath = path.join(repoRoot, 'DESIGN.md');
 const targetReadmePath = path.join(repoRoot, 'README.md');
 
-const resolvedSourcePath = fs.existsSync(sourcePath) ? sourcePath : legacyPath;
-
-if (!fs.existsSync(resolvedSourcePath)) {
-  console.error(`Error: Source file not found at ${sourcePath} or ${legacyPath}`);
-  process.exit(1);
-}
-
-const raw = fs.readFileSync(resolvedSourcePath, 'utf8');
-
-// Strip YAML frontmatter
-const body = raw.replace(/^---[\s\S]*?---\n*/, '').trimStart();
-
-// 1. 生成 DESIGN.md（附带克制的评委与读者指引提示）
 const designHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NOT EDIT DIRECTLY. -->
 <!-- Run \`task docs:sync\` or \`task docs:design\` to regenerate. -->
 
@@ -28,10 +17,6 @@ const designHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NO
 
 `;
 
-fs.writeFileSync(targetDesignPath, designHeader + body, 'utf8');
-console.log(`Successfully synced ${targetDesignPath} from ${path.relative(repoRoot, resolvedSourcePath)}`);
-
-// 2. 生成 README.md（同步 index 首页内容，附带克制的在线文档与仓库导航提示）
 const readmeHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NOT EDIT DIRECTLY. -->
 <!-- Run \`task docs:sync\` or \`task docs:design\` to regenerate. -->
 
@@ -39,5 +24,79 @@ const readmeHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NO
 
 `;
 
-fs.writeFileSync(targetReadmePath, readmeHeader + body, 'utf8');
-console.log(`Successfully synced ${targetReadmePath} from ${path.relative(repoRoot, resolvedSourcePath)}`);
+export function renderDocuments(raw) {
+  const body = raw.replace(/^---[\s\S]*?---\n*/, '').trimStart();
+  return {
+    design: designHeader + body,
+    readme: readmeHeader + body,
+  };
+}
+
+function readSource() {
+  const resolvedSourcePath = fs.existsSync(sourcePath) ? sourcePath : legacyPath;
+  if (!fs.existsSync(resolvedSourcePath)) {
+    throw new Error(`Source file not found at ${sourcePath} or ${legacyPath}`);
+  }
+  return { path: resolvedSourcePath, raw: fs.readFileSync(resolvedSourcePath, 'utf8') };
+}
+
+function readIndex(pathname) {
+  try {
+    return execFileSync('git', ['show', `:${pathname}`], { cwd: repoRoot, encoding: 'utf8' });
+  } catch (error) {
+    if (error.status !== 128) throw error;
+    return fs.readFileSync(path.join(repoRoot, pathname), 'utf8');
+  }
+}
+
+function readRequiredIndex(pathname) {
+  try {
+    return execFileSync('git', ['show', `:${pathname}`], { cwd: repoRoot, encoding: 'utf8' });
+  } catch {
+    throw new Error(`${pathname} must be staged with the homepage changes. Run task docs:sync, then stage the generated files.`);
+  }
+}
+
+function checkDocuments(documents, readTarget) {
+  const mismatches = [];
+  for (const [pathname, expected] of [['DESIGN.md', documents.design], ['README.md', documents.readme]]) {
+    let actual;
+    try {
+      actual = readTarget(pathname);
+    } catch {
+      mismatches.push(pathname);
+      continue;
+    }
+    if (actual !== expected) mismatches.push(pathname);
+  }
+  if (mismatches.length) {
+    throw new Error(`Generated homepage documents are out of sync: ${mismatches.join(', ')}. Run task docs:sync, then stage the generated files.`);
+  }
+}
+
+function main() {
+  const { path: resolvedSourcePath, raw } = readSource();
+  const documents = renderDocuments(raw);
+  if (process.argv[2] === '--check-index') {
+    const stagedSource = readIndex(path.relative(repoRoot, resolvedSourcePath));
+    checkDocuments(renderDocuments(stagedSource), readRequiredIndex);
+    return;
+  }
+  if (process.argv[2] === '--check') {
+    checkDocuments(documents, (pathname) => fs.readFileSync(path.join(repoRoot, pathname), 'utf8'));
+    return;
+  }
+  fs.writeFileSync(targetDesignPath, documents.design, 'utf8');
+  console.log(`Successfully synced ${targetDesignPath} from ${path.relative(repoRoot, resolvedSourcePath)}`);
+  fs.writeFileSync(targetReadmePath, documents.readme, 'utf8');
+  console.log(`Successfully synced ${targetReadmePath} from ${path.relative(repoRoot, resolvedSourcePath)}`);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+}

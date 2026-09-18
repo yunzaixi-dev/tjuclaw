@@ -14,7 +14,10 @@ It is not a chatbot shell, a generic RAG app, or a Pi UI wrapper.
 
 This private integration repo (`tjuclaw`) pins Git submodules and owns Docs, ops,
 and combination checks. GitHub is the development authority; GitLab is a one-way
-competition mirror. Current implemented slice: same-origin email OTP or password auth
+competition mirror. Root-owned integration files use Apache-2.0. The `frontend/`
+and `cli/` submodules use GPL-3.0-only; `backend/` and `crawler/` remain proprietary
+and unlicensed for public use. Never claim the root license covers submodule code.
+Current implemented slice: same-origin email OTP or password auth
 (password still requires a verified email), knowledge workspace after login
 (`/api/libraries|entries|sessions|account/model`, publish/subscribe/market, local file
 blobs, note search), draft task save, and public-course CLI. Agent execution, WeKnora
@@ -42,9 +45,9 @@ Browser / Tauri WebView
       → optional PostgreSQL task/run/library stores
 
 
-Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / 对象存储 archive
-  campus sources on the CN Compose host; Microsoft/OneDrive on managed-region Talos
-  writing the same 对象存储 bucket; private library ACL stays in the Go API
+Public crawler (Bun + dedicated PostgreSQL) → RSS / replay / object storage
+  campus sources on managed Compose hosts; private library ACL stays in the Go API
+  object storage access remains separate from identity and product API credentials
 
 WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
   loopback UI :18180 and app :18181; Pi uses WEKNORA_BASE_URL + X-API-Key
@@ -65,10 +68,9 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 - Never auto-link existing accounts by email. Keep the old identity database until
   the Kratos OTP cutover is verified.
 - Crawler owns configured public sources only. Never share a crawler database with
-  identity, product API, WeKnora, or another regional crawler. One process crawls
-  one source at a time; run Microsoft attachments on managed-region instead of opening a
-  second source on the CN box. `task ops:crawler:deploy` is campus Compose only.
-  The external crawler is a Flux app in `agentwego/infra`, not an Ansible host.
+  identity, product API, WeKnora, or another crawler. One process crawls one source
+  at a time; attachment processing follows its configured network and storage path.
+  `task ops:crawler:deploy` manages the crawler service through its approved runtime.
 - WeKnora is the knowledge engine. Never share its database with Kratos, the
   crawler, or the product API. Do not merge WeKnora users with product identities.
   Do not enable its Docker sandbox or publish its UI.
@@ -83,9 +85,9 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 | `frontend/src/` | Shared Web/native UI: `auth.tsx`, `workspace.tsx`, `product.tsx` |
 | `frontend/src/components/ui/` | Owned shadcn-style primitives (`button`, `dialog`, `otp-input`) |
 | `frontend/src-tauri/` | Tauri v2 host, CSP, native packaging |
-| `backend/` | Private submodule `tjuclaw-server`. `cmd/api` composition; `internal/auth`, `internal/task`, `internal/run`, `internal/library` |
-| `cli/` | Private submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
-| `crawler/` | Private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
+| `backend/` | Proprietary private submodule `tjuclaw-server`. `cmd/api` composition; `internal/auth`, `internal/task`, `internal/run`, `internal/library` |
+| `cli/` | Public GPL-3.0-only submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
+| `crawler/` | Proprietary private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
 | `docs/` | Next.js 16 + Fumadocs; content in `docs/content/docs/` |
 | `draw/` | Static Excalidraw board for EdgeOne (`excalidraw.tjuclaw.cloud`); own lockfile |
 | `ops/` | Auth compose, Ansible, CI notes. Inventories stay in ignored `ops/local/` |

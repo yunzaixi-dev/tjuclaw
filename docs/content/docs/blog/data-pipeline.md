@@ -6,8 +6,6 @@ description: 从校园公开 HTML、PDF 与课件，到可检索、可引用、�
 
 # 《数据的复杂采集、脱敏、归一与向量化》
 
-![TJUClaw 数据采集、存储、脱敏、归一、向量化与检索全链路架构图](./images/data-pipeline-architecture.webp)
-
 做一个校园知识库，最容易产生的错觉，是认为问题可以被简化成：
 
 ```text
@@ -355,7 +353,7 @@ zhangsan@example.edu.cn
 
 所以文档归一以后还会进行第二次脱敏。
 
-这一层使用 DeepSeek V4.1 Flash，但它受到非常窄的任务约束：
+这一层只使用受控的语义脱敏步骤。Qwen3.8-Flash 负责文档结构修复与 Markdown 整理，但不自行决定删除姓名或判定敏感性：
 
 > 只判断姓名是否与邮箱、电话、学号等个人标识共同出现。
 
@@ -434,11 +432,19 @@ ready 原件
                 └──────────────→ 同上
 ```
 
+![PaddleOCR 文档解析项目页](./images/model-paddleocr.webp)
+
+*图：PaddleOCR GitHub 项目页；扫描 PDF 与图片先由 PaddleOCR 负责视觉文字识别，再进入后续的脱敏与 Markdown 归一化。*
+
 转换完成以后再进行第二轮脱敏。
 
 只有两类对象才会进入生成式处理：结构明显损坏的 Markdown，以及规则认为需要语境补全的文本。其余干净公文直接成为 Canonical，不经过模型。
 
-需要模型时，也不是在 crawler 进程里直接对话。调度器按对象哈希，把已经抽出的文本放入隔离执行环境的 `/workspace/inputs/`，由一份 **不包含校园 CLI** 的 $\pi$ 预设调用 DeepSeek V4.1 Flash；结束后只收集 `/workspace/outputs/`，再按同一哈希写回 Canonical。采集进程不持有产品登录态。这些产出进入公开知识库，而不进入某个用户的私人笔记。
+需要模型时，也不是在 crawler 进程里直接对话。调度器按对象哈希，把已经抽出的文本放入隔离执行环境的 `/workspace/inputs/`，由一份 **不包含校园 CLI** 的 Pi 预设调用 Qwen3.8-Flash；结束后只收集 `/workspace/outputs/`，再按同一哈希写回 Canonical。采集进程不持有产品登录态。这些产出进入公开知识库，而不进入某个用户的私人笔记。
+
+![Qwen3.8-Flash 模型选择页面](./images/model-qwen3.8-flash.webp)
+
+*图：文档结构修复与派生 Markdown 整理使用 Qwen3.8-Flash。*
 
 例如：
 
@@ -595,6 +601,41 @@ SHA-256 是我们已经拥有的事实。
 
 > 把这段已经整理好的知识映射到语义空间。
 
+## 模型组合：整理、向量化与重排各司其职
+
+我们不让一个模型承担整个知识管道。不同阶段的错误类型、吞吐要求和可验证方式不同，因此采用明确分工：
+
+| 阶段 | 组件 | 职责 |
+| --- | --- | --- |
+| 文档解析 | PaddleOCR | 从扫描 PDF 和图片中恢复文字与版面信息 |
+| 文档整理 | Qwen3.8-Flash (`qwen3.8-flash`) | 修复损坏结构、整理 Markdown、抽取文档元数据 |
+| 向量化 | Qwen3.7 通用文本向量 (`qwen3.7-text-embedding`) | 将 Canonical Markdown 的 chunk 映射为 1024 维向量 |
+| 候选重排 | Qwen3.7 通用文本重排序 (`qwen3.7-text-rerank`) | 对向量召回的候选进行二阶段排序 |
+
+![Qwen3.7 通用文本向量模型选择页面](./images/model-qwen3.7-embedding.webp)
+
+*图：Qwen3.7 文本向量模型支持自定义维度；当前选择 1024 维。*
+
+Embedding 维度固定为 1024。它在检索质量、向量存储和索引开销之间取得平衡；更换模型或维度时，必须重建对应的 WeKnora 索引，不能把不同向量空间混在同一个集合中。
+
+![Qwen3.7 通用文本重排序模型选择页面](./images/model-qwen3.7-rerank.webp)
+
+*图：Qwen3.7 文本重排序模型只处理向量召回后的有限候选，不参与全库初筛。*
+
+检索链路保持简单：
+
+```text
+用户问题
+    ↓
+Qwen3.7-text-embedding
+    ↓
+向量召回候选
+    ↓
+Qwen3.7-text-rerank
+    ↓
+交给 Agent 的最终上下文
+```
+
 ---
 
 ## 一个公开知识库，而不是几十个学院知识库
@@ -657,7 +698,7 @@ asset_sha256
 
 最终，这套知识库主要不是为了让人打开一个搜索框。
 
-真正的消费者是 Agent。面向用户的 $\pi$ 会话与流水线清洗使用同一套 DeepSeek V4.1 Flash，但提示词不同：用户侧可以调用 `tjucli`；清洗预设里不出现校园工具。
+真正的消费者是 Agent。面向用户的 Pi 会话使用 DeepSeek-V4.1-Flash 作为主模型；流水线清洗则使用 Qwen3.8-Flash，二者提示词和权限边界完全不同。用户侧可以调用 `tjucli`，清洗预设里不出现校园工具。
 
 在沙箱里，面向用户的 $\pi$ 可以执行：
 

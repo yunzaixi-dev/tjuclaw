@@ -7,6 +7,7 @@ import { parse } from 'yaml';
 import { prependToolPath } from '../frontend/scripts/native-env.mjs';
 import { isReusableKratosDevState } from './auth-test-stack.mjs';
 
+import { renderDocuments } from './generate-design-doc.mjs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('hosted CI retains every build and mandatory regression with bounded artifacts', () => {
@@ -193,4 +194,13 @@ test('task dev starts the Web client only after the Kratos API is ready', () => 
   assert.match(read('scripts/auth-test-stack.mjs'), /NEWAPI_BASE_URL/);
 
   assert.equal(tasks['api:dev'].cmds[0], 'go run github.com/air-verse/air@v1.67.4 -c .air.toml');
+});
+
+test('homepage source stays synchronized with generated README and DESIGN documents', () => {
+  const source = read('docs/content/docs/index.md');
+  const generated = renderDocuments(source);
+  assert.equal(generated.readme, read('README.md'));
+  assert.equal(generated.design, read('DESIGN.md'));
+  assert.match(read('.githooks/pre-commit'), /generate-design-doc\.mjs --check-index/);
+  assert.match(read('Taskfile.yml'), /docs:check-sync/);
 });

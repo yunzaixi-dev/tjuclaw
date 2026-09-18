@@ -109,3 +109,46 @@ Observation
 简而言之，我们寻找的并非一个“用于搭建 Agent 应用的重量级框架”，而是一个“能直接嵌入并作为 TJUClaw 内核的 Agent Harness”。
 
 基于这一核心诉求，在广泛评估了大量 Coding Agent、Agent Framework 与 Harness 开源实现后，我们最终选择了 **Pi**。
+
+---
+
+## 5. 为什么主模型选择 DeepSeek
+
+Pi 负责 Agent 的执行控制流，但它不决定模型如何理解目标、规划步骤、选择工具，以及如何根据工具输出修正下一步。对 TJUClaw 来说，主模型必须服务于一个真实的执行循环，而不只是生成一段流畅的回答。
+
+我们当前选择 `deepseek-v4-flash`，对应 DeepSeek-V4.1-Flash。截图中的模型信息显示，它同时提供思考与非思考模式、1M 上下文、JSON 输出和 Tool Calls，能够通过 OpenAI-compatible API 接入现有的模型网关。这些能力与 Pi 的 `Model → Agent Loop → Tool Call → Observation` 闭环直接相关。
+
+![DeepSeek 模型与 API 能力](./images/model-deepseek-v4.webp)
+
+*图：DeepSeek API 文档中的模型细节表；当前主模型使用 `deepseek-v4-flash`。*
+
+主模型的选择标准不是单轮问答排行榜，而是执行任务时的综合表现：
+
+1. 能否稳定生成工具调用及其参数；
+2. 能否在多轮 Observation 后修正计划，而不是继续猜测；
+3. 能否处理中文校园语境、文件内容和代码/命令结果；
+4. 能否在较长上下文中保持任务目标、权限边界和来源信息；
+5. 能否通过标准 API 稳定接入，并在失败时返回可记录、可重试的错误。
+
+因此，DeepSeek 是 TJUClaw 的**主执行模型**，但不是所有阶段的唯一模型：
+
+```text
+DeepSeek-V4.1-Flash
+    → Pi Agent 的规划、工具调用与最终回答
+
+Qwen3.8-Flash
+    → 文档结构修复与派生 Markdown 整理
+
+Qwen3.7-text-embedding / 1024 维
+    → WeKnora 向量索引
+
+Qwen3.7-text-rerank
+    → 向量召回后的候选重排
+
+PaddleOCR
+    → 扫描 PDF 与图片的文字和版面解析
+```
+
+这是一种职责分离，而不是模型堆叠。主模型关注行动与交付，文档模型关注归一化，向量模型关注语义表示，重排模型关注候选排序。这样更容易分别评估每个环节，也避免为了检索或 OCR 更换模型时影响 Agent 的执行行为。
+
+DeepSeek 的具体快照、模型网关路由和评测结果需要随部署记录保存。模型升级后，应重新检查工具调用正确率、任务完成率、P95 延迟和单任务成本，不能仅因为模型名称相同就假设行为完全不变。

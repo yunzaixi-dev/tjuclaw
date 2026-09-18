@@ -65,19 +65,30 @@ test('real hooks reject bad commits and forced private staging without touching 
     run(['init', '-b', 'main']);
     run(['config', 'user.name', 'Policy Test']);
     run(['config', 'user.email', 'policy@example.invalid']);
-    for (const dir of ['scripts', '.githooks']) mkdirSync(join(root, dir));
-    for (const path of ['scripts/git-policy.mjs', 'scripts/setup-git.mjs', '.githooks/pre-commit', '.githooks/commit-msg']) {
+    for (const dir of ['scripts', '.githooks', 'docs/content/docs']) mkdirSync(join(root, dir), { recursive: true });
+    for (const path of ['scripts/git-policy.mjs', 'scripts/setup-git.mjs', 'scripts/generate-design-doc.mjs', '.githooks/pre-commit', '.githooks/commit-msg']) {
       copyFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), join(root, path));
     }
+    writeFileSync(join(root, 'docs/content/docs/index.md'), '# Fixture homepage\n');
+    execFileSync(process.execPath, ['scripts/generate-design-doc.mjs'], { cwd: root, env });
     execFileSync(process.execPath, ['scripts/setup-git.mjs'], { cwd: root, env });
     writeFileSync(join(root, 'package.json'), '{"version":"0.0.25"}\n');
-    run(['add', 'package.json', 'scripts', '.githooks']);
+    run(['add', 'package.json', 'scripts', '.githooks', 'docs', 'README.md', 'DESIGN.md']);
     writeFileSync(join(root, 'package.json'), '{"version":"0.0.26"}\n');
     assert.notEqual(commit('\u{1F527} [v0.0.26] chore: wrong staged version').status, 0);
     const first = commit('\u{1F527} [v0.0.25] chore: initial');
     assert.equal(first.status, 0, first.stderr);
     run(['add', 'package.json']);
     assert.notEqual(commit('bad title').status, 0);
+    writeFileSync(join(root, 'docs/content/docs/index.md'), '# Changed homepage\n');
+    run(['add', 'docs/content/docs/index.md']);
+    const unsynced = commit('\u{1F527} [v0.0.26] chore: homepage');
+    assert.notEqual(unsynced.status, 0);
+    assert.match(unsynced.stderr, /Generated homepage documents are out of sync/);
+    execFileSync(process.execPath, ['scripts/generate-design-doc.mjs'], { cwd: root, env });
+    run(['add', 'README.md', 'DESIGN.md']);
+    const synced = commit('\u{1F527} [v0.0.26] chore: homepage');
+    assert.equal(synced.status, 0, synced.stderr);
     mkdirSync(join(root, 'research'));
     writeFileSync(join(root, 'research', 'private.md'), 'private fixture\n');
     writeFileSync(join(root, '.gitignore'), '/research/\n');

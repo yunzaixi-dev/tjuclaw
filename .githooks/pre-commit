@@ -1,2 +1,3 @@
 #!/bin/sh
+node scripts/generate-design-doc.mjs --check-index || exit $?
 exec node scripts/git-policy.mjs check-index

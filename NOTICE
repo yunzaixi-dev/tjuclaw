@@ -1,0 +1,26 @@
+TJUClaw root integration materials
+
+Copyright (C) 2026 TJUClaw contributors
+
+Repository: https://github.com/yunzaixi-dev/tjuclaw
+
+## Code and integration materials
+
+The Apache License, Version 2.0 in LICENSE applies to files owned by this root integration repository, including the root orchestration, CI, operations, and tooling files, unless a file or directory states otherwise.
+
+## Documentation and promotional materials
+
+TJUClaw-owned documentation, architecture diagrams, and promotional materials in the root repository are additionally available under the Creative Commons Attribution 4.0 International License. The complete terms are in LICENSE-DOCS. Attribution should name TJUClaw and link to https://github.com/yunzaixi-dev/tjuclaw.
+
+The organizing committee of the same competition may copy, modify, reproduce, submit, publicly display, and use these TJUClaw-owned materials for competition-related work, publicity, submissions, and showcases without requesting additional permission, provided that the attribution requirement is retained. This permission does not license third-party screenshots, logos, trademarks, fonts, dependencies, or private component source code.
+
+## Git submodules
+
+The Git submodules are separate works with independent licensing:
+
+- frontend/ (tjuclaw-client): GPL-3.0-only — https://github.com/yunzaixi-dev/tjuclaw-client
+- cli/ (tjucli): GPL-3.0-only — https://github.com/yunzaixi-dev/tjucli
+- backend/ (tjuclaw-server): proprietary; no public license — https://github.com/yunzaixi-dev/tjuclaw-server
+- crawler/ (tjuclaw-crawler): proprietary; no public license — https://github.com/yunzaixi-dev/tjuclaw-crawler
+
+The root Apache-2.0 license does not grant permission to copy, modify, distribute, or deploy the contents of proprietary submodules, and it does not replace the GPL license in the GPL-licensed submodules. Third-party dependencies retain their own licenses.

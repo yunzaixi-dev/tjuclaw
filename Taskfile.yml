@@ -112,6 +112,9 @@ tasks:
   docs:sync:
     desc: Sync docs homepage to DESIGN.md and README.md
     cmds: [node scripts/generate-design-doc.mjs]
+  docs:check-sync:
+    desc: Verify README.md and DESIGN.md match the docs homepage
+    cmds: [node scripts/generate-design-doc.mjs --check]
   docs:webp:
     desc: Automatically convert images in docs and screenshots to WebP format and update markdown references
     cmds: [node scripts/convert-docs-webp.mjs]
@@ -338,6 +341,7 @@ tasks:
       - task: lint
       - task: types
       - task: test
+      - task: docs:check-sync
       - task: git:check
   build:
     desc: Build Web, docs and API (native builds have separate targets)
