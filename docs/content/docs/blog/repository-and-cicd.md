@@ -1,6 +1,6 @@
 ---
 title: 《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》
-description: 多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深度解析 TJUClaw 从 Git 子模块拓扑到 GitHub Actions 持续集成的交付工程实践。
+description: 多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深度解析 TJUClaw 从 Git 子模块拓扑到持续集成流水线的交付工程实践。
 ---
 
 # 《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》
@@ -67,9 +67,9 @@ TJUClaw 由一个主集成仓库与四个核心组件仓库协同构成。每个
 
 ---
 
-## 3. GitHub Actions 持续集成体系 (CI)
+## 3. 持续集成体系 (CI)
 
-整个 CI 流水线基于 GitHub-hosted runner 构建，依托根目录统一的 `Taskfile.yml`（在 Agent 会话中统一使用 `rtk task` 执行），将复杂的跨语言检查规整为确定性的入口：
+整个 CI 流水线基于托管构建机运行，依托根目录统一的 `Taskfile.yml`（在 Agent 会话中统一使用 `rtk task` 执行），将复杂的跨语言检查规整为确定性的入口：
 
 ```text
 Commit Push (release / dev / tag)

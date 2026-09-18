@@ -328,7 +328,7 @@ const isPng =
 
 ```text
 Private Key
-GitHub Token
+代码托管令牌
 AWS 风格密钥
 password=...
 密码: ...

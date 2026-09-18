@@ -1,4 +1,5 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
+import { SiteBanner } from '@/components/SiteBanner';
 import './global.css';
 import 'katex/dist/katex.min.css';
 import { Geist, Geist_Mono } from 'next/font/google';
@@ -41,6 +42,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
             },
           }}
         >
+          <SiteBanner />
           {children}
         </RootProvider>
       </body>

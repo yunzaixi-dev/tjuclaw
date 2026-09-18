@@ -25,9 +25,9 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 
 ## 模块划分与仓库矩阵
 
-> **主要仓库说明**：TJUClaw 的主要开发仓库托管于 GitHub。由于全平台自动化构建、跨端编译矩阵（Linux / Windows / Android）以及多项前沿集成测试强依赖 GitHub Actions 提供的 CI/CD 算力支持，如需检出最新完整源码、追踪流水线状态或提交 Issue / PR，请直接访问 GitHub 对应仓库。
+> **主要仓库说明**：TJUClaw 的主要开发仓库公开可访问。全平台自动化构建、跨端编译矩阵（Linux / Windows / Android）以及多项集成测试由持续集成流水线完成。如需检出最新完整源码、追踪流水线状态或提交 Issue / PR，请通过下表仓库地址访问。
 
-| 仓库 / 模块 | 访问级别 | GitHub 仓库地址 | 技术栈 | 职责与说明 | 本地路径 |
+| 仓库 / 模块 | 访问级别 | 仓库地址 | 技术栈 | 职责与说明 | 本地路径 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **tjuclaw** | 开源 | [yunzaixi-dev/tjuclaw](https://github.com/yunzaixi-dev/tjuclaw) | TypeScript · Next.js 16.3 · Fumadocs | **总集成仓与文档**<br />包含 Taskfile 统一指令、文档站与 Ansible 部署配置 | 根目录 (`.`) |
 | **tjuclaw-client** | 开源 | [yunzaixi-dev/tjuclaw-client](https://github.com/yunzaixi-dev/tjuclaw-client) | TypeScript · React 19 · Tauri v2 | **多端客户端**<br />构建 Web 端及 Windows、Linux、Android 客户端 | `frontend/` |
@@ -72,4 +72,4 @@ TJUClaw 涵盖了客户端跨端、网关会话、沙箱调度、知识检索与
 4. [《智能体的代码执行、文件系统，与隔离沙箱》](./blog/code-execution-and-sandbox.md)：深入解析 TJUClaw 在 Go 业务 API 网关、腾讯云微隔离执行沙箱与 Agent 运行时架构中的核心设计与工程落地。
 5. [《为什么我们把 Agent 的能力做成 CLI：tjucli 的设计》](./blog/why-cli-as-agent-tool.md)：反思复杂 MCP 与臃肿 RPC 框架的过度封装，深度解析为什么我们将智能体的所有校园能力收敛为 Unix 哲学标准的确定性 CLI。
 6. [《跨平台智能体客户端的实现：Web、桌面端与移动端》](./blog/cross-platform-clients.md)：一套代码全端运行——深入剖析基于 React 19、Tailwind CSS 4 与 Tauri v2 的多端客户端架构设计、OKLCH 视觉系统与安全会话流。
-7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深入剖析 TJUClaw 从 Git 子模块拓扑到 GitHub Actions 的交付实践。
+7. [《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》](./blog/repository-and-cicd.md)：多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深入剖析 TJUClaw 从 Git 子模块拓扑到持续集成流水线的交付实践。

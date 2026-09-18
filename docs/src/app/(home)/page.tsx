@@ -10,7 +10,7 @@ const chapters = [
 const repositories = [
   {
     name: 'tjuclaw',
-    status: 'GitHub 开源',
+    status: '开源',
     lang: 'TypeScript (Node >=22) · Next.js 16.3',
     scope: '工程集成 / 文档 / 云边运维',
     desc: '系统总体集成仓库，包含 Next.js 16 静态文档站、Ansible 部署声明与 Taskfile 统一指令。',
@@ -19,7 +19,7 @@ const repositories = [
   },
   {
     name: 'tjuclaw-client',
-    status: 'GitHub 开源',
+    status: '开源',
     lang: 'TypeScript · React 19.2 · Tauri v2 (Rust 1.97)',
     scope: '多端客户端 / 工作空间',
     desc: '基于 React 19 + Vite + Tauri 构建，覆盖 Web (EdgeOne)、Windows、Linux 与 Android。',
@@ -28,7 +28,7 @@ const repositories = [
   },
   {
     name: 'tjuclaw-server',
-    status: 'GitHub 开源',
+    status: '开源',
     lang: 'Go 1.27.0',
     scope: '核心后端 API / 存储 / 认证网关',
     desc: '基于 Go 1.27 构建，提供同源会话认证、任务记录与工作空间管理 API。',
@@ -37,7 +37,7 @@ const repositories = [
   },
   {
     name: 'tjucli',
-    status: 'GitHub 开源',
+    status: '开源',
     lang: 'Go 1.27.0',
     scope: '校园能力 CLI / Tool Server',
     desc: '独立自包含的 Go 工具管道与标准服务，将真实校园服务抽象为智能体确定性执行指令。',
@@ -46,7 +46,7 @@ const repositories = [
   },
   {
     name: 'tjuclaw-crawler',
-    status: 'GitHub 开源',
+    status: '开源',
     lang: 'TypeScript · Bun 1.3 · PostgreSQL',
     scope: '校园情报摄取 / RSS 管道',
     desc: '基于轻量 Bun 运行时构建的高性能情报采集与重放服务，统一汇聚至 PostgreSQL，持续输出标准化校园动态与资料库事件流。',
@@ -200,7 +200,7 @@ export default function HomePage() {
         <div className="wiki-section-title">
           <h2>开源代码矩阵与模块划分。</h2>
           <p>
-            TJUClaw 的主要代码仓库托管于 GitHub。由于平台自动化构建流水线与跨端多平台打包深度依赖 GitHub Actions 提供的 CI/CD 算力支持，完整源码与最新开发动态请直接访问 GitHub。
+            TJUClaw 的主要代码仓库公开可访问。完整源码、流水线状态与最新开发动态请通过下方仓库入口查看。
           </p>
         </div>
         <div className="wiki-repos-grid">

@@ -97,20 +97,16 @@ export function SiteFooter({
               </a>
             )}
 
-            {policeNumber && (
-              <>
-                <span className="wiki-footer-sep">|</span>
-                <a
-                  href={policeUrl || 'https://www.beian.gov.cn/'}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="wiki-footer-police-link"
-                >
-                  <span className="wiki-footer-police-icon" aria-hidden="true" />
-                  {policeNumber}
-                </a>
-              </>
-            )}
+            <a
+              href={policeUrl || 'https://www.beian.gov.cn/'}
+              target="_blank"
+              rel="noreferrer"
+              className="wiki-footer-police-link"
+              aria-label={policeNumber || '公安备案'}
+            >
+              <img src="/images/gongan.png" alt="" width={16} height={16} />
+              {policeNumber}
+            </a>
           </div>
         </div>
       </div>

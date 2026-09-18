@@ -767,6 +767,19 @@ html > body[data-scroll-locked] {
   }
 }
 
+
+#tjuclaw-contest-2026 {
+  background-image: repeating-linear-gradient(
+    35deg,
+    #f4ddff 0px,
+    #f4ddff 30px,
+    #ffe9c7 30px,
+    #ffe9c7 60px
+  );
+  color: #000;
+  border: 0;
+}
+
 /* Site Footer */
 .wiki-footer {
   border-top: 1px solid var(--wiki-line);
@@ -935,6 +948,12 @@ html > body[data-scroll-locked] {
   color: var(--wiki-muted);
   text-decoration: none;
   transition: color 150ms ease;
+}
+
+.wiki-footer-police-link img {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .wiki-footer-police-link:hover {
