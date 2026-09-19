@@ -39,7 +39,7 @@ export function SiteFooter({
             <ul className="wiki-footer-links">
               <li><Link href="/">平台首页</Link></li>
               <li><Link href="/docs">平台设计与概览</Link></li>
-              <li><Link href="/docs/quickstart">快速开始</Link></li>
+              <li><Link href="/docs/guide">产品使用指南</Link></li>
               <li><Link href="/docs/about">关于我们</Link></li>
               <li><Link href="/docs/terms">用户协议</Link></li>
               <li><Link href="/docs/privacy">隐私政策</Link></li>

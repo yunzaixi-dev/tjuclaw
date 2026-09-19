@@ -2,6 +2,7 @@
   "title": "TJUClaw 2026",
   "pages": [
     "index",
+    "guide",
     "quickstart",
     "---技术博客---",
     "blog/data-pipeline",

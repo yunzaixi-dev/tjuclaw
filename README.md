@@ -13,13 +13,13 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 
 可以通过以下方式直接体验平台功能：
 
-- **Web 端**：访问 [https://tjuclaw.cloud/](https://tjuclaw.cloud/)，直接使用工作台创建和管理任务；
+- **Web 端**：访问 [https://app.tjuclaw.cloud/](https://app.tjuclaw.cloud/)，登录后使用知识库、笔记、智能体和市场；
 - **原生客户端**：可在首页获取对应平台的安装包：
   - **Windows**: 64 位安装程序（`.exe`）
   - **Linux**: Debian / Ubuntu 软件包（`.deb`）
   - **Android**: 安装包（`.apk`）
 
-> 本地源码调试与完整开发环境搭建步骤，请参考：[快速开始指南 (Quickstart)](https://tjuclaw.cloud/docs/quickstart)。
+> 第一次使用请先阅读[产品使用指南](/docs/guide)；本地源码调试与完整开发环境搭建步骤见[开发环境与本地验证](/docs/quickstart)。
 
 ---
 

@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import Link from 'next/link';
 
 const chapters = [
-  ['01', '快速开始', '安装、启动和第一次本地验证。', '/docs/quickstart'],
+  ['01', '使用指南', '登录、整理资料、使用智能体与共享知识库。', '/docs/guide'],
   ['02', '平台架构', '了解 TJUClaw 系统核心设计原则。', '/docs'],
   ['03', '技术博客', '深入解析多源数据复杂采集、脱敏与向量化。', '/docs/blog/data-pipeline'],
 ];
