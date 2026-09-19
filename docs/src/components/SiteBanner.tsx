@@ -21,7 +21,7 @@ export function SiteBanner() {
           rel="noreferrer"
           className="font-mono text-[15px] font-black tracking-wide text-black underline decoration-2 underline-offset-2"
         >
-          🎉 此作品正在参加天津大学智能体大赛 2026，希望大家能投我们一票，感谢 🥳
+          <span className="tjuclaw-banner-copy">🎉 此作品正在参加天津大学智能体大赛 2026，希望大家能投我们一票，感谢 🥳</span>
         </a>
       </div>
     </Banner>

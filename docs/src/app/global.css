@@ -62,33 +62,34 @@ html > body[data-scroll-locked] {
   position: relative;
   isolation: isolate;
   color: var(--wiki-ink);
-  background:
-    linear-gradient(90deg, rgb(21 23 25 / 0.045) 1px, transparent 1px),
-    linear-gradient(rgb(21 23 25 / 0.045) 1px, transparent 1px),
-    var(--wiki-paper);
-  background-size: 44px 44px;
+  background: var(--wiki-paper);
   min-height: calc(100dvh - 64px);
 }
 
 .dark .wiki-home,
 :root:not(.light) .wiki-home {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -15%, rgb(51 136 255 / 0.12), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 90% 30%, rgb(0 51 102 / 0.25), transparent 60%),
-    linear-gradient(180deg, rgba(20, 24, 25, 0.75) 0%, rgba(14, 17, 18, 0.95) 100%),
-    linear-gradient(90deg, rgb(255 255 255 / 0.032) 1px, transparent 1px),
-    linear-gradient(rgb(255 255 255 / 0.032) 1px, transparent 1px),
-    var(--wiki-paper);
-  background-size: auto, auto, auto, 48px 48px, 48px 48px, auto;
+  background: var(--wiki-paper);
 }
 
 .wiki-hero {
+  position: relative;
   display: block;
+  overflow: hidden;
   max-width: none;
   min-height: calc(100dvh - 64px);
   margin: 0 auto;
   padding: clamp(4rem, 8vw, 7rem) clamp(1.25rem, 5vw, 5rem);
+  background-image: url('/home-bg-light.webp');
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
+
+.dark .wiki-hero,
+:root:not(.light) .wiki-hero {
+  background-image: url('/home-bg-dark.webp');
+}
+
 
 .wiki-kicker,
 .wiki-stack-heading,
@@ -165,23 +166,25 @@ html > body[data-scroll-locked] {
   padding: 0 1.15rem;
   border: 1px solid var(--wiki-ink);
   font-weight: 650;
-  transition: transform 160ms ease, background 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
 }
-
 .wiki-primary {
   color: var(--wiki-paper);
-  background: var(--wiki-ink);
+  background: color-mix(in srgb, var(--wiki-ink) 78%, transparent);
+  border-color: color-mix(in srgb, var(--wiki-paper) 48%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
+}
+
+.wiki-primary:hover {
+  color: var(--wiki-paper);
+  background: color-mix(in srgb, var(--wiki-accent) 72%, var(--wiki-ink));
+  border-color: color-mix(in srgb, var(--wiki-paper) 68%, transparent);
 }
 
 .wiki-secondary {
   color: var(--wiki-ink);
   background: color-mix(in srgb, var(--wiki-paper) 88%, var(--wiki-ink));
-}
-
-.wiki-primary:hover {
-  color: var(--wiki-paper);
-  background: color-mix(in srgb, var(--wiki-ink) 90%, var(--wiki-paper));
-  border-color: var(--wiki-ink);
 }
 
 .wiki-secondary:hover {
@@ -453,19 +456,34 @@ html > body[data-scroll-locked] {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-block: 1px solid var(--wiki-line);
-  background: var(--wiki-ink);
-  color: var(--wiki-paper);
+  background: color-mix(in srgb, var(--wiki-paper) 94%, var(--wiki-accent));
+  color: var(--wiki-ink);
+}
+.wiki-facts div {
+  min-height: 190px;
+  padding: 2rem clamp(1.25rem, 3vw, 3rem);
+  border-right: 1px solid var(--wiki-line);
 }
 
-.dark .wiki-primary {
-  color: #0e1112;
-  background: var(--wiki-ink);
-  border-color: var(--wiki-ink);
+.wiki-facts div:last-child {
+  border-right: 0;
 }
 
-.dark .wiki-primary:hover {
-  background: #ffffff;
-  border-color: #ffffff;
+.wiki-facts span,
+.wiki-facts p {
+  color: var(--wiki-muted);
+}
+.dark .wiki-primary,
+:root:not(.light) .wiki-primary {
+  color: var(--wiki-ink);
+  background: color-mix(in srgb, var(--wiki-ink) 18%, transparent);
+  border-color: color-mix(in srgb, var(--wiki-ink) 46%, transparent);
+}
+
+.dark .wiki-primary:hover,
+:root:not(.light) .wiki-primary:hover {
+  background: color-mix(in srgb, var(--wiki-accent) 58%, var(--wiki-ink));
+  border-color: color-mix(in srgb, var(--wiki-ink) 68%, transparent);
 }
 
 .dark .wiki-secondary {
@@ -492,20 +510,6 @@ html > body[data-scroll-locked] {
   -webkit-backdrop-filter: blur(8px);
 }
 
-.wiki-facts div {
-  min-height: 190px;
-  padding: 2rem clamp(1.25rem, 3vw, 3rem);
-  border-right: 1px solid #404346;
-}
-
-.wiki-facts div:last-child {
-  border-right: 0;
-}
-
-.wiki-facts span,
-.wiki-facts p {
-  color: #aeb1ad;
-}
 
 .wiki-facts strong {
   display: block;
@@ -705,10 +709,10 @@ html > body[data-scroll-locked] {
   }
 
   .wiki-hero {
+    min-height: auto;
     gap: 4rem;
     padding-top: 4rem;
   }
-
   .wiki-hero h1 span { white-space: normal; overflow-wrap: anywhere; }
 
   .wiki-hero h1 {
@@ -727,7 +731,7 @@ html > body[data-scroll-locked] {
   .wiki-facts div {
     min-height: 150px;
     border-right: 0;
-    border-bottom: 1px solid #404346;
+    border-bottom: 1px solid var(--wiki-line);
   }
 
   .wiki-chapter {
@@ -1005,17 +1009,21 @@ html > body[data-scroll-locked] {
   }
 }
 
-/* 参赛横幅在窄屏会从一行折成三行，撑破 Fumadocs 固定的 2.25rem 高度，
-   首行被裁、末行压到顶栏上。这里让文案在 2 行内排完、正好落回原高度，
-   因此不必改 height，也就不必同步 --fd-banner-height。 */
+/* 横幅高度保持 2.25rem；窄屏只调整可用宽度与折行方式，文案稳定排成两行。 */
 @media (max-width: 767px) {
   #tjuclaw-contest-2026 {
     padding-inline: 2.5rem !important;
   }
 
   #tjuclaw-contest-2026 a {
+    display: block;
+    max-width: 100%;
     font-size: 12px;
+    font-weight: 900 !important;
     line-height: 1.3;
+    text-align: center;
+    text-wrap: balance;
+    white-space: normal;
   }
 }
 
