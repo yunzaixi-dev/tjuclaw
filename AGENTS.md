@@ -45,9 +45,9 @@ Browser / Tauri WebView
       → optional PostgreSQL task/run/library stores
 
 
-Public crawler (Bun + dedicated PostgreSQL) → RSS / replay / object storage
-  campus sources on managed Compose hosts; private library ACL stays in the Go API
-  object storage access remains separate from identity and product API credentials
+Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / R2 archive
+  campus sources on the CN Compose host; Microsoft/OneDrive on prod-sg Talos
+  writing the same R2 bucket; raw + Markdown snapshots mirror to private Forgejo repos
 
 WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
   loopback UI :18180 and app :18181; Pi uses WEKNORA_BASE_URL + X-API-Key
@@ -68,9 +68,11 @@ tjucli / tjucli-server → public course catalog (cs.tjuse.com)
 - Never auto-link existing accounts by email. Keep the old identity database until
   the Kratos OTP cutover is verified.
 - Crawler owns configured public sources only. Never share a crawler database with
-  identity, product API, WeKnora, or another crawler. One process crawls one source
-  at a time; attachment processing follows its configured network and storage path.
-  `task ops:crawler:deploy` manages the crawler service through its approved runtime.
+  identity, product API, WeKnora, or another regional crawler. One process crawls
+  one source at a time; run Microsoft attachments on prod-sg instead of opening a
+  second source on the CN box. Forgejo mirror workers share repositories across
+  regions through cursor-based commits; tokens stay in runtime secrets.
+  `task ops:crawler:deploy` is campus Compose only; overseas crawler is a Flux app.
 - WeKnora is the knowledge engine. Never share its database with Kratos, the
   crawler, or the product API. Do not merge WeKnora users with product identities.
   Do not enable its Docker sandbox or publish its UI.
@@ -195,7 +197,9 @@ CLI workspace; server never receives an output path.
 **Crawler.** One source at a time; `(source, cursor)` events; do not prune history
 during bootstrap. WeChat/Lake tokens from env only — never in source config or
 feeds. Dynamic lists stay `complete: false` so missing list items do not delete
-history.
+history. `src/git-sync.ts` snapshots raw JSON and derived Markdown separately;
+state lives under `.crawler/`, binary extensions use Git LFS, and both regional
+workers push the same private repositories with retry-on-race.
 
 ## Important Files
 
@@ -213,7 +217,7 @@ history.
 | `backend/internal/task/handler.go` | `/tasks` ownership |
 | `cli/cmd/tjucli/main.go`, `cli/cmd/tjucli-server/main.go` | CLI vs grant-gated tool server |
 | `cli/TJUCLI.md`, `cli/TOOL_SERVER.md` | Command and grant contracts |
-| `crawler/src/index.ts`, `crawler/src/app.ts` | Feed server + scheduler |
+| `crawler/src/index.ts`, `crawler/src/app.ts`, `crawler/src/git-sync.ts` | Feed server, scheduler, Forgejo mirror worker |
 | `ops/auth/README.md`, `ops/ci/README.md` | Auth policy; CI/release |
 | `ops/weknora/README.md` | Isolated WeKnora knowledge stack |
 | `docs/src/`, `docs/content/docs/` | Fumadocs app and reviewed content |
