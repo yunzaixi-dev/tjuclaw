@@ -6,7 +6,7 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: (
         <span className="docs-brand">
-          <img src="/tjuclaw-icon.png" alt="" width="28" height="28" />
+          <img src="/tjuclaw-icon.webp" alt="" width="28" height="28" />
           <span>{appName}</span>
         </span>
       ),

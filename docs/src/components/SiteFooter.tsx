@@ -21,7 +21,7 @@ export function SiteFooter({
         <div className="wiki-footer-grid">
           <div className="wiki-footer-brand">
             <div className="wiki-footer-logo">
-              <img src="/tjuclaw-icon.png" alt="TJUClaw Logo" width="28" height="28" />
+              <img src="/tjuclaw-icon.webp" alt="TJUClaw" width="28" height="28" />
               <strong>TJUClaw 2026</strong>
             </div>
             <p className="wiki-footer-tagline">

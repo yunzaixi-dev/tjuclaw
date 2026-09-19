@@ -35,6 +35,28 @@ tasks:
   web:build:
     desc: Build Web client
     cmds: [pnpm --dir frontend build]
+  icons:replace:
+    desc: Replace Web, Docs, and native icons from one transparent source image
+    requires:
+      vars: [SOURCE]
+    preconditions:
+      - sh: test -f "{{.SOURCE}}"
+        msg: 'Icon source does not exist: {{.SOURCE}}'
+    cmds:
+      - >-
+        ffmpeg -hide_banner -loglevel error -i "{{.SOURCE}}"
+        -vf "scale=480:480:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba"
+        -c:v libwebp -q:v 90 -compression_level 6 -y frontend/src/assets/brand-icon.webp
+      - >-
+        ffmpeg -hide_banner -loglevel error -i "{{.SOURCE}}"
+        -vf "scale=900:900:force_original_aspect_ratio=decrease:flags=lanczos,pad=1024:1024:(ow-iw)/2:(oh-ih)/2:color=black,format=rgb24"
+        -frames:v 1 -y frontend/app-icon.png
+      - >-
+        ffmpeg -hide_banner -loglevel error -i frontend/app-icon.png
+        -vf "scale=64:64:flags=lanczos" -frames:v 1 -y frontend/favicon.png
+      - task --dir frontend native:icons
+      - cp frontend/src/assets/brand-icon.webp docs/public/tjuclaw-icon.webp
+      - cp frontend/favicon.png docs/public/favicon.png
   web:preview:
     desc: Preview built Web client on loopback port 4173
     cmds: [pnpm --dir frontend preview]
@@ -354,8 +376,8 @@ tasks:
     desc: Inspect Tauri and native SDK requirements
     cmds: [pnpm --dir frontend tauri info]
   native:icons:
-    desc: Regenerate platform icons from the source SVG
-    cmds: [pnpm --dir frontend tauri icon app-icon.svg]
+    desc: Regenerate platform icons from the black-background app icon
+    cmds: [task --dir frontend native:icons]
   native:check:
     desc: Check native Rust code on the current host
     dir: frontend/src-tauri

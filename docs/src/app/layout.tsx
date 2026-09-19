@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: '%s | TJUClaw 2026',
   },
   icons: {
-    icon: '/tjuclaw-icon.svg',
+    icon: { url: '/favicon.png', type: 'image/png' },
   },
   description: '从单端口公网入口到嵌套虚拟化的 TJUClaw 工程手册。',
 };

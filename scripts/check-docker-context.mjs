@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const output = mkdtempSync(join(tmpdir(), 'tjuclaw-context-'));
 const allowed = new Set([
-  'frontend/package.json', 'frontend/index.html', 'frontend/app-icon.svg',
+  'frontend/package.json', 'frontend/index.html', 'frontend/app-icon.png', 'frontend/favicon.png',
   'frontend/tsconfig.json', 'frontend/vite.config.ts', 'frontend/audit-server.ts', 'frontend/pnpm-lock.yaml', 'frontend/pnpm-workspace.yaml',
   'ops/images/web.Dockerfile', 'ops/images/nginx.conf',
 ]);
