@@ -202,6 +202,8 @@ test('crawler_stack role preflight assertions, configuration rendering, and secr
     assert.ok(envAppGit.includes('CRAWLER_GIT_TOKEN=TEST_TOKEN'));
     assert.match(composeGit, /git-sync:/);
     assert.match(composeGit, /crawler_git_sync:\/data\/git-sync/);
+    assert.match(composeGit, /git-sync-init:/);
+    assert.match(composeGit, /condition: service_completed_successfully/);
 
     // 9. Sources file rollback verification
     // Modify sources file, then run playbook; verify sources.json is restored on rollback if backup was taken

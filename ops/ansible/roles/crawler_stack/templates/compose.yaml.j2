@@ -56,6 +56,22 @@ services:
         max-file: "{{ crawler_logging_max_file }}"
 
 {% if crawler_git_configured_count | default(0) | int == 4 %}
+  git-sync-init:
+    image: {{ crawler_image }}
+    container_name: {{ crawler_project_name }}-git-sync-init
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["sh", "-ec", "chown -R 1000:1000 /data/git-sync"]
+    volumes:
+      - crawler_git_sync:/data/git-sync
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+
   git-sync:
     image: {{ crawler_image }}
     container_name: {{ crawler_project_name }}-git-sync
@@ -72,6 +88,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      git-sync-init:
+        condition: service_completed_successfully
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m
