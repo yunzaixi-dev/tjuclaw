@@ -47,7 +47,7 @@ Browser / Tauri WebView
 
 Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / R2 archive
   campus sources on the CN Compose host; Microsoft/OneDrive on prod-sg Talos
-  writing the same R2 bucket; raw + Markdown snapshots mirror to private Forgejo repos
+  writing the same R2 bucket; raw JSON + original archives (Git LFS) and derived Markdown mirror to private Forgejo repos
 
 WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
   loopback UI :18180 and app :18181; Pi uses WEKNORA_BASE_URL + X-API-Key
