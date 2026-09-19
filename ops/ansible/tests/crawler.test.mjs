@@ -180,6 +180,29 @@ test('crawler_stack role preflight assertions, configuration rendering, and secr
     });
     assert.notEqual(hostsWithoutProxy.status, 0, 'Must reject overseas proxy hosts without a proxy URL');
 
+    const partialGitRun = runPlaybook({
+      ...baseVars,
+      crawler_git_raw_url: 'https://git.example/raw.git',
+    });
+    assert.notEqual(partialGitRun.status, 0, 'Partial Forgejo mirror configuration must fail preflight');
+
+    const fullGitRun = runPlaybook({
+      ...baseVars,
+      crawler_git_raw_url: 'https://git.example/raw.git',
+      crawler_git_markdown_url: 'https://git.example/markdown.git',
+      crawler_git_username: 'crawler-sync',
+      crawler_git_token: 'TEST_TOKEN',
+      crawler_git_region: 'cn',
+    });
+    assert.equal(fullGitRun.status, 0, fullGitRun.stdout + fullGitRun.stderr);
+    const envAppGit = readFileSync(envAppPath, 'utf8');
+    const composeGit = readFileSync(composePath, 'utf8');
+    assert.ok(envAppGit.includes('CRAWLER_GIT_RAW_URL=https://git.example/raw.git'));
+    assert.ok(envAppGit.includes('CRAWLER_GIT_MARKDOWN_URL=https://git.example/markdown.git'));
+    assert.ok(envAppGit.includes('CRAWLER_GIT_TOKEN=TEST_TOKEN'));
+    assert.match(composeGit, /git-sync:/);
+    assert.match(composeGit, /crawler_git_sync:\/data\/git-sync/);
+
     // 9. Sources file rollback verification
     // Modify sources file, then run playbook; verify sources.json is restored on rollback if backup was taken
     const updatedSources = [{ id: 'new-source', kind: 'course', url: 'https://example.invalid/2', allowedHosts: ['example.invalid'] }];

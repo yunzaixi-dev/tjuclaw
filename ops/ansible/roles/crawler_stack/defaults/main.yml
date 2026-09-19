@@ -42,6 +42,20 @@ crawler_s3_prefix: ""
 # HTTP CONNECT proxy for overseas attachment hosts (Microsoft OneDrive). Empty disables.
 crawler_overseas_proxy: ""
 crawler_overseas_proxy_hosts: ""
+# Optional crawler provider credentials.
+crawler_dajiala_key: ""
+crawler_wepeiyang_token: ""
+crawler_archive_public_base_url: ""
+
+# Optional Forgejo data mirrors (all-or-none).
+crawler_git_raw_url: ""
+crawler_git_markdown_url: ""
+crawler_git_username: ""
+crawler_git_token: ""
+crawler_git_region: "cn"
+crawler_git_sync_interval_seconds: 300
+crawler_git_sync_mem_limit: "384m"
+
 
 # Testing / simulation mode flag
 crawler_simulate: false

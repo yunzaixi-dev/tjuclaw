@@ -55,8 +55,43 @@ services:
         max-size: "{{ crawler_logging_max_size }}"
         max-file: "{{ crawler_logging_max_file }}"
 
+{% if crawler_git_configured_count | default(0) | int == 4 %}
+  git-sync:
+    image: {{ crawler_image }}
+    container_name: {{ crawler_project_name }}-git-sync
+    restart: unless-stopped
+    entrypoint: ["bun", "run", "src/git-sync.ts"]
+    env_file:
+      - .env.app
+    volumes:
+      - {{ crawler_base_dir }}/sources.json:/etc/crawler/sources.json:ro
+      - crawler_git_sync:/data/git-sync
+    networks:
+      - crawler_internal
+      - default
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    deploy:
+      resources:
+        limits:
+          memory: {{ crawler_git_sync_mem_limit }}
+          pids: 100
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ crawler_logging_max_size }}"
+        max-file: "{{ crawler_logging_max_file }}"
+{% endif %}
+
 volumes:
   crawler_pg_data:
+{% if crawler_git_configured_count | default(0) | int == 4 %}
+  crawler_git_sync:
+{% endif %}
 
 networks:
   crawler_internal:

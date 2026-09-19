@@ -76,6 +76,27 @@
       Incomplete S3/COS archive configuration. Either all 5 parameters (crawler_s3_endpoint,
       crawler_s3_region, crawler_s3_bucket, crawler_s3_access_key_id, crawler_s3_secret_access_key)
       must be non-empty, or all 5 must be left empty to disable S3 archiving.
+- name: Count configured Forgejo mirror parameters
+  ansible.builtin.set_fact:
+    crawler_git_configured_count: >-
+      {{
+        (1 if (crawler_git_raw_url | trim | length > 0) else 0) +
+        (1 if (crawler_git_markdown_url | trim | length > 0) else 0) +
+        (1 if (crawler_git_username | trim | length > 0) else 0) +
+        (1 if (crawler_git_token | trim | length > 0) else 0)
+      }}
+  no_log: true
+
+- name: Validate optional Forgejo mirror configuration
+  ansible.builtin.assert:
+    that:
+      - (crawler_git_configured_count | int == 0) or (crawler_git_configured_count | int == 4)
+      - crawler_git_region is regex('^[a-z0-9-]{1,32}$')
+      - (crawler_git_configured_count | int == 0) or crawler_git_raw_url is regex('^https://[^@]+$')
+      - (crawler_git_configured_count | int == 0) or crawler_git_markdown_url is regex('^https://[^@]+$')
+    fail_msg: Forgejo mirrors require credential-free HTTPS URLs, username, token, and a safe region name.
+  no_log: true
+
 
 - name: Assert overseas proxy hosts are not set without a proxy URL
   ansible.builtin.assert:

@@ -145,9 +145,9 @@
       delay: 2
       changed_when: false
 
-    - name: Start crawler app service
+    - name: Start crawler services
       ansible.builtin.command:
-        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d app
+        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d
       register: crawler_app_up
       changed_when: "'Started' in (crawler_app_up.stdout + crawler_app_up.stderr) or 'Created' in (crawler_app_up.stdout + crawler_app_up.stderr)"
 
@@ -168,9 +168,9 @@
       ansible.builtin.debug:
         msg: "Deployment failed readiness check. Initiating automated rollback (preserving DB volume)..."
 
-    - name: Stop failed crawler app container
+    - name: Stop failed crawler services
       ansible.builtin.command:
-        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" stop app
+        cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" stop
       ignore_errors: true
 
     - name: Restore previous compose.yaml and .env.app if present
@@ -196,9 +196,9 @@
             mode: "0644"
           when: crawler_had_previous_sources | default(false) | bool
 
-        - name: Restart app with previous configuration
+        - name: Restart services with previous configuration
           ansible.builtin.command:
-            cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d app
+            cmd: docker compose -p "{{ crawler_project_name }}" -f "{{ crawler_base_dir }}/compose.yaml" up -d
 
         - name: Verify restored service health
           ansible.builtin.uri:
