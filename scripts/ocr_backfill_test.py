@@ -11,15 +11,20 @@ SPEC.loader.exec_module(OCR)
 
 
 class OcrBackfillTest(unittest.TestCase):
-    def test_raw_path_requires_content_addressed_layout(self) -> None:
+    def test_raw_path_requires_adjacent_content_addressed_layout(self) -> None:
+        item_hash = "12" * 32
         sha256 = "ab" * 32
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            valid = root / f"archive/course/raw/ab/ab/{sha256}.pdf"
-            invalid = root / f"archive/course/raw/00/00/{sha256}.pdf"
+            valid = root / f"sources/course/public-course-sharing/高等数学/{item_hash}.attachments/{sha256}.pdf"
+            invalid = root / f"sources/course/public-course-sharing/高等数学/not-a-hash.attachments/{sha256}.pdf"
             self.assertEqual(
                 OCR.parse_raw_path(root, valid),
-                ("course", sha256, Path(f"archive/course/raw/ab/ab/{sha256}.md")),
+                (
+                    "public-course-sharing",
+                    sha256,
+                    Path(f"sources/course/public-course-sharing/高等数学/{item_hash}.attachments/{sha256}.md"),
+                ),
             )
             self.assertIsNone(OCR.parse_raw_path(root, invalid))
 

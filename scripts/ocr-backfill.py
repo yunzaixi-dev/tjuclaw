@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local PaddleOCR-VL backfill for immutable crawler archive objects."""
+"""Local PaddleOCR-VL backfill for raw attachment files beside crawler items."""
 
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ PROVENANCE_MARKER = "TJUCLAW_OCR_V1"
 VLM_MAX_PIXELS = 28 * 28 * 1200
 LIBREOFFICE_IMAGE = "tjuclaw-ocr-libreoffice:local"
 RAW_PATH_RE = re.compile(
-    r"^archive/(?P<source>[A-Za-z0-9][A-Za-z0-9_-]{0,127})/raw/"
-    r"(?P<prefix1>[a-f0-9]{2})/(?P<prefix2>[a-f0-9]{2})/"
-    r"(?P<sha256>[a-f0-9]{64})(?P<suffix>\..+)?$"
+    r"^sources/(?P<kind>[a-z0-9][a-z0-9-]*)/(?P<source>[A-Za-z0-9][A-Za-z0-9_-]{0,127})/"
+    r"(?P<title>[^/\x00]+)/(?P<item_sha256>[a-f0-9]{64})\.attachments/"
+    r"(?P<sha256>[a-f0-9]{64})(?P<suffix>\.[A-Za-z0-9]+)?$"
 )
 OCR_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 OFFICE_SUFFIXES = {".doc", ".docx", ".ppt", ".pptx", ".pps", ".ppsx", ".xls", ".xlsx"}
@@ -53,9 +53,7 @@ def parse_raw_path(raw_repo: Path, path: Path) -> tuple[str, str, Path] | None:
     if not match:
         return None
     sha256 = match.group("sha256")
-    if match.group("prefix1") != sha256[:2] or match.group("prefix2") != sha256[2:4]:
-        return None
-    output = Path("archive", match.group("source"), "raw", sha256[:2], sha256[2:4], f"{sha256}.md")
+    output = Path(relative).with_name(f"{sha256}.md")
     return match.group("source"), sha256, output
 
 
@@ -226,11 +224,11 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 def discover(raw_repo: Path, source_filter: str | None) -> list[tuple[Path, str, str, Path]]:
-    archive = raw_repo / "archive"
-    if not archive.is_dir():
-        raise RuntimeError("raw_archive_missing")
+    sources = raw_repo / "sources"
+    if not sources.is_dir():
+        raise RuntimeError("raw_sources_missing")
     found: list[tuple[Path, str, str, Path]] = []
-    for path in archive.rglob("*"):
+    for path in sources.rglob("*"):
         if not path.is_file() or path.is_symlink():
             continue
         parsed = parse_raw_path(raw_repo, path)
