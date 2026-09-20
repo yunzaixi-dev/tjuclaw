@@ -10,7 +10,7 @@ GitHub 是唯一开发主平台。GitLab 比赛项目接收单向源码镜像、
 `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093`，集成运维检查还使用
 `astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d`。
 Bun 1.3.14 安装使用 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6`，缓存恢复使用
-`actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a`；两者都须加入白名单。
+`actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830`；两者都须加入白名单。
 本地 actionlint 不会检查 GitHub 服务端白名单；遗漏时即使部署任务在 dev 上跳过，整个工作流也会启动失败。
 
 ## 仓库职责
