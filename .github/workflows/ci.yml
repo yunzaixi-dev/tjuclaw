@@ -74,7 +74,7 @@ jobs:
       - name: Install media conversion tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg gcc libc6-dev poppler-utils webp python3 python3-pil
+          sudo apt-get install -y --no-install-recommends docker-compose-v2 ffmpeg gcc libc6-dev poppler-utils webp python3 python3-pil
       - uses: ./.github/actions/setup
         with:
           profile: portable
@@ -120,6 +120,10 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: '3.13'
+      - name: Install Docker Compose CLI plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends docker-compose-v2
       - name: Check playbooks and rollback regressions
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ops/ansible/ansible.cfg
@@ -148,6 +152,10 @@ jobs:
           server-key: ${{ secrets.SERVER_READ_KEY }}
           cli-key: ${{ secrets.CLI_READ_KEY }}
           crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
+      - name: Install Docker Compose CLI plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends docker-compose-v2
       - uses: ./.github/actions/setup
         with:
           profile: integration
