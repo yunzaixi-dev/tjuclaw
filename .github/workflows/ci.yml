@@ -27,7 +27,7 @@ jobs:
       github.repository == 'yunzaixi-dev/tjuclaw' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -46,7 +46,7 @@ jobs:
 
   check:
     name: Pinned component checks and portable integration build
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 30
     services:
       crawler-postgres:
@@ -108,7 +108,7 @@ jobs:
 
   ops:
     name: Ansible deployment checks
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -137,7 +137,7 @@ jobs:
 
   integration:
     name: Real Kratos authentication, Cap and task ownership
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -10,7 +10,7 @@ import { isReusableKratosDevState } from './auth-test-stack.mjs';
 import { renderDocuments } from './generate-design-doc.mjs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('hosted CI retains every build and mandatory regression with bounded artifacts', () => {
+test('CI retains every build and mandatory regression with bounded artifacts', () => {
   const tasks = parse(read('Taskfile.yml')).tasks;
   const workflow = parse(read('.github/workflows/ci.yml'));
   assert.ok(workflow.on.push);
@@ -38,7 +38,21 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
     assert.match(job.uses, /^\.\/\.github\/workflows\/[a-z-]+\.yml$/);
     return Object.values(parse(read(prefix + job.uses.slice(2))).jobs);
   });
-  const allJobs = [...expandJobs(workflow.jobs), ...expandJobs(clientJobs, 'frontend/'), ...expandJobs(windowsWorkflow.jobs, 'frontend/')];
+  const rootJobs = expandJobs(workflow.jobs);
+  const publicClientJobs = expandJobs(clientJobs, 'frontend/');
+  const windowsJobs = expandJobs(windowsWorkflow.jobs, 'frontend/');
+  assert.ok(rootJobs.every(job => job['runs-on'] === 'tjuclaw'));
+  assert.ok(publicClientJobs.every(job => job['runs-on'] === 'ubuntu-24.04'));
+  assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
+  for (const [path, label] of [
+    ['backend/.github/workflows/ci.yml', 'tjuclaw-server'],
+    ['crawler/.github/workflows/ci.yml', 'tjuclaw-crawler'],
+    ['crawler/.github/workflows/image.yml', 'tjuclaw-crawler'],
+    ['cli/.github/workflows/ci.yml', 'tjucli'],
+  ]) {
+    assert.ok(Object.values(parse(read(path)).jobs).every(job => job['runs-on'] === label), `${path} uses ${label}`);
+  }
+  const allJobs = [...rootJobs, ...publicClientJobs, ...windowsJobs];
   const commands = allJobs.flatMap(job => (job.steps ?? []).flatMap(step =>
     [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
   for (const command of ['check', 'auth:test', 'compose:config',
@@ -51,7 +65,6 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   assert.match(browserRun, /scripts\/playwright\.config\.mjs/);
   assert.match(browserRun, /scripts\/workspace\.playwright\.config\.mjs/);
   for (const job of allJobs) {
-    assert.ok(!String(job['runs-on']).includes('self-hosted'));
     assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 60);
     for (const step of (job.steps ?? []).filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
       assert.equal(step.with['if-no-files-found'], 'error');

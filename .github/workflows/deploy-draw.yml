@@ -19,7 +19,7 @@ concurrency:
 jobs:
   deploy:
     if: github.repository == 'yunzaixi-dev/tjuclaw' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/release'))
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 20
     environment: production
     steps:

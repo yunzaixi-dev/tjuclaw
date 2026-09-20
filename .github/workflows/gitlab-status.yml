@@ -18,7 +18,7 @@ concurrency:
 jobs:
   report:
     name: Report status to GitLab
-    runs-on: ubuntu-24.04
+    runs-on: tjuclaw
     timeout-minutes: 5
     if: >-
       vars.GITLAB_STATUS_ENABLED == 'true' &&

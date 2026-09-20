@@ -23,7 +23,9 @@ Bun 1.3.14 安装使用 `oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c6242185
 | `yunzaixi-dev/tjuclaw-crawler` | Private | Bun RSS、PostgreSQL 更新回放、独立检查；集成锁定 `crawler/` SHA |
 
 客户端和集成仓库分别使用自己的 pnpm workspace/lockfile，服务端与 CLI 使用独立
-Go module；crawler 使用独立 Bun 依赖和 `bun.lock`。GitHub 托管 Ubuntu/Windows 执行构建；无需 Harbor 工具链或自管 Runner。
+Go module；crawler 使用独立 Bun 依赖和 `bun.lock`。公开客户端保留 GitHub 托管
+Ubuntu/Windows；四个私有仓库使用 `prod-sg` ARC 的仓库级临时 Runner。根仓和 crawler
+使用隔离 DinD 池，服务端与 CLI 使用非特权池，空闲时缩容到零。
 
 ## 开发与组合检查
 
@@ -88,6 +90,7 @@ Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` �
 | 私有集成 | `GITLAB_STATUS_TOKEN` | 仅比赛项目的外部 CI 状态回写 |
 | 私有集成 | `GITLAB_RELEASE_TOKEN` | 仅比赛项目的包与 Release API |
 | 公开客户端 | `GITLAB_PACKAGE_TOKEN` | 部署令牌，仅 read/write_package_registry，无源码读取权限 |
+| `prod-sg` `arc-runners` | `arc-github-token` | 仅 ARC 控制器读取，用于四个私仓的仓库级临时 Runner 注册；Runner Pod 不挂载 Kubernetes 服务账号令牌 |
 
 API 令牌使用项目级账号，不向 Actions 分发个人 GitLab PAT。受保护 release 的推送/状态
 操作需要相应项目角色。令牌和组件密钥保存在 Actions Secrets；本地备份只能在忽略目录。
