@@ -293,6 +293,38 @@ tasks:
     desc: Install locked crawler dependencies with Bun
     dir: crawler
     cmds: [bun install --frozen-lockfile]
+  crawler:ocr:setup:
+    desc: Install pinned local PaddleOCR-VL for the workstation GPU
+    preconditions:
+      - sh: docker info >/dev/null
+        msg: Docker must be running for the isolated LibreOffice converter
+      - sh: command -v uv >/dev/null
+        msg: uv is required to install PaddleOCR-VL
+    cmds:
+      - docker build --network host --pull --tag tjuclaw-ocr-libreoffice:local --file scripts/ocr-libreoffice.Dockerfile .
+      - uv venv --python 3.13 --allow-existing private/crawler-ocr/venv
+      - uv pip install --python private/crawler-ocr/venv/bin/python --index-url https://www.paddlepaddle.org.cn/packages/stable/cu129/ paddlepaddle-gpu==3.2.1
+      - uv pip install --python private/crawler-ocr/venv/bin/python 'paddleocr[doc-parser]==3.7.0' 'paddlex[genai-client,ocr]==3.7.2'
+  crawler:ocr:run:
+    desc: Generate Canonical Markdown locally with PaddleOCR-VL (does not push)
+    env:
+      PADDLE_PDX_MODEL_SOURCE: BOS
+      PADDLE_PDX_DISABLE_DEVICE_FALLBACK: 'True'
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: 'True'
+      GIT_LFS_SKIP_SMUDGE: '1'
+    preconditions:
+      - test -x private/crawler-ocr/venv/bin/python
+      - test -d private/crawler-ocr/raw/.git
+      - test -d private/crawler-ocr/markdown/.git
+      - sh: docker image inspect tjuclaw-ocr-libreoffice:local >/dev/null
+        msg: Run task crawler:ocr:setup to build the isolated LibreOffice converter
+    cmds:
+      - git -C private/crawler-ocr/raw lfs install --local --force
+      - git -C private/crawler-ocr/markdown lfs install --local --force
+      - git -C private/crawler-ocr/raw pull --ff-only
+      - git -C private/crawler-ocr/markdown pull --ff-only
+      - private/crawler-ocr/venv/bin/python scripts/ocr-backfill.py --raw-repo private/crawler-ocr/raw --staging private/crawler-ocr/staging {{.CLI_ARGS}}
+      - bun crawler/src/ocr-publish.ts --staging private/crawler-ocr/staging --markdown-repo private/crawler-ocr/markdown
   crawler:dev:
     desc: Run Bun crawler feed service in watch mode
     dir: crawler
@@ -318,7 +350,9 @@ tasks:
   crawler:test:
     desc: Run crawler regressions against isolated PostgreSQL (Docker or explicit test URL)
     dir: crawler
-    cmds: [bun run test:integration]
+    cmds:
+      - python3 ../scripts/ocr_backfill_test.py
+      - bun run test:integration
   weknora:up:
     desc: Start isolated WeKnora on loopback 18180/18181 (keeps volumes)
     cmds: [node scripts/weknora-stack.mjs up]

@@ -125,6 +125,7 @@ rtk task build          # web, docs, api, cli (not native)
 | `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
 | `task crawler:crawl` / `task crawler:import` | One-shot real sources vs synthetic fixtures |
 | `task crawler:weknora:inject` | Push derived Markdown into local WeKnora; needs `WEKNORA_API_KEY` and `WEKNORA_KNOWLEDGE_BASE_ID` |
+| `task crawler:ocr:setup` / `task crawler:ocr:run` | Pinned PaddleOCR-VL `v1.6` on the local RTX 5070; writes an ignored staging tree and local Markdown checkout, never pushes |
 | `task weknora:up` / `task weknora:down` | Isolated WeKnora on `:18180`/`:18181`; down keeps volumes |
 | `task linux:build` / `task windows:build` / `task android:build` | Host-specific; Android is unsigned arm64 debug APK |
 
@@ -199,7 +200,10 @@ during bootstrap. WeChat/Lake tokens from env only — never in source config or
 feeds. Dynamic lists stay `complete: false` so missing list items do not delete
 history. `src/git-sync.ts` snapshots raw JSON and derived Markdown separately;
 state lives under `.crawler/`, binary extensions use Git LFS, and both regional
-workers push the same private repositories with retry-on-race.
+workers push the same private repositories with retry-on-race. Production crawler
+never runs OCR. Local Canonical Markdown uses the complete PaddleOCR-VL `v1.6`
+pipeline via `task crawler:ocr:run`; `pdftotext` is preflight only, not published
+content. Keep raw, staging, models, and Markdown checkouts under ignored `private/`.
 
 ## Important Files
 
@@ -218,6 +222,7 @@ workers push the same private repositories with retry-on-race.
 | `cli/cmd/tjucli/main.go`, `cli/cmd/tjucli-server/main.go` | CLI vs grant-gated tool server |
 | `cli/TJUCLI.md`, `cli/TOOL_SERVER.md` | Command and grant contracts |
 | `crawler/src/index.ts`, `crawler/src/app.ts`, `crawler/src/git-sync.ts` | Feed server, scheduler, Forgejo mirror worker |
+| `scripts/ocr-backfill.py`, `scripts/ocr-libreoffice.Dockerfile`, `crawler/src/ocr-publish.ts` | Main-repo full PaddleOCR-VL backfill, isolated Office converter, and crawler-owned PII gate |
 | `ops/auth/README.md`, `ops/ci/README.md` | Auth policy; CI/release |
 | `ops/weknora/README.md` | Isolated WeKnora knowledge stack |
 | `docs/src/`, `docs/content/docs/` | Fumadocs app and reviewed content |
@@ -229,7 +234,7 @@ workers push the same private repositories with retry-on-race.
 | Root + Docs | Node `>=22.12.0`, `pnpm@11.3.0`, workspace package `docs` only |
 | Frontend | Separate pnpm lockfile; Vite 8; React 19; Tailwind 4; Tauri 2 |
 | Backend / CLI | Go `1.27` (`go.mod`); stdlib HTTP; `pgx` when `DATABASE_URL` is set; Air `v1.67.4` via `go run` for live reload only |
-| Crawler | Bun **1.3.14** (CI pin), `bun.lock` |
+| Crawler | Bun **1.3.14** (CI pin), `bun.lock`; local OCR uses Python 3.13, PaddleOCR `3.7.0`, CUDA 12.9 PaddlePaddle GPU `3.2.1`, LibreOffice |
 | Orchestration | Task 3; Docker for auth/crawler tests; Ansible via `uv` |
 | Agent CLI | Prefer `rtk` for eligible commands |
 

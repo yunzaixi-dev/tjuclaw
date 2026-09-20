@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: integration-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   CI: 'true'
@@ -78,6 +78,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           profile: portable
+          pnpm-cache-dependency-path: |
+            pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
       - name: Check all pinned components
         env:
           CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports['5432'] }}/crawler_test
@@ -148,6 +151,9 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           profile: integration
+          pnpm-cache-dependency-path: |
+            pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
       - name: Validate Compose configuration and context
         run: |
           task compose:config

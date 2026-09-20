@@ -41,12 +41,15 @@ test('hosted CI retains every build and mandatory regression with bounded artifa
   const allJobs = [...expandJobs(workflow.jobs), ...expandJobs(clientJobs, 'frontend/'), ...expandJobs(windowsWorkflow.jobs, 'frontend/')];
   const commands = allJobs.flatMap(job => (job.steps ?? []).flatMap(step =>
     [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
-  for (const command of ['check', 'ui:test', 'workspace:test', 'auth:test', 'compose:config',
+  for (const command of ['check', 'auth:test', 'compose:config',
     'compose:context', 'web:build', 'docs:build', 'api:build', 'cli:build',
     'linux:build', 'android:build', 'windows:build']) {
     assert.ok(tasks[command], `Task ${command} is defined`);
     assert.ok(commands.includes(command), `CI runs ${command}`);
   }
+  const browserRun = jobs.browser.steps.find(step => step.run?.includes('playwright test'))?.run ?? '';
+  assert.match(browserRun, /scripts\/playwright\.config\.mjs/);
+  assert.match(browserRun, /scripts\/workspace\.playwright\.config\.mjs/);
   for (const job of allJobs) {
     assert.ok(!String(job['runs-on']).includes('self-hosted'));
     assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 60);

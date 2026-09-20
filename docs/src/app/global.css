@@ -76,7 +76,6 @@ html > body[data-scroll-locked] {
   display: block;
   overflow: hidden;
   max-width: none;
-  min-height: calc(100dvh - 64px);
   margin: 0 auto;
   padding: clamp(4rem, 8vw, 7rem) clamp(1.25rem, 5vw, 5rem);
   background-image: url('/home-bg-light.webp');
@@ -109,17 +108,11 @@ html > body[data-scroll-locked] {
 .wiki-hero-copy { width: 100%; max-width: none; container-type: inline-size; margin: 0 auto; text-align: center; }
 .wiki-kicker { display: none; }
 .wiki-hero h1 {
-  background: linear-gradient(110deg, var(--wiki-ink) 15%, var(--wiki-accent) 48%, var(--wiki-ink) 82%);
-  background-size: 220% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: wiki-code-shimmer 8s steps(36, end) infinite;
+  color: var(--wiki-ink);
   text-wrap: balance;
 }
 .wiki-lead { margin: 1.5rem auto 0; color: var(--wiki-muted); font-family: var(--font-geist-mono), monospace; }
 .wiki-lead::before { content: '> '; color: var(--wiki-accent); }
-@keyframes wiki-code-shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 .wiki-stack { display: none; }
 .wiki-actions { justify-content: center; }
 
@@ -758,7 +751,6 @@ html > body[data-scroll-locked] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wiki-hero h1 { animation: none; }
 
   .wiki-layer {
     animation: none;
