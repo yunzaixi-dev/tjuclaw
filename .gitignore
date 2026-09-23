@@ -96,6 +96,8 @@ local.properties
 /.agents/
 /.claude/
 /.pi/
+/.omo/
+/.playwright-mcp/
 /skills-lock.json
 .codegraph/
 __pycache__/

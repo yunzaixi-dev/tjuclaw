@@ -131,6 +131,14 @@ test('native product version comes from root and default capability is minimal',
   assert.deepEqual(parse(read('Taskfile.yml')).dotenv, ['.env.toolchain.local']);
 });
 
+test('image generation task keeps provider credentials local and configurable', () => {
+  const tasks = parse(read('Taskfile.yml')).tasks;
+  assert.equal(tasks['image:generate'].dotenv[0], '.env.image.local');
+  assert.deepEqual(tasks['image:generate'].cmds, ['node scripts/generate-image.mjs {{.CLI_ARGS}}']);
+  assert.match(read('.env.image.example'), /IMAGE_MODEL=gpt-image-2\.5-flare/);
+  assert.doesNotMatch(read('.env.image.example'), /IMAGE_API_KEY=\S+/);
+});
+
 test('native launcher preserves Windows Path when adding rustup for child processes', () => {
   const source = { Path: 'C:\\pnpm;C:\\Windows\\System32', OTHER: 'preserved' };
   const child = prependToolPath(source, 'C:\\cargo\\bin', 'win32');

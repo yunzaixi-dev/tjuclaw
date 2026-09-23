@@ -57,6 +57,12 @@ tasks:
       - task --dir frontend native:icons
       - cp frontend/src/assets/brand-icon.webp docs/public/tjuclaw-icon.webp
       - cp frontend/favicon.png docs/public/favicon.png
+  image:generate:
+    desc: Generate an image with the configured OpenAI-compatible image API
+    dir: '{{.ROOT_DIR}}'
+    dotenv: ['.env.image.local']
+    cmds:
+      - node scripts/generate-image.mjs {{.CLI_ARGS}}
   web:preview:
     desc: Preview built Web client on loopback port 4173
     cmds: [pnpm --dir frontend preview]
@@ -343,6 +349,11 @@ tasks:
     dir: crawler
     cmds:
       - bun run weknora:inject -- {{.CLI_ARGS}}
+  crawler:weknora:search:
+    desc: Search the configured WeKnora knowledge base
+    dir: crawler
+    cmds:
+      - bun run weknora:search -- {{.CLI_ARGS}}
   crawler:check:
     desc: Typecheck crawler module
     dir: crawler

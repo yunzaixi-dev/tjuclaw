@@ -17,7 +17,7 @@
     "git:setup": "node scripts/setup-git.mjs",
     "git:check": "node scripts/git-policy.mjs check-index",
     "test:git": "node --test scripts/git-policy.test.mjs",
-    "test:tooling": "node --test scripts/tooling.test.mjs scripts/gitlab-*.test.mjs scripts/prepare-gitlab-release.test.mjs scripts/auth-mail-config.test.mjs scripts/dev-ports.test.mjs scripts/weknora-stack.test.mjs"
+    "test:tooling": "node --test scripts/tooling.test.mjs scripts/generate-image.test.mjs scripts/gitlab-*.test.mjs scripts/prepare-gitlab-release.test.mjs scripts/auth-mail-config.test.mjs scripts/dev-ports.test.mjs scripts/weknora-stack.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

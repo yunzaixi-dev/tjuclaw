@@ -1,291 +1,116 @@
-# Repository Guidelines
+# TJUClaw Integration Knowledge Base
 
-Single source of truth for AI assistants working in this integration checkout.
-Do not add parallel tool-specific rule files. Update this file when commands,
-layout, or conventions change. Before architecture work, read local `CONTEXT.md`
-when present; historical Wiki material is not current product authority. Do not
-publish private decisions into Docs without explicit approval.
+**Scope:** root integration checkout. `frontend/`, `backend/`, `cli/`, and
+`crawler/` are Git submodules with their own rules. Read `CONTEXT.md` before
+architecture work; do not copy private decisions or historical deployment notes
+into public Docs without approval.
 
-## Project Overview
+## OVERVIEW
 
-TJUClaw is a campus action agent for Tianjin University students: capture a goal,
-call campus tools, operate an isolated workspace, and deliver inspectable results.
-It is not a chatbot shell, a generic RAG app, or a Pi UI wrapper.
+TJUClaw is a Tianjin University campus action-agent platform. This repository
+owns integration, Docs, Ops, scripts, and combination checks; product components
+are pinned by submodule SHA. GitHub Actions is authoritative; GitLab is a
+one-way mirror.
 
-This private integration repo (`tjuclaw`) pins Git submodules and owns Docs, ops,
-and combination checks. GitHub is the development authority; GitLab is a one-way
-competition mirror. Root-owned integration files use Apache-2.0. The `frontend/`
-and `cli/` submodules use GPL-3.0-only; `backend/` and `crawler/` remain proprietary
-and unlicensed for public use. Never claim the root license covers submodule code.
-Current implemented slice: same-origin email OTP or password auth
-(password still requires a verified email), knowledge workspace after login
-(`/api/libraries|entries|sessions|account/model`, publish/subscribe/market, local file
-blobs, note search), draft task save, and public-course CLI. Agent execution, WeKnora
-retrieval, product-API object storage, and SSH are not wired yet — do not claim runs
-have started or completed.
-
-
-Public surfaces:
-
-- `https://tjuclaw.cloud` — Docs homepage, documentation, downloads (`wiki.tjuclaw.cloud` is a compatible Docs alias)
-- `https://app.tjuclaw.cloud` — product Web app; browser auth stays under `/api/*`
-- `https://excalidraw.tjuclaw.cloud` — static Excalidraw board (local persistence only; no product auth)
-- `auth.tjuclaw.cloud` — API origin, not a browser app origin
-
-Keep Docs and client deployments independent.
-
-## Architecture & Data Flow
+## STRUCTURE
 
 ```text
-Browser / Tauri WebView
-  → same-origin /api/*  (Vite or EdgeOne/Nginx strips /api once)
-    → Go net/http API   (routes have no /api prefix)
-      → Kratos session + Cap proof  (ZITADEL kept only for paired rollback)
-      → TASK_DATA_DIR file store     (single API process; draft tasks and knowledge)
-      → optional PostgreSQL task/run/library stores
-
-
-Public crawler (Bun + dedicated PostgreSQL per region) → RSS / replay / R2 archive
-  campus sources on the CN Compose host; Microsoft/OneDrive on prod-sg Talos
-  writing the same R2 bucket; raw JSON + original archives (Git LFS) and derived Markdown mirror to private Forgejo repos
-
-WeKnora (isolated Compose) → document ingest / retrieval / tenant API keys
-  loopback UI :18180 and app :18181; Pi uses WEKNORA_BASE_URL + X-API-Key
-  not product identity; not a public origin; not library ACL
-
-tjucli / tjucli-server → public course catalog (cs.tjuse.com)
-  sandbox grants via TJUCLI_GRANTS_FILE; no campus login credentials
+frontend/  React 19 + Vite + Tauri client (GPL submodule)
+backend/   Go API and auth gateway (private submodule)
+cli/       public-course CLI and grant-gated tool server (GPL submodule)
+crawler/   Bun public-source crawler and Replay Feed (private submodule)
+docs/      Next.js 16 + Fumadocs site; root pnpm workspace
+draw/      independent Vite/Excalidraw static app and lockfile
+ops/       Ansible, auth, CI, WeKnora deployment material
+scripts/   development, test, OCR, Git, and release automation
+private/ research/ ops/local/  ignored local material; never build inputs
 ```
 
-- `auth.Gateway.RequireSession` is the protected-API gate. Ownership comes from
-  the provider `Identity.ID`. Never trust a request body/path user id. Another
-  identity's task, library, or entry returns the same 404 as a missing record.
-- Browser sessions are HttpOnly, host-only cookies. Vite and Nginx strip `/api`
-  once; Go must not register `/api` prefixes. Native clients need a separately
-  reviewed session transport — no relaxed CORS, no cookies stored as bearer tokens.
-- Authentication does not imply verified email, campus authorization, or workspace
-  ownership. Check each property explicitly.
-- Never auto-link existing accounts by email. Keep the old identity database until
-  the Kratos OTP cutover is verified.
-- Crawler owns configured public sources only. Never share a crawler database with
-  identity, product API, WeKnora, or another regional crawler. One process crawls
-  one source at a time; run Microsoft attachments on prod-sg instead of opening a
-  second source on the CN box. Forgejo mirror workers share repositories across
-  regions through cursor-based commits; tokens stay in runtime secrets.
-  `task ops:crawler:deploy` is campus Compose only; overseas crawler is a Flux app.
-- WeKnora is the knowledge engine. Never share its database with Kratos, the
-  crawler, or the product API. Do not merge WeKnora users with product identities.
-  Do not enable its Docker sandbox or publish its UI.
-- `cli/skills/tjucli/` must be loaded into the product runtime, not only the
-  developer's global Pi. Current CLI scope is public courses.
+## WHERE TO LOOK
 
-## Key Directories
-
-| Path | Owns |
+| Need | Location |
 | --- | --- |
-| `frontend/` | Public submodule `tjuclaw-client`. React UI, Vite, Tauri shell |
-| `frontend/src/` | Shared Web/native UI: `auth.tsx`, `workspace.tsx`, `product.tsx` |
-| `frontend/src/components/ui/` | Owned shadcn-style primitives (`button`, `dialog`, `otp-input`) |
-| `frontend/src-tauri/` | Tauri v2 host, CSP, native packaging |
-| `backend/` | Proprietary private submodule `tjuclaw-server`. `cmd/api` composition; `internal/auth`, `internal/task`, `internal/run`, `internal/library` |
-| `cli/` | Public GPL-3.0-only submodule `tjucli`. `cmd/tjucli`, `cmd/tjucli-server`, `internal/tjucli`, `skills/tjucli/` |
-| `crawler/` | Proprietary private submodule `tjuclaw-crawler`. Bun ingest, RSS/replay, archive |
-| `docs/` | Next.js 16 + Fumadocs; content in `docs/content/docs/` |
-| `draw/` | Static Excalidraw board for EdgeOne (`excalidraw.tjuclaw.cloud`); own lockfile |
-| `ops/` | Auth compose, Ansible, CI notes. Inventories stay in ignored `ops/local/` |
-| `scripts/` | Dev ports, git policy, auth stack, GitLab release helpers |
-| `private/`, `research/` | Local only. Never copy into Docs, client `src/`, or Docker build inputs |
+| Cross-component commands | `Taskfile.yml` |
+| Product decisions and status | `CONTEXT.md` |
+| Frontend/API boundary | `DEVELOPMENT.md`, `frontend/UI.md` |
+| Docs source and navigation | `docs/content/docs/`, `docs/content/docs/meta.json` |
+| Auth policy | `ops/auth/README.md` |
+| Production deployment contract | `ops/ansible/DEPLOY.md` |
+| API composition | `backend/cmd/api/main.go` |
+| Client page dispatch | `frontend/src/main.tsx` |
+| CLI dispatch | `cli/cmd/tjucli/main.go` |
+| Crawler runtime | `crawler/src/index.ts` |
 
-Each component owns its lockfile, version, and CI. Root pnpm workspace is `docs/`
-only; `frontend/` and `draw/` have separate lockfiles. Do not treat submodule dirs as ordinary
-folders.
+## CODE MAP
 
-## Development Commands
+| Symbol | Location | Role |
+| --- | --- | --- |
+| `App` | `frontend/src/main.tsx` | Path-based lazy page entry |
+| `main` | `backend/cmd/api/main.go` | Mux, stores, shutdown |
+| `runner` | `cli/cmd/tjucli/main.go` | CLI commands and JSON envelope |
+| `runtime` | `crawler/src/index.ts` | Feed server and scheduler |
+| `source` | `docs/src/lib/source.ts` | Fumadocs loader and derived routes |
+| `Store` | `backend/internal/library/store.go` | Library storage contract; see child rules |
+| `CrawlHttpClient` | `crawler/src/ingest/http.ts` | SSRF-safe outbound client; see child rules |
 
-Root `Taskfile.yml` is the command entry. In agent sessions prefix with `rtk`.
-Do not load root `.env.local` (PAT-bearing) into Task or client builds.
+## COMMANDS
+
+Use `rtk` before eligible commands.
 
 ```bash
-rtk task setup          # frozen pnpm (root+frontend+draw), bun (crawler), git hooks
+rtk task setup
 rtk task doctor
-rtk task dev            # Web :5173 + docs :3000 + Kratos API :8080 with Air reload (Docker)
-rtk task check          # portable lint + types + tests + git:check
-rtk task build          # web, docs, api, cli (not native)
-```
-
-| Task | What |
-| --- | --- |
-| `task web:dev` | Vite on `127.0.0.1:5173`; reclaims this checkout's listener only |
-| `task auth:dev` | Isolated Kratos/PostgreSQL/Cap/Valkey + API `:8080` (Air reloads on Go changes) |
-| `task api:dev` | Low-level API on `:8000` with Air; never reclaimed by `task dev` |
-| `task docs:dev` | Docs on `:3000` (occupied port is reported, not killed) |
-| `task draw:dev` / `task draw:build` | Excalidraw board on `:5175`; static `draw/dist` for EdgeOne |
-| `task cli:build` / `task cli:test` | `cli/bin/tjucli`, `cli/bin/tjucli-server`; `go test -race ./...` |
-| `task cli:server:dev` | Requires `TJUCLI_GRANTS_FILE` — see `cli/TOOL_SERVER.md` |
-| `task crawler:setup` / `task crawler:dev` | Bun feed on `:3031`; no crawl unless `CRAWLER_SOURCES_FILE` |
-| `task crawler:crawl` / `task crawler:import` | One-shot real sources vs synthetic fixtures |
-| `task crawler:weknora:inject` | Push derived Markdown into local WeKnora; needs `WEKNORA_API_KEY` and `WEKNORA_KNOWLEDGE_BASE_ID` |
-| `task crawler:ocr:setup` / `task crawler:ocr:run` | Pinned PaddleOCR-VL `v1.6` on the local RTX 5070; writes an ignored staging tree and local Markdown checkout, never pushes |
-| `task weknora:up` / `task weknora:down` | Isolated WeKnora on `:18180`/`:18181`; down keeps volumes |
-| `task linux:build` / `task windows:build` / `task android:build` | Host-specific; Android is unsigned arm64 debug APK |
-
-`task dev` uses real SMTP from ignored `ops/auth/.env.local` by default. Set
-`AUTH_DEV_MAIL_MODE=captured` for Mailpit. Disposable tests always use captured
-mail. `task auth:down` keeps `ops/local/auth-dev/` identities. Pair a different
-API with `API_PROXY_TARGET`. Smoke a running dev proxy with
-`node scripts/auth-dev-smoke.mjs`.
-
-Ops deploy tasks (`task ops:api:deploy`, `task ops:identity:deploy`, …) need
-explicit ignored inventories and verified artifacts. NewAPI is an operations
-gateway, never a second product identity. WeKnora is the knowledge engine on
-loopback only; `task ops:weknora:deploy` needs spare RAM and must not share the
-2 GiB core host. Cap running does not enforce captcha until the API verifies
-tokens. Read `ops/auth/README.md` before auth policy or deploy changes. Never
-apply an isolated identity policy to a shared cluster.
-
-## Code Conventions & Common Patterns
-
-**Git.** Explicit-path staging only — never `git add .`. No commit/tag/push
-without task authorization. Subject format (hooks enforce emoji + staged version):
-
-```text
-EMOJI [vMAJOR.MINOR.PATCH] type(scope): summary
-🔧 [v0.0.26] chore(repo): establish repository conventions
-```
-
-| feat ✨ | fix 🐛 | docs 📝 | refactor ♻️ | perf ⚡ | test ✅ | chore 🔧 | ci 👷 | build 🚀 | revert ⏪ |
-
-`VERSION` must equal the **staged** `package.json` of the repo being committed
-(root vs `frontend/` vs `crawler/` vs `cli/`). `release` is the production and
-direct-iteration branch; keep `dev`. Do not force-add ignored files.
-
-**Frontend.** Follow `frontend/UI.md`. Semantic tokens in `src/product.css`
-(OKLCH, `data-theme`, `data-accent`). Appearance store is
-`src/lib/appearance.ts` (`useAppearance` / `setAppearance`, key
-`tjuclaw.appearance.v1`). No second theme system, no `next-themes`, no extra
-router/form/global store until current page boundaries are exceeded. Chinese UI
-copy; no i18n package. Native inputs over custom pickers. Icon-only buttons need
-an accessible name; keep focus rings.
-
-Path-based entry in `frontend/src/main.tsx`: `/workspace` → `workspace.tsx`,
-`/preview/appearance` → `product.tsx`, `MODE=audit` → `audit.tsx`, else `auth.tsx`.
-Audit mode must not pull `private/` into a normal client build.
-
-Same-origin fetch via `authRequest` in `frontend/src/lib/auth.ts`: path must start
-with `/api/`, `credentials: 'same-origin'`, `cache: 'no-store'`, `redirect: 'error'`,
-15s timeout. Validate JSON; map `error.id` to copy. Do not log emails, OTPs, Cap
-proofs, or session tokens. After login/logout, read the real server session — do
-
-not optimistic-claim security mutations. Knowledge notes persist as Markdown; old tasks stay draft.
-
-**Backend.** Stdlib `net/http.ServeMux`. Parse config at startup; missing identity
-config is 503, never a fake authenticated response. Application errors:
-
-```json
-{"error":{"id":"stable_machine_code"}}
-```
-
-Bound bodies (tasks: 16 KiB). Exact same-origin JSON mutations; SameSite is not a
-substitute for origin checks. Never cache auth. Logs omit bodies, cookies,
-authorization headers, codes, and full auth query strings. No Admin routes, no
-caller-controlled upstream URLs or forwarding headers.
-
-**CLI.** JSON envelopes `{"ok":true,"data":{},"meta":{}}` /
-`{"ok":false,"error":{"code":"...","message":"..."}}`. Remote mode
-(`TJUCLI_MODE=remote`) never falls back to direct provider. Downloads stay in the
-CLI workspace; server never receives an output path.
-
-**Crawler.** One source at a time; `(source, cursor)` events; do not prune history
-during bootstrap. WeChat/Lake tokens from env only — never in source config or
-feeds. Dynamic lists stay `complete: false` so missing list items do not delete
-history. `src/git-sync.ts` snapshots raw JSON and derived Markdown separately;
-state lives under `.crawler/`, binary extensions use Git LFS, and both regional
-workers push the same private repositories with retry-on-race. Production crawler
-never runs OCR. Local Canonical Markdown uses the complete PaddleOCR-VL `v1.6`
-pipeline via `task crawler:ocr:run`; `pdftotext` is preflight only, not published
-content. Keep raw, staging, models, and Markdown checkouts under ignored `private/`.
-
-## Important Files
-
-| File | Why |
-| --- | --- |
-| `Taskfile.yml` | Command entry; loads `.env.toolchain.local` only |
-| `DEVELOPMENT.md` | Frontend/API boundary and acceptance |
-| `CONTRIBUTING.md` | Git, versioning, secrecy |
-| `frontend/UI.md` | Product UI contract |
-| `frontend/vite.config.ts` | Ports, `/api` proxy, `fs.deny` for env/certs/`private/` |
-| `frontend/src/main.tsx` | Client entry |
-| `frontend/src/lib/auth.ts`, `lib/tasks.ts`, `lib/appearance.ts` | Transport, tasks, theme |
-| `backend/cmd/api/main.go` | Mux, stores, graceful shutdown |
-| `backend/internal/auth/auth.go`, `zitadel.go` | Session gate; ZITADEL target + Kratos rollback |
-| `backend/internal/task/handler.go` | `/tasks` ownership |
-| `cli/cmd/tjucli/main.go`, `cli/cmd/tjucli-server/main.go` | CLI vs grant-gated tool server |
-| `cli/TJUCLI.md`, `cli/TOOL_SERVER.md` | Command and grant contracts |
-| `crawler/src/index.ts`, `crawler/src/app.ts`, `crawler/src/git-sync.ts` | Feed server, scheduler, Forgejo mirror worker |
-| `scripts/ocr-backfill.py`, `scripts/ocr-libreoffice.Dockerfile`, `crawler/src/ocr-publish.ts` | Main-repo full PaddleOCR-VL backfill, isolated Office converter, and crawler-owned PII gate |
-| `ops/auth/README.md`, `ops/ci/README.md` | Auth policy; CI/release |
-| `ops/weknora/README.md` | Isolated WeKnora knowledge stack |
-| `docs/src/`, `docs/content/docs/` | Fumadocs app and reviewed content |
-
-## Runtime/Tooling Preferences
-
-| Area | Tool |
-| --- | --- |
-| Root + Docs | Node `>=22.12.0`, `pnpm@11.3.0`, workspace package `docs` only |
-| Frontend | Separate pnpm lockfile; Vite 8; React 19; Tailwind 4; Tauri 2 |
-| Backend / CLI | Go `1.27` (`go.mod`); stdlib HTTP; `pgx` when `DATABASE_URL` is set; Air `v1.67.4` via `go run` for live reload only |
-| Crawler | Bun **1.3.14** (CI pin), `bun.lock`; local OCR uses Python 3.13, PaddleOCR `3.7.0`, CUDA 12.9 PaddlePaddle GPU `3.2.1`, LibreOffice |
-| Orchestration | Task 3; Docker for auth/crawler tests; Ansible via `uv` |
-| Agent CLI | Prefer `rtk` for eligible commands |
-
-Ports: Web `5173`, draw `5175`, audit desk `1421`, UI tests `1422`, auth tests `1423`,
-workspace/audit-ui tests `1424`, docs `3000`, crawler `3031`, WeKnora UI `18180`,
-WeKnora app `18181`, Kratos `4433`, Kratos-backed API `8080`, raw API `8000`,
-tool server `18090`, Mailpit `8025`. `scripts/dev-ports.mjs` clears this
-checkout's Web/API listeners; unknown processes and `:8000` stay.
-
-Vite `/api` proxies to `API_PROXY_TARGET` or `http://127.0.0.1:8080`.
-Tauri reads `frontend/package.json`; Rust crate version is internal. Do not
-merge frontend or draw into the root pnpm workspace.
-
-
-Client Actions own Web/Linux/Android/Windows builds and UI/workspace regressions.
-Integration Actions own pinned-component checks and real Compose/auth regressions.
-Do not rebuild native clients because the server changed.
-
-## Testing & QA
-
-No coverage gate is documented. Prefer the smallest suite that hits the changed
-contract. Do not run two browser suites at once against shared `frontend/dist`.
-
-```bash
-rtk task check                 # portable default
-rtk task ui:install            # once
-rtk task ui:test               # appearance, keyboard, six viewports × light/dark
-rtk task workspace:test        # mocked /workspace contract — not persistence proof
-rtk task auth:test             # real Kratos + Cap + captured mail + Nginx CSP
-rtk task api:test              # go test ./... ; race: (cd backend && go test -race ./...)
+rtk task dev
+rtk task check
+rtk task build                 # Web, Docs, API, CLI; not native packages
+rtk task ui:test               # do not run with another browser suite
+rtk task workspace:test        # mocked API contract
+rtk task auth:test             # real Kratos/Cap/captured-mail flow
+rtk task api:test
 rtk task cli:test
-rtk task crawler:test          # CRAWLER_TEST_DATABASE_URL or ephemeral Docker Postgres
-rtk pnpm test:git && rtk pnpm test:tooling
+rtk task crawler:test
 rtk task ops:test
 ```
 
-- `task auth:test` needs Docker, Go, Chromium. Project `tjuclaw-auth-test` is
-  disposable (volumes removed). It does not touch `tjuclaw-auth-dev` or
-  production mail. Evidence in ignored `test-results/`.
-- `workspace:test` mocks the browser; real task ownership still needs `auth:test`.
-- Crawler tests must never use identity/runtime `CRAWLER_DATABASE_URL`.
-- Audit captures stay in ignored `private/audit/`, never client assets.
-- Mocked error tests supplement, not replace, real cookie/email integration.
-- Local Compose/CI YAML is not evidence of a live deployment.
+Component toolchains are separate: root/Docs use pnpm 11.3; CI uses Node 24;
+frontend and draw have separate pnpm lockfiles; crawler uses Bun 1.3.14; backend
+and cli use Go 1.27.0. Do not merge them into one workspace.
 
-<!-- BEGIN:nextjs-agent-rules -->
+## CONVENTIONS
 
-# This is NOT the Next.js you know
+- Browser API calls are same-origin `/api/*`; proxy layers strip the prefix once,
+  while Go routes do not register `/api` prefixes.
+- Session ownership comes from the authenticated provider identity, never a body
+  or path user ID. Cross-identity private records return the same 404 as missing.
+- Frontend uses `authRequest`, semantic tokens, the existing appearance store,
+  Chinese UI copy, native inputs, named icon buttons, and visible focus rings.
+- Backend uses stdlib `net/http`, bounded JSON bodies, stable errors shaped as
+  `{"error":{"id":"machine_code"}}`, no auth caching, and no arbitrary proxying.
+- CLI keeps stable JSON envelopes; remote mode never falls back to direct provider;
+  downloads stay in the CLI workspace.
+- Crawler uses its own PostgreSQL and safe HTTP client. Dynamic sources remain
+  `complete: false`; production crawler does not run OCR.
+- Commit subjects are `EMOJI [vVERSION] type(scope): summary`; stage explicit
+  paths only. Version must match the staged component `package.json`.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+## ANTI-PATTERNS
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+- Never use `git add .`, force-push, or commit/tag/publish without authorization.
+- Never load PAT-bearing root `.env.local` into Task or client builds.
+- Never share crawler, WeKnora, Kratos, API, or regional crawler databases.
+- Never expose WeKnora UI/app publicly, enable its Docker sandbox, or treat it as
+  product identity or library ACL.
+- Never put credentials, OTPs, cookies, Cap proofs, private research, audit
+  captures, local databases, or ignored `ops/local/` material in source, logs,
+  Docs, client assets, Docker contexts, or artifacts.
+- Do not treat mocks, YAML, local Compose, health checks, CI success, or an
+  artifact build as proof of live deployment, real mail delivery, retrieval,
+  campus-source crawling, object storage, SSH, or Agent execution.
+- Do not claim the root Apache-2.0 license covers GPL submodules or private code.
 
-<!-- END:nextjs-agent-rules -->
+## NOTES
+
+`task dev` uses real SMTP unless `AUTH_DEV_MAIL_MODE=captured` is set. Disposable
+auth tests use captured mail and isolated state. WeKnora local ports are 18180/18181;
+Docs is 3000, Web 5173, Draw 5175, crawler 3031, API 8080, and low-level API dev
+8000. Read the child `AGENTS.md` before editing a submodule or a scored hotspot.

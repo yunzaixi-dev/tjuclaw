@@ -22,7 +22,7 @@ export default defineConfig({
     { command: 'node scripts/auth-test-stack.mjs', cwd: '..', url: 'http://127.0.0.1:18089/healthz', timeout: 240000, reuseExistingServer: false, gracefulShutdown: { signal: 'SIGTERM', timeout: 30000 } },
     {
       cwd: '..',
-      command: 'pnpm --dir frontend exec vite preview --host 127.0.0.1 --port 1423 --strictPort',
+      command: `pnpm --dir frontend exec vite ${process.env.AUTH_TEST_WEB_MODE === 'dev' ? '--host' : 'preview --host'} 127.0.0.1 --port 1423 --strictPort`,
       url: 'http://127.0.0.1:1423', env: { API_PROXY_TARGET: 'http://127.0.0.1:18089' }, reuseExistingServer: false,
     },
   ],

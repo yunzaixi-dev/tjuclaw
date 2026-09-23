@@ -55,10 +55,25 @@ async function finish(page, code) {
   await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
   await page.getByRole('button', { name: '验证并继续', exact: true }).click();
   await expect(page).toHaveURL(/\/workspace$/);
-  await expect(page.getByRole('heading', { level: 1, name: '我的知识库' })).toBeVisible();
-  await expect(page.getByRole('treeitem', { name: '新手向导' })).toBeVisible();
-
+  await expect(page.getByRole('button', { name: /我的知识库，\d+ 个文件/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
 }
+
+test('real session survives a workspace refresh', async ({ page, request }) => {
+  test.setTimeout(120000);
+  const email = `refresh-${Date.now()}@example.com`;
+  await begin(page, email);
+  await finish(page, (await latestCode(request, email)).code);
+  expect((await page.request.get('/api/auth/session')).status()).toBe(200);
+  await page.reload();
+  await expect(page).toHaveURL(/\/workspace$/);
+  await expect(page.getByRole('button', { name: /我的知识库，\d+ 个文件/ })).toBeVisible();
+  expect((await page.request.get('/api/auth/session')).status()).toBe(200);
+  await page.goto('/auth/login');
+  await expect(page).toHaveURL(/\/workspace$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/workspace$/);
+});
 
 test('real Cap under production CSP, enrollment, wrong code, resend, reload, login and provider logout', async ({ page, request, context }, info) => {
   test.setTimeout(240000);
