@@ -21,6 +21,7 @@ ops/images/**
 
 # Sandbox images need only the CLI and the controller/agent sources.
 !cli/
+cli/*
 !cli/go.mod
 !cli/cmd/
 !cli/cmd/**
@@ -30,6 +31,7 @@ ops/images/**
 !cli/skills/tjucli/
 !cli/skills/tjucli/SKILL.md
 !sandbox/
+sandbox/*
 !sandbox/go.mod
 !sandbox/cmd/
 !sandbox/cmd/**
