@@ -56,9 +56,10 @@ Go API 是产品服务的秘密持有者，但只持有它直接需要的值：
 | `AUTH_COOKIE_KEY` | HttpOnly 会话 Cookie 加密/签名 | API 运行时秘密文件 | 会使现有会话失效，必须保留旧值直到安排会话迁移 |
 | `CAP_SITE_KEY` | Cap 站点标识 | API 运行时秘密文件 | 可按站点密钥轮换 |
 | `CAP_SECRET_KEY` | Cap 服务端校验 | API 运行时秘密文件 | 与 Cap 站点配置配对轮换 |
-| `NEWAPI_API_KEY` | 产品默认模型网关调用 | API 运行时秘密文件 | 只影响模型调用，不应影响用户登录 |
+| `NEWAPI_API_KEY` | 产品默认模型网关调用（非沙箱会话回退路径） | API 运行时秘密文件 | 只影响模型调用，不应影响用户登录 |
 | `WPY_APP_TICKET` | 校园接口应用票据 | API 运行时秘密文件 | 只在校园能力启用时提供 |
-| `SANDBOX_SESSION_TOKEN` | API 调用沙箱控制器 | API 运行时秘密文件 | 与控制器端令牌成对轮换 |
+| `SANDBOX_GATEWAY_HMAC_SECRET` | API 为每个沙箱会话签发短期访问令牌 | API 运行时秘密文件，并与 gateway 共享 | 轮换会使旧的沙箱令牌失效 |
+| `SANDBOX_SESSION_TOKEN` | 兼容旧版 controller 直连协议 | API 运行时秘密文件 | 仅在未启用 HMAC 时使用 |
 | `R2_ACCESS_KEY_ID` | 文件对象存储访问标识 | API 运行时秘密文件 | 必须是最小权限、专用 bucket 账号 |
 | `R2_SECRET_ACCESS_KEY` | 文件对象存储访问密钥 | API 运行时秘密文件 | 与 R2 access key 成对轮换 |
 
@@ -78,22 +79,25 @@ Go API 是产品服务的秘密持有者，但只持有它直接需要的值：
 `AUTH_COOKIE_KEY`、模型 Key、对象存储 Key 和沙箱服务令牌不能写入 PostgreSQL
 业务记录、笔记正文、发布快照、对象 key、Run JSON 或日志。
 
-### 3. 沙箱控制器
+### 3. 沙箱 Gateway 与控制器
 
 沙箱控制器的秘密只服务于一次受控运行，不应成为用户代码的环境变量：
 
 | 变量或 Secret 字段 | 用途 | 可见对象 |
 | --- | --- | --- |
-| `SANDBOX_SESSION_TOKEN` | 控制器接受 API 的内部调用 | controller |
-| `SANDBOX_GATEWAY_TOKEN` 或 `SANDBOX_GATEWAY_HMAC_SECRET` | controller 与 gateway 的内部认证 | gateway/controller |
-| `FORGEJO_TOKEN` | checkout、checkpoint commit 和 push | controller 的 Git adapter |
-| `NEWAPI_API_KEY` | controller 内部模型代理访问上游 | controller 的模型代理 |
-| `FORGEJO_BASE_URL` | Forgejo 普通配置 | controller |
-| `FORGEJO_WORKSPACE_REPOSITORY` | 工作区普通配置 | controller |
+| `SANDBOX_SESSION_TOKEN` | controller 接受 gateway 转发的 session.v1 请求 | gateway 与 runtime namespace 的同名 Secret |
+| `SANDBOX_GATEWAY_HMAC_SECRET` | 校验 API/gateway 签发的短期会话令牌 | gateway 与 API |
+| `FORGEJO_TOKEN` | 解析工作区、Git checkout、checkpoint commit 和 push | 仅 gateway Broker |
+| `NEWAPI_API_KEY` | 访问产品模型上游并执行配额计数 | 仅 gateway Broker |
+| `FORGEJO_BASE_URL`、`NEWAPI_BASE_URL` | provider endpoint 普通配置 | gateway Broker |
+| `FORGEJO_WORKSPACE_REPOSITORY` | 工作区仓库普通配置 | gateway Broker 与受限 runtime 配置 |
 
-`FORGEJO_TOKEN` 和 `NEWAPI_API_KEY` 不得进入 Pi 进程、命令行参数、沙箱用户的
-普通环境、Run 事件或模型上下文。Pi 只应得到短期 loopback 代理令牌，以及在
-明确授权后得到的临时工作区密钥。
+`FORGEJO_TOKEN` 和 `NEWAPI_API_KEY` 不得进入 controller/Pi 进程、命令行参数、
+沙箱用户的普通环境、Run 事件或模型上下文。controller 只得到绑定
+`owner/session/entry/profile` 的短期 Broker capability；模型调用和 Forgejo
+访问均由 gateway Broker 完成，Broker 同时按用户在 Redis 中原子计数和限制
+模型请求。runtime namespace 的 Secret 只能包含 `sandbox-session-token`，
+不能复制 provider key。
 
 未来的代码工作区加密还需要独立的密钥经纪模块。其职责不是把主密钥下发给
 沙箱，而是根据用户、仓库、commit、profile、run 和过期时间签发一次性会话密钥。
