@@ -66,10 +66,15 @@ def failed_paths(log: Path) -> set[str]:
 
 
 def select(raw: Path, staging: Path, log: Path, max_pages: int, max_bytes: int,
-           all_supported: bool = False, retry_failed: bool = False):
+           all_supported: bool = False, retry_failed: bool = False,
+           retry_log: Path | None = None):
     ocr = backfill_module()
     seen = attempted(log)
-    retry = failed_paths(log) if retry_failed else set()
+    # A retry worker commonly has its own checkpoint log. Read failures from
+    # the source run explicitly so an empty retry log cannot cause a silent
+    # no-op after the primary batch finishes.
+    failure_log = retry_log or log
+    retry = failed_paths(failure_log) if retry_failed else set()
     choices = []
     for path, _, sha, relative_output in ocr.discover(raw, None):
         suffix = path.suffix.lower()
@@ -188,6 +193,8 @@ def main(argv: list[str]) -> int:
                         help="Include PDF, image, Office, and text attachments instead of only PDFs.")
     parser.add_argument("--retry-failed", action="store_true",
                         help="Select previously failed files instead of new files.")
+    parser.add_argument("--retry-log", type=Path,
+                        help="Read failed source paths from this checkpoint log.")
     parser.add_argument("--wait-for-unit",
                         help="Wait for another user systemd OCR unit to stop before selecting work.")
     args = parser.parse_args(argv)
@@ -205,7 +212,7 @@ def main(argv: list[str]) -> int:
     args.worker_log = args.state_dir / "worker.log"
     log_path = args.state_dir / "batch.jsonl"
     choices = select(args.raw_repo, args.staging, log_path, args.max_pages, args.max_bytes,
-                     args.all_supported, args.retry_failed)
+                     args.all_supported, args.retry_failed, args.retry_log)
     with log_path.open("a", encoding="utf-8") as log:
         emit(log, {"event": "batch_plan", "eligible": len(choices), "limit": args.limit})
         complete = 0

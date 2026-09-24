@@ -50,8 +50,39 @@ class Candidate:
     reasons: tuple[str, ...]
 
 
-def split_document(text: str) -> tuple[dict, str]:
-    if not text.startswith(MARKER):
+@dataclass(frozen=True)
+class RepairHistory:
+    status: str
+    source_sha256: str | None
+    log: Path
+    line_number: int
+
+
+SUCCESS_STATUSES = frozenset({"repaired", "existing", "already_repaired"})
+RETRYABLE_STATUSES = frozenset({
+    "deferred_input_too_large",
+    "error",
+    "failed",
+    "incomplete",
+    "rejected",
+    "timeout",
+})
+
+
+def safe_relative_path(value: str) -> Path | None:
+    path = Path(value)
+    if (
+        not value
+        or path.is_absolute()
+        or ".." in path.parts
+        or path.suffix.lower() != ".md"
+    ):
+        return None
+    return Path(path.as_posix())
+
+
+def _split_marker_document(text: str, marker: str) -> tuple[dict, str]:
+    if not text.startswith(marker):
         return {}, text
     parts = text.split("-->\n", 1)
     if len(parts) != 2:
@@ -60,18 +91,51 @@ def split_document(text: str) -> tuple[dict, str]:
     if len(lines) < 2:
         return {}, parts[1]
     try:
-        return json.loads(lines[1]), parts[1]
+        metadata = json.loads(lines[1])
     except json.JSONDecodeError:
         return {}, parts[1]
+    return metadata if isinstance(metadata, dict) else {}, parts[1]
+
+
+def split_document(text: str) -> tuple[dict, str]:
+    return _split_marker_document(text, MARKER)
+
+
+def split_repair_document(text: str) -> tuple[dict, str]:
+    return _split_marker_document(text, REPAIR_MARKER)
+
+
+def _unescaped_count(text: str, character: str) -> int:
+    count = 0
+    backslashes = 0
+    for value in text:
+        if value == "\\":
+            backslashes += 1
+            continue
+        if value == character and backslashes % 2 == 0:
+            count += 1
+        backslashes = 0
+    return count
+
+
+def _balanced_latex_environments(text: str) -> bool:
+    stack: list[str] = []
+    for match in re.finditer(r"\\(begin|end)\{([^{}\n]+)\}", text):
+        action, name = match.groups()
+        if action == "begin":
+            stack.append(name)
+        elif not stack or stack.pop() != name:
+            return False
+    return not stack
 
 
 def repair_reasons(body: str, metadata: dict, source_size: int | None = None) -> tuple[str, ...]:
     reasons: list[str] = []
     if "\ufffd" in body:
         reasons.append("replacement_character")
-    if body.count("$") % 2:
+    if _unescaped_count(body, "$") % 2:
         reasons.append("unbalanced_math_delimiter")
-    if len(re.findall(r"\\(?:begin|end)\{", body)) % 2:
+    if not _balanced_latex_environments(body):
         reasons.append("unbalanced_latex_environment")
     if body.count("<table") != body.count("</table>"):
         reasons.append("unbalanced_table")
@@ -107,13 +171,17 @@ def candidates(staging: Path, raw: Path | None = None, limit: int | None = None)
 
 def read_input_list(staging: Path, path: Path) -> list[Candidate]:
     result: list[Candidate] = []
+    seen: set[Path] = set()
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         item = raw_line.strip()
         if not item or item.startswith("#"):
             continue
-        relative = Path(item)
-        if relative.is_absolute() or ".." in relative.parts or relative.suffix.lower() != ".md":
+        relative = safe_relative_path(item)
+        if relative is None:
             raise ValueError(f"invalid input-list path: {item!r}")
+        if relative in seen:
+            continue
+        seen.add(relative)
         source = (staging / relative).resolve()
         if staging.resolve() not in source.parents:
             raise ValueError(f"input-list path escapes staging: {item!r}")
@@ -123,6 +191,106 @@ def read_input_list(staging: Path, path: Path) -> list[Candidate]:
             raise ValueError(f"missing OCR metadata: {item!r}")
         result.append(Candidate(source, relative, body, metadata, repair_reasons(body, metadata)))
     return result
+
+
+def load_repair_history(paths: list[Path]) -> dict[str, RepairHistory]:
+    """Load the latest result for each source path from old and new JSONL logs."""
+    history: dict[str, RepairHistory] = {}
+    for log in paths:
+        if not log.is_file():
+            continue
+        try:
+            lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line_number, line in enumerate(lines, start=1):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict) or not isinstance(event.get("status"), str):
+                continue
+            relative = safe_relative_path(str(event.get("source_path", "")))
+            if relative is None:
+                continue
+            status = str(event["status"]).strip().lower()
+            source_sha256 = None
+            for key in ("source_sha256", "llm_repair_source_sha256", "input_sha256"):
+                value = event.get(key)
+                if isinstance(value, str) and re.fullmatch(r"[a-fA-F0-9]{64}", value):
+                    source_sha256 = value.lower()
+                    break
+            history[relative.as_posix()] = RepairHistory(
+                status=status,
+                source_sha256=source_sha256,
+                log=log,
+                line_number=line_number,
+            )
+    return history
+
+
+def candidates_from_history(
+    staging: Path,
+    raw: Path | None,
+    history: dict[str, RepairHistory],
+) -> list[Candidate]:
+    result: list[Candidate] = []
+    for value, record in sorted(history.items()):
+        if record.status not in RETRYABLE_STATUSES and record.status not in SUCCESS_STATUSES:
+            continue
+        relative = safe_relative_path(value)
+        if relative is None:
+            continue
+        source = (staging / relative).resolve()
+        if staging.resolve() not in source.parents or not source.is_file():
+            continue
+        text = source.read_text(encoding="utf-8", errors="replace")
+        metadata, body = split_document(text)
+        if not metadata.get("source_path"):
+            continue
+        source_size = None
+        if raw:
+            try:
+                source_size = (raw / metadata["source_path"]).stat().st_size
+            except (OSError, TypeError):
+                pass
+        result.append(Candidate(
+            source,
+            relative,
+            body,
+            metadata,
+            repair_reasons(body, metadata, source_size),
+        ))
+    return result
+
+
+def output_matches_source(destination: Path, original: str) -> bool:
+    if not destination.is_file():
+        return False
+    try:
+        text = destination.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    metadata, repaired = split_repair_document(text)
+    expected_sha256 = hashlib.sha256(original.encode("utf-8")).hexdigest()
+    if metadata.get("llm_repair_source_sha256") != expected_sha256:
+        return False
+    valid, _ = validate_repair(original, repaired)
+    return valid
+
+
+def error_status(exc: Exception) -> str:
+    message = str(exc).lower()
+    if isinstance(exc, TimeoutError) or "timeout" in message or "timed out" in message:
+        return "timeout"
+    return "error"
+
+
+def safe_error_message(exc: Exception, api_key: str) -> str:
+    message = str(exc)
+    if api_key:
+        message = message.replace(api_key, "[REDACTED]")
+    return message[:2000]
 
 
 def prompt_for(body: str, image_count: int = 0) -> str:
@@ -334,10 +502,12 @@ def validate_repair(original: str, repaired: str) -> tuple[bool, tuple[str, ...]
     repaired_anchors = normalized_anchors(value)
     if original_anchors and len(original_anchors & repaired_anchors) / len(original_anchors) < 0.55:
         reasons.append("anchor_loss")
-    if value.count("$") % 2:
+    if _unescaped_count(value, "$") % 2:
         reasons.append("unbalanced_math_delimiter")
     if value.count("<table") != value.count("</table>"):
         reasons.append("unbalanced_table")
+    if not _balanced_latex_environments(value):
+        reasons.append("unbalanced_latex_environment")
     return not reasons, tuple(reasons)
 
 
@@ -370,6 +540,17 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--raw", type=Path)
     parser.add_argument("--input-list", type=Path)
+    parser.add_argument(
+        "--resume-log",
+        type=Path,
+        action="append",
+        default=[],
+        help=(
+            "Reuse prior JSONL result logs. Old one-result-per-line logs and "
+            "request_complete logs are supported; successful results are skipped "
+            "only when their output is present, while failures are retried."
+        ),
+    )
     parser.add_argument("--limit", type=int)
     parser.add_argument(
         "--base-url",
@@ -403,8 +584,11 @@ def main() -> int:
         parser.error("--base-url or NEWAPI_BASE_URL is required")
     if not args.api_key and not args.dry_run:
         parser.error("--api-key or NEWAPI_API_KEY is required")
+    history = load_repair_history(args.resume_log)
     if args.input_list:
         items = read_input_list(args.staging, args.input_list)
+    elif history:
+        items = candidates_from_history(args.staging, args.raw, history)
     else:
         items = candidates(args.staging, args.raw, args.limit)
     if args.limit:
@@ -455,8 +639,18 @@ def main() -> int:
             }
             destination = args.output / item.relative
             destination.parent.mkdir(parents=True, exist_ok=True)
-            if destination.exists():
+            previous = history.get(item.relative.as_posix())
+            if output_matches_source(destination, item.body):
                 record["status"] = "existing"
+                record["resume"] = "verified_output"
+            elif destination.exists():
+                # Never overwrite an output that cannot be tied to this exact
+                # OCR body. A later manual review can decide whether to replace it.
+                record["status"] = "stale_existing"
+                record["resume"] = "output_source_mismatch"
+            elif previous and previous.status in SUCCESS_STATUSES:
+                # A success log without its output is not a success: retry it.
+                record["resume"] = "missing_output_after_success_log"
             elif len(item.body) > args.max_input_chars:
                 record["status"] = "deferred_input_too_large"
             elif args.dry_run:
@@ -523,8 +717,9 @@ def main() -> int:
                     else:
                         record["status"] = "rejected"
                 except Exception as exc:  # keep the long-running batch alive
-                    record["status"] = "error"
-                    record["error"] = str(exc)
+                    record["status"] = error_status(exc)
+                    record["error_type"] = type(exc).__name__
+                    record["error"] = safe_error_message(exc, args.api_key)
             record["duration_seconds"] = round(time.time() - started_at, 3)
             emit(record)
             if args.sleep:

@@ -88,8 +88,8 @@ Go API 是产品服务的秘密持有者，但只持有它直接需要的值：
 | `SANDBOX_SESSION_TOKEN` | controller 接受 gateway 转发的 session.v1 请求 | gateway 与 runtime namespace 的同名 Secret |
 | `SANDBOX_GATEWAY_HMAC_SECRET` | 校验 API/gateway 签发的短期会话令牌 | gateway 与 API |
 | `FORGEJO_TOKEN` | 解析工作区、Git checkout、checkpoint commit 和 push | 仅 gateway Broker |
-| `NEWAPI_API_KEY` | 访问产品模型上游并执行配额计数 | 仅 gateway Broker |
-| `FORGEJO_BASE_URL`、`NEWAPI_BASE_URL` | provider endpoint 普通配置 | gateway Broker |
+| `model-api-key` / `NEWAPI_API_KEY` | 访问产品模型上游并执行配额计数 | 仅 gateway Broker |
+| `FORGEJO_BASE_URL`、`NEWAPI_BASE_URL` | provider endpoint 普通配置；当前上游为 Sub2API | gateway Broker |
 | `FORGEJO_WORKSPACE_REPOSITORY` | 工作区仓库普通配置 | gateway Broker 与受限 runtime 配置 |
 
 `FORGEJO_TOKEN` 和 `NEWAPI_API_KEY` 不得进入 controller/Pi 进程、命令行参数、

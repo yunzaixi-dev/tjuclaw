@@ -32,6 +32,38 @@ class LocalBatchTest(unittest.TestCase):
             )
             self.assertEqual(BATCH.failed_paths(log), {"a"})
 
+    def test_retry_selection_can_read_failures_from_primary_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            raw = root / "raw"
+            stage = root / "stage"
+            content = b"pdf"
+            digest = hashlib.sha256(content).hexdigest()
+            relative = (
+                "sources/course/public-course-sharing/title/"
+                f"{'ab' * 32}.attachments/{digest}.pdf"
+            )
+            source = raw / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes(content)
+            primary_log = root / "primary.jsonl"
+            primary_log.write_text(
+                json.dumps({"event": "batch_failed", "source_path": relative}) + "\n",
+                encoding="utf-8",
+            )
+            retry_log = root / "retry.jsonl"
+            with patch.object(BATCH, "page_count", return_value=1):
+                choices = BATCH.select(
+                    raw,
+                    stage,
+                    retry_log,
+                    2,
+                    100,
+                    retry_failed=True,
+                    retry_log=primary_log,
+                )
+            self.assertEqual([item[2] for item in choices], [relative])
+
     def test_batch_size_is_positive(self):
         with self.assertRaises(SystemExit):
             BATCH.main([
