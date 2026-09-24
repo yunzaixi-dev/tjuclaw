@@ -195,7 +195,7 @@ test('real library persistence and cross-identity isolation', async ({ page, req
 
   await page.reload();
   await page.getByRole('treeitem', { name: title }).click();
-  await expect(page.getByLabel('正文', { exact: true })).toHaveValue(body);
+  await expect(page.getByLabel('正文', { exact: true })).toHaveText(body);
   expect((await page.request.post('/api/auth/logout', { headers, data: {} })).status()).toBe(204);
   await context.clearCookies();
   const emailB = `lib-b-${Date.now()}@example.com`;
