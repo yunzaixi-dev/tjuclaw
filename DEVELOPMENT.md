@@ -15,6 +15,15 @@
 - Browser traffic is same-origin `/api/*`. Vite and Nginx remove `/api` once;
   Go routes do not include that prefix. Native clients need a separately reviewed
   native session transport, not relaxed CORS or browser cookies stored as tokens.
+- Native runtime gate: the bundled Android WebView currently loads from
+  `http://tauri.localhost/`. On an installed x86_64 debug APK, a request to
+  `/api/auth/session` returned the SPA HTML with status 200, not API JSON.
+  A package build or visible login screen therefore does not establish native
+  authentication. Before calling any native platform functional, verify its
+  packaged WebView reaches the real `/api/auth/flow` JSON contract, then test
+  login, session restoration, protected note writes, and logout. Keep the
+  Kratos-backed HTTPS origin and HttpOnly session boundary intact; native
+  transport requires its own security review.
 - WeKnora is the knowledge engine only. Do not proxy it as `/api`, mix its
   users with Kratos, or treat a WeKnora tenant key as a product session.
   omp reads WeKnora over loopback with an explicit API key after an operator

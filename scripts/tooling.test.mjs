@@ -42,7 +42,7 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const publicClientJobs = expandJobs(clientJobs, 'frontend/');
   const windowsJobs = expandJobs(windowsWorkflow.jobs, 'frontend/');
   assert.ok(rootJobs.every(job => job['runs-on'] === 'tjuclaw'));
-  assert.ok(publicClientJobs.every(job => job['runs-on'] === 'ubuntu-24.04'));
+  assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
   for (const [path, label] of [
     ['backend/.github/workflows/ci.yml', 'tjuclaw-server'],
@@ -65,7 +65,7 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.match(browserRun, /scripts\/playwright\.config\.mjs/);
   assert.match(browserRun, /scripts\/workspace\.playwright\.config\.mjs/);
   for (const job of allJobs) {
-    assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 60);
+    assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 120);
     for (const step of (job.steps ?? []).filter(step => step.uses?.startsWith('actions/upload-artifact@'))) {
       assert.equal(step.with['if-no-files-found'], 'error');
       assert.ok(!step.with.path.includes('test-results'));

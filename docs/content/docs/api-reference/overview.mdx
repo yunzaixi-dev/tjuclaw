@@ -1,0 +1,19 @@
+---
+title: API 参考
+description: TJUClaw HTTP API 的完整 OpenAPI 参考。
+---
+
+# API 参考
+
+TJUClaw 的接口文档由后端实际注册的路由生成，覆盖健康检查、认证、任务、运行记录、知识库、智能体会话、模型配置与发布订阅接口。
+
+## 基本约定
+
+- 本地 Web 同源入口是 `http://127.0.0.1:1420/api`。
+- 直接运行 Go API 时，入口是 `http://127.0.0.1:8080`。
+- 除 `GET /healthz` 外，业务接口使用 HttpOnly 会话 Cookie。
+- 业务数据只属于当前登录用户；跨用户资源统一表现为 `404`。
+- JSON 错误统一使用 `{ "error": { "id": "machine_code" } }`。
+- 文件上传使用 `multipart/form-data`，文件下载返回原始二进制内容。
+
+左侧 `API Reference` 下的接口页面由 `backend/openapi/tjuclaw.yaml` 同步生成到 `docs/content/openapi/tjuclaw.yaml`。修改后执行 `task api:docs`，它会校验 Go 路由、同步规范并构建文档站；只检查是否同步可执行 `task api:docs:check`。

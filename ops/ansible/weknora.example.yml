@@ -1,12 +1,18 @@
 ---
 # Copy this file to ops/local/weknora.yml
 # WeKnora is the knowledge engine only. It is not product identity.
+# Run this playbook only with an inventory that puts the target in weknora_nodes.
 
 weknora_base_dir: "/opt/tjuclaw-weknora"
 weknora_project_name: tjuclaw-weknora
 weknora_app_listen_addr: "127.0.0.1:18181"
 weknora_ui_listen_addr: "127.0.0.1:18180"
 weknora_version: "v0.8.0"
+
+weknora_tunnel_enabled: true
+weknora_tunnel_ui_hostname: "weknora-map.agentwego.com"
+weknora_tunnel_api_hostname: "weknora-api.agentwego.com"
+weknora_tunnel_token: "REPLACE_WITH_CLOUDFLARE_TUNNEL_TOKEN"
 
 # ~1.4 GiB combined ceiling. Do not share the 2 GiB core host with identity,
 # NewAPI, crawler and the API. Use a host with verified spare RAM.
@@ -24,3 +30,16 @@ weknora_sandbox_docker_enabled: false
 # weknora_llm_base_url: "http://host.docker.internal:3000/v1"
 # weknora_llm_api_key: "REPLACE_WITH_NEWAPI_KEY"
 # weknora_llm_model_name: "tju-llm"
+
+# Optional split model roles (each role is all-or-none). Do not combine a
+# complete split chat namespace with the legacy LLM namespace above.
+# weknora_chat_base_url: "https://chat.example.invalid/v1"
+# weknora_chat_api_key: "REPLACE_WITH_CHAT_KEY"
+# weknora_chat_model_name: "chat-model"
+# weknora_embedding_base_url: "https://embedding.example.invalid/v1"
+# weknora_embedding_api_key: "REPLACE_WITH_EMBEDDING_KEY"
+# weknora_embedding_model_name: "embedding-model"
+# weknora_embedding_dimension: 1024
+# weknora_rerank_base_url: "https://rerank.example.invalid/v1"
+# weknora_rerank_api_key: "REPLACE_WITH_RERANK_KEY"
+# weknora_rerank_model_name: "rerank-model"

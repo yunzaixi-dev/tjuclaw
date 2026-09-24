@@ -28,12 +28,21 @@ const repositories = [
   },
   {
     name: 'tjuclaw-server',
-    status: '开源',
+    status: '闭源',
     lang: 'Go 1.27.0',
     scope: '核心后端 API / 存储 / 认证网关',
     desc: '基于 Go 1.27 构建，提供同源会话认证、任务记录与工作空间管理 API。',
     path: 'backend/',
     href: 'https://github.com/yunzaixi-dev/tjuclaw-server',
+  },
+  {
+    name: 'tjuclaw-sandbox',
+    status: '闭源',
+    lang: 'Kubernetes · OCI · Linux',
+    scope: '自建 Agent 执行沙箱',
+    desc: '面向不可信 Agent 代码的自建 Kubernetes 运行时，负责临时 Run 隔离、工作区契约、资源预算与网络边界。',
+    path: 'sandbox/',
+    href: 'https://github.com/yunzaixi-dev/tjuclaw-sandbox',
   },
   {
     name: 'tjucli',
@@ -46,7 +55,7 @@ const repositories = [
   },
   {
     name: 'tjuclaw-crawler',
-    status: '开源',
+    status: '闭源',
     lang: 'TypeScript · Bun 1.3 · PostgreSQL',
     scope: '校园情报摄取 / RSS 管道',
     desc: '基于轻量 Bun 运行时构建的高性能情报采集与重放服务，统一汇聚至 PostgreSQL，持续输出标准化校园动态与资料库事件流。',
@@ -196,11 +205,11 @@ export default function HomePage() {
         {chapters.map(([id, title, description, href]) => <Link className="wiki-chapter" href={href} key={id}><span>{id}</span><strong>{title}</strong><p>{description}</p><b>→</b></Link>)}
       </section>
 
-      <section className="wiki-repos" aria-label="开源代码仓库划分">
+      <section className="wiki-repos" aria-label="代码仓库划分">
         <div className="wiki-section-title">
-          <h2>开源代码矩阵与模块划分。</h2>
+          <h2>代码矩阵与模块划分。</h2>
           <p>
-            TJUClaw 的主要代码仓库公开可访问。完整源码、流水线状态与最新开发动态请通过下方仓库入口查看。
+            TJUClaw 由开源产品组件与闭源执行基础设施共同组成。完整源码、流水线状态与最新开发动态请通过下方仓库入口查看。
           </p>
         </div>
         <div className="wiki-repos-grid">

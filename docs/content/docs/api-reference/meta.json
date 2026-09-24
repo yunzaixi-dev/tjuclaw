@@ -1,0 +1,5 @@
+{
+  "title": "API Reference",
+  "description": "TJUClaw HTTP API 的完整 OpenAPI 参考。",
+  "pages": ["overview", "reference"]
+}

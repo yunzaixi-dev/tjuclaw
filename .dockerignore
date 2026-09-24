@@ -19,6 +19,26 @@ ops/images/**
 !ops/images/web.Dockerfile
 !ops/images/nginx.conf
 
+# Sandbox images need only the CLI and the controller/agent sources.
+!cli/
+!cli/go.mod
+!cli/cmd/
+!cli/cmd/**
+!cli/internal/
+!cli/internal/**
+!cli/skills/
+!cli/skills/tjucli/
+!cli/skills/tjucli/SKILL.md
+!sandbox/
+!sandbox/go.mod
+!sandbox/cmd/
+!sandbox/cmd/**
+!sandbox/internal/
+!sandbox/internal/**
+!sandbox/image/
+!sandbox/image/**
+!sandbox/profiles.example.json
+
 **/.env*
 **/*.private.*
 **/*.key

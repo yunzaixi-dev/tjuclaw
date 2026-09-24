@@ -12,7 +12,8 @@ task ops:zitadel:deploy
 
 For the isolated WeKnora knowledge engine, copy `weknora.example.yml` to ignored
 `ops/local/weknora.yml` and use `task ops:weknora:deploy`. Listeners stay on
-loopback 18180/18181. Combined memory ceiling is about 1.4 GiB — do not share
+loopback 18180/18181. A same-host Cloudflare Tunnel can reach the Compose
+services without changing those bindings. Combined memory ceiling is about 1.4 GiB — do not share
 the 2 GiB core host with identity, NewAPI, crawler and the API. WeKnora is not
 product identity and not library ACL. See [../weknora/README.md](../weknora/README.md).
 

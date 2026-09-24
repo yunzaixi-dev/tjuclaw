@@ -2,8 +2,11 @@
   "title": "TJUClaw 2026",
   "pages": [
     "index",
+    "architecture",
+    "secrets",
     "guide",
     "quickstart",
+    "api-reference",
     "---技术博客---",
     "blog/data-pipeline",
     "blog/why-pi-as-agent-harness",

@@ -1,0 +1,2359 @@
+openapi: 3.1.0
+info:
+  title: TJUClaw API
+  version: 0.0.48
+  description: |
+    TJUClaw 同源 HTTP API。浏览器通过 Web 端的 `/api` 前缀访问这些接口；
+    直接运行 Go API 时，服务根路径就是 API 根路径。
+
+    除健康检查外，业务接口使用 HttpOnly 会话 Cookie。资源归属始终由服务端
+    会话身份决定，客户端提交的 owner ID 不参与授权判断。
+servers:
+  - url: http://127.0.0.1:1420/api
+    description: 本地 Web 同源代理
+  - url: http://127.0.0.1:8080
+    description: 直接访问 Go API
+tags:
+  - name: System
+    description: 服务运行状态
+  - name: Authentication
+    description: 应用层邮箱验证码、密码与会话接口
+  - name: Kratos
+    description: 受限的 Ory Kratos 浏览器流程代理
+  - name: Tasks
+    description: 用户任务
+  - name: Runs
+    description: 任务运行记录
+  - name: Libraries
+    description: 知识库、条目与文件
+  - name: Sessions
+    description: 知识库智能体会话
+  - name: Models
+    description: 用户模型配置与产品配额
+  - name: Marketplace
+    description: 知识库发布与订阅
+  - name: Campus
+    description: 微北洋校园服务代理
+  - name: Anki
+    description: 服务端牌组、卡片、复习与媒体
+security:
+  - browserSession: []
+paths:
+  /healthz:
+    get:
+      tags: [System]
+      summary: 健康检查
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: API 正常运行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example: { status: ok }
+
+  /auth/flow:
+    get:
+      tags: [Authentication]
+      summary: 读取当前认证流程
+      operationId: getAuthFlow
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthFlow'
+        '403': { $ref: '#/components/responses/OriginRejected' }
+  /auth/session:
+    get:
+      tags: [Authentication]
+      summary: 获取当前会话
+      operationId: getCurrentSession
+      responses:
+        '200':
+          description: 当前会话有效
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentitySession' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/start:
+    post:
+      tags: [Authentication]
+      summary: 发送邮箱验证码
+      operationId: startEmailAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartAuthRequest' }
+            example:
+              email: user@example.com
+              captcha_token: captcha-token
+      responses:
+        '200': { $ref: '#/components/responses/AuthFlow' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/verify:
+    post:
+      tags: [Authentication]
+      summary: 校验邮箱验证码并建立会话
+      operationId: verifyEmailAuth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CodeRequest' }
+            example: { code: '123456' }
+      responses:
+        '200':
+          description: 验证成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentitySession' }
+        '400': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/resend:
+    post:
+      tags: [Authentication]
+      summary: 重新发送邮箱验证码
+      operationId: resendEmailCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CaptchaRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthFlow' }
+        '403': { $ref: '#/components/responses/Error' }
+        '410': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/password:
+    post:
+      tags: [Authentication]
+      summary: 使用密码登录
+      operationId: passwordLogin
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordAuthRequest' }
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IdentitySession' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: 使用密码注册
+      operationId: registerPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordAuthRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthFlow' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+  /auth/reset:
+    post:
+      tags: [Authentication]
+      summary: 重置当前认证流程
+      operationId: resetAuthFlow
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/EmptyJson'
+      responses:
+        '200': { $ref: '#/components/responses/AuthFlow' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: 注销当前会话
+      operationId: logout
+      requestBody:
+        $ref: '#/components/requestBodies/EmptyJson'
+      responses:
+        '204':
+          description: 注销成功
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/captcha/challenge:
+    post:
+      tags: [Authentication]
+      summary: 创建验证码挑战
+      operationId: createCaptchaChallenge
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/JsonObject'
+      responses:
+        '200':
+          description: 上游验证码服务响应
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+  /auth/captcha/redeem:
+    post:
+      tags: [Authentication]
+      summary: 兑换验证码挑战
+      operationId: redeemCaptcha
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/JsonObject'
+      responses:
+        '200':
+          description: 上游验证码服务响应
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/AuthUnavailable' }
+
+  /kratos/self-service/login/browser:
+    get:
+      tags: [Kratos]
+      summary: 创建登录浏览器流程
+      operationId: createLoginBrowserFlow
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/login/flows:
+    get:
+      tags: [Kratos]
+      summary: 获取登录流程
+      operationId: getLoginFlow
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FlowId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/InvalidQuery' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/login:
+    post:
+      tags: [Kratos]
+      summary: 提交登录流程
+      operationId: submitLoginFlow
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/FlowSubmission'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+  /kratos/self-service/registration/browser:
+    get:
+      tags: [Kratos]
+      summary: 创建注册浏览器流程
+      operationId: createRegistrationBrowserFlow
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/registration/flows:
+    get:
+      tags: [Kratos]
+      summary: 获取注册流程
+      operationId: getRegistrationFlow
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FlowId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/InvalidQuery' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/registration:
+    post:
+      tags: [Kratos]
+      summary: 提交注册流程
+      operationId: submitRegistrationFlow
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/FlowSubmission'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/verification/browser:
+    get:
+      tags: [Kratos]
+      summary: 创建邮箱验证流程
+      operationId: createVerificationBrowserFlow
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/verification/flows:
+    get:
+      tags: [Kratos]
+      summary: 获取邮箱验证流程
+      operationId: getVerificationFlow
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/FlowId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/InvalidQuery' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/verification:
+    post:
+      tags: [Kratos]
+      summary: 提交邮箱验证流程
+      operationId: submitVerificationFlow
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/FlowSubmission'
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /kratos/self-service/logout/browser:
+    get:
+      tags: [Kratos]
+      summary: 创建登出流程
+      operationId: createLogoutBrowserFlow
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+  /kratos/self-service/logout:
+    get:
+      tags: [Kratos]
+      summary: 完成登出
+      operationId: completeKratosLogout
+      parameters:
+        - $ref: '#/components/parameters/LogoutToken'
+      responses:
+        '200':
+          description: 上游登出响应
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+        '400': { $ref: '#/components/responses/InvalidQuery' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+  /kratos/self-service/errors:
+    get:
+      tags: [Kratos]
+      summary: 获取认证错误详情
+      operationId: getKratosError
+      security: []
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/JsonObject' }
+        '400': { $ref: '#/components/responses/InvalidQuery' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: 列出当前用户的任务
+      operationId: listTasks
+      responses:
+        '200':
+          description: 任务列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+    post:
+      tags: [Tasks]
+      summary: 创建任务
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTaskRequest' }
+            example: { prompt: 整理这段课程笔记 }
+      responses:
+        '201':
+          description: 任务创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: 获取任务详情
+      operationId: getTask
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 任务详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+
+  /tasks/{id}/runs:
+    get:
+      tags: [Runs]
+      summary: 列出任务运行记录
+      operationId: listTaskRuns
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 运行记录列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+    post:
+      tags: [Runs]
+      summary: 创建任务运行记录
+      operationId: createTaskRun
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '201':
+          description: 运行记录已排队
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+  /runs/{id}:
+    get:
+      tags: [Runs]
+      summary: 获取运行记录
+      operationId: getRun
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 运行记录详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+  /runs/{id}/cancel:
+    post:
+      tags: [Runs]
+      summary: 取消运行记录
+      operationId: cancelRun
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 运行记录已取消
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RunResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+
+  /libraries:
+    get:
+      tags: [Libraries]
+      summary: 列出我的知识库
+      operationId: listLibraries
+      responses:
+        '200':
+          description: 知识库列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+    post:
+      tags: [Libraries]
+      summary: 创建知识库
+      operationId: createLibrary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NameRequest' }
+            example: { name: 课程资料 }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '409': { $ref: '#/components/responses/Error' }
+  /libraries/{id}:
+    get:
+      tags: [Libraries]
+      summary: 获取知识库
+      operationId: getLibrary
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 知识库详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Libraries]
+      summary: 重命名知识库
+      operationId: renameLibrary
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NameRequest' }
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Libraries]
+      summary: 删除知识库
+      operationId: deleteLibrary
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /libraries/{id}/entries:
+    get:
+      tags: [Libraries]
+      summary: 列出知识库条目
+      operationId: listLibraryEntries
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 条目列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Libraries]
+      summary: 创建知识库条目
+      operationId: createLibraryEntry
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateEntryRequest' }
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /libraries/{id}/publish:
+    post:
+      tags: [Marketplace]
+      summary: 发布知识库快照
+      operationId: publishLibrary
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '201':
+          description: 发布成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicationResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /libraries/{id}/publications:
+    get:
+      tags: [Marketplace]
+      summary: 列出知识库发布记录
+      operationId: listLibraryPublications
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 发布记录列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicationListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /libraries/{id}/files:
+    post:
+      tags: [Libraries]
+      summary: 上传知识库文件
+      operationId: uploadLibraryFile
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                parent_id:
+                  type: string
+                  description: 可选的父条目 ID。
+      responses:
+        '201':
+          description: 文件条目创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/Error' }
+  /libraries/{id}/search:
+    get:
+      tags: [Libraries]
+      summary: 搜索知识库笔记
+      operationId: searchLibraryNotes
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SearchResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /entries/{id}:
+    get:
+      tags: [Libraries]
+      summary: 获取条目
+      operationId: getEntry
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 条目详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Libraries]
+      summary: 更新条目
+      operationId: updateEntry
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateEntryRequest' }
+      responses:
+        '200':
+          description: 更新后的条目
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '403': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Libraries]
+      summary: 删除条目
+      operationId: deleteEntry
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /entries/{id}/file:
+    get:
+      tags: [Libraries]
+      summary: 下载条目文件
+      operationId: downloadEntryFile
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 文件二进制内容
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /entries/{id}/sessions:
+    get:
+      tags: [Sessions]
+      summary: 列出条目的智能体会话
+      operationId: listEntrySessions
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 会话列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Sessions]
+      summary: 创建智能体会话
+      operationId: createEntrySession
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '201':
+          description: 会话创建成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: 获取智能体会话
+      operationId: getSession
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 会话详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /sessions/{id}/sandbox-token:
+    post:
+      tags: [Sessions]
+      summary: 获取会话的短期沙箱访问令牌
+      operationId: issueSandboxToken
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 短期沙箱访问令牌
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SandboxTokenResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Error' }
+  /sessions/{id}/messages:
+    post:
+      tags: [Sessions]
+      summary: 向智能体会话发送消息
+      operationId: postSessionMessage
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessageRequest' }
+            example: { content: 总结这篇笔记 }
+      responses:
+        '200':
+          description: 更新后的会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /campus/session:
+    post:
+      tags: [Campus]
+      summary: 登录微北洋校园服务
+      operationId: connectCampus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CampusLoginRequest' }
+      responses:
+        '200':
+          description: 校园会话已建立
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusSessionResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [Campus]
+      summary: 读取当前微北洋会话
+      operationId: getCampusSession
+      responses:
+        '200':
+          description: 当前校园会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusSessionResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Campus]
+      summary: 断开当前微北洋会话
+      operationId: deleteCampusSession
+      responses:
+        '204': { description: 校园会话已断开 }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+
+  /campus/semester:
+    get:
+      tags: [Campus]
+      summary: 获取当前学期信息
+      operationId: getCampusSemester
+      responses:
+        '200':
+          description: 学期数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusSemesterResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /campus/classes:
+    post:
+      tags: [Campus]
+      summary: 兼容入口：查询办公网课程、考试与 GPA
+      operationId: getCampusClasses
+      responses:
+        '200':
+          description: 课程与成绩数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusClassesResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /campus/entry-code:
+    get:
+      tags: [Campus]
+      summary: 获取实时入校码
+      operationId: getCampusEntryCode
+      responses:
+        '200':
+          description: 有效期约三分钟的入校码
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusEntryCodeResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /campus/studyroom/campuses:
+    get:
+      tags: [Campus]
+      summary: 获取自习室校区列表
+      operationId: listCampusStudyroomCampuses
+      responses:
+        '200':
+          description: 校区列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/studyroom/campuses/{campusID}/buildings:
+    get:
+      tags: [Campus]
+      summary: 获取校区楼宇列表
+      operationId: listCampusStudyroomBuildings
+      parameters:
+        - $ref: '#/components/parameters/CampusId'
+      responses:
+        '200':
+          description: 楼宇列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/studyroom/buildings/{buildingID}/rooms:
+    get:
+      tags: [Campus]
+      summary: 获取楼宇自习室列表
+      operationId: listCampusStudyroomRooms
+      parameters:
+        - $ref: '#/components/parameters/BuildingId'
+        - $ref: '#/components/parameters/StudyroomSession'
+        - $ref: '#/components/parameters/RoomDate'
+      responses:
+        '200':
+          description: 自习室列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/studyroom/rooms/{roomID}/schedule:
+    get:
+      tags: [Campus]
+      summary: 获取自习室时间表
+      operationId: getCampusStudyroomSchedule
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '200':
+          description: 自习室时间表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/forum/banners:
+    get:
+      tags: [Campus]
+      summary: 获取校园论坛横幅
+      operationId: listCampusForumBanners
+      responses:
+        '200':
+          description: 论坛横幅数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/forum/posts:
+    get:
+      tags: [Campus]
+      summary: 获取校园论坛帖子
+      operationId: listCampusForumPosts
+      parameters:
+        - $ref: '#/components/parameters/ForumPage'
+      responses:
+        '200':
+          description: 论坛帖子数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
+  /campus/office/captcha:
+    get:
+      tags: [Campus]
+      summary: 获取办公网验证码
+      operationId: getCampusOfficeCaptcha
+      responses:
+        '200':
+          description: 验证码图片，data 为 base64
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfficeCaptchaResponse' }
+        '502': { $ref: '#/components/responses/Error' }
+  /campus/office/session:
+    post:
+      tags: [Campus]
+      summary: 建立办公网 CAS 会话
+      operationId: connectCampusOffice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfficeSessionRequest' }
+      responses:
+        '200':
+          description: 办公网会话已建立
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfficeSessionResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+    get:
+      tags: [Campus]
+      summary: 读取办公网会话
+      operationId: getCampusOfficeSession
+      responses:
+        '200':
+          description: 办公网会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfficeSessionResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Campus]
+      summary: 删除办公网会话
+      operationId: deleteCampusOfficeSession
+      responses:
+        '204': { description: 会话已删除 }
+  /campus/office/session/refresh:
+    post:
+      tags: [Campus]
+      summary: 刷新办公网会话
+      operationId: refreshCampusOfficeSession
+      responses:
+        '200':
+          description: 刷新后的办公网会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfficeSessionResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+  /campus/academic/classes:
+    get:
+      tags: [Campus]
+      summary: 获取办公网课程数据
+      operationId: getAcademicClasses
+      responses:
+        '200':
+          description: 课程、考试与 GPA
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusClassesResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+  /campus/academic/exams:
+    get:
+      tags: [Campus]
+      summary: 获取考试列表
+      operationId: getAcademicExams
+      responses:
+        '200':
+          description: 考试列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusExamsResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+  /campus/academic/gpa:
+    get:
+      tags: [Campus]
+      summary: 获取 GPA 数据
+      operationId: getAcademicGPA
+      responses:
+        '200':
+          description: GPA 数据
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CampusGPAResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /libraries/{id}/folders:
+    get:
+      tags: [Libraries]
+      summary: 列出知识库文件夹
+      operationId: listFolders
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 文件夹列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Libraries]
+      summary: 创建文件夹
+      operationId: createFolder
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFolderRequest' }
+      responses:
+        '201':
+          description: 文件夹已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+  /folders/{id}:
+    get:
+      tags: [Libraries]
+      summary: 获取文件夹
+      operationId: getFolder
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 文件夹详情
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Libraries]
+      summary: 修改文件夹名称或父级
+      operationId: patchFolder
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateFolderRequest' }
+      responses:
+        '200':
+          description: 文件夹已修改
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FolderResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Libraries]
+      summary: 级联删除文件夹及其子树
+      operationId: deleteFolder
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /entries/{id}/move:
+    post:
+      tags: [Libraries]
+      summary: 移动条目到另一个父级
+      operationId: moveEntry
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MoveEntryRequest' }
+      responses:
+        '200':
+          description: 条目已移动
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /libraries/{id}/entries/order:
+    put:
+      tags: [Libraries]
+      summary: 保存同级条目顺序
+      operationId: reorderEntries
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReorderEntriesRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /decks:
+    get:
+      tags: [Anki]
+      summary: 列出牌组
+      operationId: listDecks
+      responses:
+        '200':
+          description: 牌组列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeckListResponse' }
+    post:
+      tags: [Anki]
+      summary: 创建牌组
+      operationId: createDeck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDeckRequest' }
+      responses:
+        '201':
+          description: 牌组已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeckResponse' }
+  /decks/{id}:
+    get:
+      tags: [Anki]
+      summary: 获取牌组
+      operationId: getDeck
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { description: 牌组详情, content: { application/json: { schema: { $ref: '#/components/schemas/DeckResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Anki]
+      summary: 修改牌组
+      operationId: patchDeck
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDeckRequest' }
+      responses:
+        '200': { description: 牌组已修改, content: { application/json: { schema: { $ref: '#/components/schemas/DeckResponse' } } } }
+    delete:
+      tags: [Anki]
+      summary: 删除牌组及其卡片
+      operationId: deleteDeck
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /decks/{id}/export:
+    get:
+      tags: [Anki]
+      summary: 导出牌组 TSV
+      operationId: exportDeck
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: TSV 文件
+          content:
+            text/tab-separated-values: { schema: { type: string } }
+  /decks/import:
+    post:
+      tags: [Anki]
+      summary: 导入 TSV 牌组
+      operationId: importDeck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportDeckRequest' }
+      responses:
+        '201':
+          description: 导入结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportDeckResponse' }
+  /templates:
+    get:
+      tags: [Anki]
+      summary: 列出卡片模板
+      operationId: listAnkiTemplates
+      responses:
+        '200':
+          description: 模板列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateListResponse' }
+    post:
+      tags: [Anki]
+      summary: 创建卡片模板
+      operationId: createAnkiTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTemplateRequest' }
+      responses:
+        '201': { description: 模板已创建, content: { application/json: { schema: { $ref: '#/components/schemas/TemplateResponse' } } } }
+  /templates/{id}:
+    get:
+      tags: [Anki]
+      summary: 获取卡片模板
+      operationId: getAnkiTemplate
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { description: 模板详情, content: { application/json: { schema: { $ref: '#/components/schemas/TemplateResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Anki]
+      summary: 修改卡片模板
+      operationId: patchAnkiTemplate
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateTemplateRequest' }
+      responses:
+        '200': { description: 模板已修改, content: { application/json: { schema: { $ref: '#/components/schemas/TemplateResponse' } } } }
+    delete:
+      tags: [Anki]
+      summary: 删除卡片模板
+      operationId: deleteAnkiTemplate
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /cards:
+    get:
+      tags: [Anki]
+      summary: 列出卡片
+      operationId: listCards
+      parameters:
+        - name: deck_id
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 卡片列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardListResponse' }
+    post:
+      tags: [Anki]
+      summary: 创建卡片
+      operationId: createCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCardRequest' }
+      responses:
+        '201': { description: 卡片已创建, content: { application/json: { schema: { $ref: '#/components/schemas/CardResponse' } } } }
+  /cards/{id}:
+    get:
+      tags: [Anki]
+      summary: 获取卡片
+      operationId: getCard
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { description: 卡片详情, content: { application/json: { schema: { $ref: '#/components/schemas/CardResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Anki]
+      summary: 修改卡片
+      operationId: patchCard
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCardRequest' }
+      responses:
+        '200': { description: 卡片已修改, content: { application/json: { schema: { $ref: '#/components/schemas/CardResponse' } } } }
+    delete:
+      tags: [Anki]
+      summary: 删除卡片
+      operationId: deleteCard
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+  /reviews:
+    get:
+      tags: [Anki]
+      summary: 查看复习记录
+      operationId: listReviews
+      responses:
+        '200':
+          description: 复习记录
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewListResponse' }
+    post:
+      tags: [Anki]
+      summary: 提交一次复习
+      operationId: reviewCard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewRequest' }
+      responses:
+        '200':
+          description: 更新后的卡片和复习记录
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewResponse' }
+  /media:
+    get:
+      tags: [Anki]
+      summary: 列出 Anki 媒体
+      operationId: listAnkiMedia
+      responses:
+        '200':
+          description: 媒体列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MediaListResponse' }
+    post:
+      tags: [Anki]
+      summary: 上传 Anki 媒体
+      operationId: uploadAnkiMedia
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: 媒体已上传, content: { application/json: { schema: { $ref: '#/components/schemas/MediaResponse' } } } }
+  /media/{id}:
+    get:
+      tags: [Anki]
+      summary: 下载 Anki 媒体
+      operationId: getAnkiMedia
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { description: 媒体文件, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+    delete:
+      tags: [Anki]
+      summary: 删除 Anki 媒体
+      operationId: deleteAnkiMedia
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+
+  /account/model:
+    get:
+      tags: [Models]
+      summary: 获取当前模型配置与配额
+      operationId: getModel
+      responses:
+        '200':
+          description: 模型状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+    put:
+      tags: [Models]
+      summary: 保存自定义模型配置
+      operationId: putModel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PutModelRequest' }
+      responses:
+        '200':
+          description: 配置已保存
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Models]
+      summary: 删除自定义模型配置
+      operationId: deleteModel
+      responses:
+        '200':
+          description: 已恢复产品模型
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ModelResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+
+  /market:
+    get:
+      tags: [Marketplace]
+      summary: 浏览知识库市场
+      operationId: listMarket
+      responses:
+        '200':
+          description: 可订阅的公开快照
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicationListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+  /market/{id}/subscribe:
+    post:
+      tags: [Marketplace]
+      summary: 订阅公开知识库
+      operationId: subscribePublication
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 订阅成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /publications/{id}/withdraw:
+    post:
+      tags: [Marketplace]
+      summary: 撤回发布快照
+      operationId: withdrawPublication
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 撤回成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    browserSession:
+      type: apiKey
+      in: cookie
+      name: tjuclaw_session
+      description: 服务端设置的 HttpOnly 浏览器会话 Cookie；生产 HTTPS 下使用 Host-only Cookie。
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      description: 32 位小写十六进制资源 ID。
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{32}$'
+        example: 0123456789abcdef0123456789abcdef
+    FlowId:
+      name: id
+      in: query
+      required: true
+      description: Kratos 流程 ID。
+      schema: { type: string }
+    LogoutToken:
+      name: token
+      in: query
+      required: true
+      description: Kratos 返回的一次性登出 token。
+      schema: { type: string }
+    CampusId:
+      name: campusID
+      in: path
+      required: true
+      description: 校区 ID。
+      schema: { type: integer, minimum: 1 }
+    BuildingId:
+      name: buildingID
+      in: path
+      required: true
+      description: 楼宇 ID。
+      schema: { type: integer, minimum: 1 }
+    RoomId:
+      name: roomID
+      in: path
+      required: true
+      description: 自习室 ID。
+      schema: { type: integer, minimum: 1 }
+    StudyroomSession:
+      name: session
+      in: query
+      required: false
+      description: 时段索引；不传或传 -1 时返回楼宇房间概览。
+      schema: { type: integer, minimum: -1 }
+    RoomDate:
+      name: date
+      in: query
+      required: false
+      description: 指定时段时必填，格式为 YYYY-MM-DD。
+      schema: { type: string, format: date }
+    ForumPage:
+      name: page
+      in: query
+      required: false
+      description: 论坛分页页码。
+      schema: { type: integer, minimum: 1, default: 1 }
+  requestBodies:
+    EmptyJson:
+      required: true
+      content:
+        application/json:
+          schema: { type: object, additionalProperties: false }
+          example: {}
+    JsonObject:
+      required: false
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/JsonObject' }
+    FlowSubmission:
+      required: true
+      description: 受限代理只允许 JSON 请求，并由上游流程决定具体字段。
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlowSubmission' }
+          example:
+            method: code
+            identifier: user@example.com
+            csrf_token: csrf-token
+  responses:
+    AuthFlow:
+      description: 应用认证流程状态
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthFlow' }
+    JsonObject:
+      description: 上游 JSON 响应
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/JsonObject' }
+    Error:
+      description: 统一错误响应
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    SessionRequired:
+      description: 未登录或会话已失效
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: session_required } }
+    OriginRejected:
+      description: 请求不是当前应用同源请求
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: origin_rejected } }
+    AuthUnavailable:
+      description: 认证上游不可用或未配置
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: auth_unavailable } }
+    StorageUnavailable:
+      description: 对应存储后端不可用
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Ok:
+      description: 操作成功
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/OkResponse' }
+          example: { error: { id: library_storage_unavailable } }
+    UnsupportedMediaType:
+      description: 请求必须使用 application/json
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: unsupported_media_type } }
+    InvalidQuery:
+      description: 查询参数不符合代理白名单
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: invalid_query } }
+    NotFound:
+      description: 资源不存在、无权访问或路由不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { id: not_found } }
+  schemas:
+    JsonObject:
+      type: object
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+              description: 稳定的机器可读错误 ID。
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, const: ok }
+    IdentitySession:
+      type: object
+      required: [id, email, email_verified, expires_at]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        expires_at: { type: string, format: date-time }
+    AuthFlow:
+      type: object
+      required: [stage, captcha_endpoint]
+      properties:
+        stage: { type: string, enum: [email, code] }
+        email: { type: string, format: email }
+        expires_at: { type: string, format: date-time }
+        resend_at: { type: string, format: date-time }
+        captcha_endpoint: { type: string }
+    Task:
+      type: object
+      required: [id, title, prompt, status, created_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        title: { type: string, maxLength: 80 }
+        prompt: { type: string, minLength: 1, maxLength: 4000 }
+        status: { type: string, const: draft }
+        created_at: { type: string, format: date-time }
+    CreateTaskRequest:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 4000 }
+    TaskResponse:
+      type: object
+      required: [task]
+      properties:
+        task: { $ref: '#/components/schemas/Task' }
+    TaskListResponse:
+      type: object
+      required: [tasks]
+      properties:
+        tasks:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+    Run:
+      type: object
+      required: [id, task_id, owner_id, status, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        task_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        owner_id: { type: string }
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed, cancelled]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+        error: { type: string }
+    RunResponse:
+      type: object
+      required: [run]
+      properties:
+        run: { $ref: '#/components/schemas/Run' }
+    RunListResponse:
+      type: object
+      required: [runs]
+      properties:
+        runs:
+          type: array
+          items: { $ref: '#/components/schemas/Run' }
+    Library:
+      type: object
+      required: [id, name, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        name: { type: string, maxLength: 80 }
+        role: { type: string, enum: [owner, subscribed] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    LibraryResponse:
+      type: object
+      required: [library]
+      properties:
+        library: { $ref: '#/components/schemas/Library' }
+    LibraryListResponse:
+      type: object
+      required: [libraries]
+      properties:
+        libraries:
+          type: array
+          items: { $ref: '#/components/schemas/Library' }
+    NameRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+    Entry:
+      type: object
+      required: [id, library_id, parent_id, kind, title, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        library_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        parent_id: { type: string }
+        kind: { type: string, enum: [note, agent, work_env, file, folder] }
+        preset: { type: string, enum: [guide] }
+        title: { type: string, maxLength: 80 }
+        body: { type: string, maxLength: 20000 }
+        content_type: { type: string }
+        size: { type: integer, minimum: 0 }
+        sort_order: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    EntryResponse:
+      type: object
+      required: [entry]
+      properties:
+        entry: { $ref: '#/components/schemas/Entry' }
+    EntryListResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/Entry' }
+    CreateEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, title]
+      properties:
+        parent_id: { type: string }
+        kind: { type: string, enum: [note, agent, work_env, file, folder] }
+        title: { type: string, minLength: 1, maxLength: 80 }
+        body: { type: string, maxLength: 20000 }
+    UpdateEntryRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, maxLength: 80 }
+        body: { type: string, maxLength: 20000 }
+        parent_id: { type: string }
+    Publication:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        withdrawn: { type: boolean }
+    PublicationResponse:
+      type: object
+      required: [publication]
+      properties:
+        publication: { $ref: '#/components/schemas/Publication' }
+    PublicationListResponse:
+      type: object
+      required: [publications]
+      properties:
+        publications:
+          type: array
+          items: { $ref: '#/components/schemas/Publication' }
+    SearchHit:
+      type: object
+      required: [id, title, snippet, source]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        snippet: { type: string }
+        source: { type: string }
+    SearchResponse:
+      type: object
+      required: [hits]
+      properties:
+        hits:
+          type: array
+          items: { $ref: '#/components/schemas/SearchHit' }
+    Message:
+      type: object
+      required: [role, content, created_at]
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        tool_call_id: { type: string }
+        tool_calls:
+          type: array
+          items: { $ref: '#/components/schemas/ToolCall' }
+        created_at: { type: string, format: date-time }
+    ToolCall:
+      type: object
+      required: [id, name, arguments]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        arguments: { type: string }
+    ChatSession:
+      type: object
+      required: [id, entry_id, created_at, updated_at]
+      properties:
+        id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        entry_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SessionResponse:
+      type: object
+      required: [session]
+      properties:
+        session: { $ref: '#/components/schemas/ChatSession' }
+    SessionListResponse:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/ChatSession' }
+    SandboxTokenResponse:
+      type: object
+      required: [token, expires_at]
+      properties:
+        token:
+          type: string
+          description: 绑定当前用户、会话、条目和 profile 的短期 Bearer token。
+        expires_at: { type: string, format: date-time }
+        gateway_url:
+          type: string
+          format: uri
+          description: 配置后的沙箱 gateway 公网地址；未配置时省略。
+    MessageRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 8000 }
+    Model:
+      type: object
+      required: [configured, source, name, quota]
+      properties:
+        configured: { type: boolean }
+        source: { type: string, enum: [none, custom, product] }
+        name: { type: string }
+        quota:
+          type: object
+          required: [limit, used, remaining]
+          properties:
+            limit: { type: integer, minimum: 0 }
+            used: { type: integer, minimum: 0 }
+            remaining: { type: integer, minimum: 0 }
+    ModelResponse:
+      type: object
+      required: [model]
+      properties:
+        model: { $ref: '#/components/schemas/Model' }
+    PutModelRequest:
+      type: object
+      additionalProperties: false
+      required: [base_url, api_key]
+      properties:
+        base_url: { type: string, format: uri }
+        api_key: { type: string, minLength: 1, maxLength: 512 }
+        model: { type: string, maxLength: 80 }
+    FolderResponse:
+      type: object
+      required: [folder]
+      properties:
+        folder: { $ref: '#/components/schemas/Entry' }
+    FolderListResponse:
+      type: object
+      required: [folders]
+      properties:
+        folders:
+          type: array
+          items: { $ref: '#/components/schemas/Entry' }
+    CreateFolderRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 80 }
+        parent_id: { type: string }
+    UpdateFolderRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, maxLength: 80 }
+        parent_id: { type: string }
+    MoveEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [parent_id]
+      properties:
+        parent_id: { type: string }
+    ReorderEntriesRequest:
+      type: object
+      additionalProperties: false
+      required: [ids]
+      properties:
+        parent_id: { type: string }
+        ids:
+          type: array
+          minItems: 1
+          items: { type: string, pattern: '^[0-9a-f]{32}$' }
+    Deck:
+      type: object
+      required: [id, name, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 120 }
+        description: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    DeckResponse:
+      type: object
+      required: [deck]
+      properties:
+        deck: { $ref: '#/components/schemas/Deck' }
+    DeckListResponse:
+      type: object
+      required: [decks]
+      properties:
+        decks:
+          type: array
+          items: { $ref: '#/components/schemas/Deck' }
+    CreateDeckRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+    UpdateDeckRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, maxLength: 120 }
+        description: { type: string, maxLength: 1000 }
+    AnkiTemplate:
+      type: object
+      required: [id, name, front, back, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        front: { type: string }
+        back: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TemplateResponse:
+      type: object
+      required: [template]
+      properties:
+        template: { $ref: '#/components/schemas/AnkiTemplate' }
+    TemplateListResponse:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items: { $ref: '#/components/schemas/AnkiTemplate' }
+    CreateTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, front, back]
+      properties:
+        name: { type: string }
+        front: { type: string }
+        back: { type: string }
+    UpdateTemplateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CreateTemplateRequest'
+    AnkiCard:
+      type: object
+      required: [id, deck_id, front, back, due, interval, ease, reps, lapses, created_at, updated_at]
+      properties:
+        id: { type: string }
+        deck_id: { type: string }
+        template_id: { type: string }
+        front: { type: string }
+        back: { type: string }
+        tags: { type: array, items: { type: string } }
+        due: { type: string, format: date-time }
+        interval: { type: integer, minimum: 0 }
+        ease: { type: integer, minimum: 0 }
+        reps: { type: integer, minimum: 0 }
+        lapses: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CardResponse:
+      type: object
+      required: [card]
+      properties:
+        card: { $ref: '#/components/schemas/AnkiCard' }
+    CardListResponse:
+      type: object
+      required: [cards]
+      properties:
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/AnkiCard' }
+    CreateCardRequest:
+      type: object
+      additionalProperties: false
+      required: [deck_id, front, back]
+      properties:
+        deck_id: { type: string }
+        template_id: { type: string }
+        front: { type: string }
+        back: { type: string }
+        tags: { type: array, items: { type: string } }
+    UpdateCardRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        front: { type: string }
+        back: { type: string }
+        tags: { type: array, items: { type: string } }
+    Review:
+      type: object
+      required: [id, card_id, rating, interval, reviewed_at]
+      properties:
+        id: { type: string }
+        card_id: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 4 }
+        interval: { type: integer, minimum: 0 }
+        reviewed_at: { type: string, format: date-time }
+    ReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [card_id, rating]
+      properties:
+        card_id: { type: string }
+        rating: { type: integer, minimum: 1, maximum: 4 }
+    ReviewResponse:
+      type: object
+      required: [card, review]
+      properties:
+        card: { $ref: '#/components/schemas/AnkiCard' }
+        review: { $ref: '#/components/schemas/Review' }
+    ReviewListResponse:
+      type: object
+      required: [reviews]
+      properties:
+        reviews:
+          type: array
+          items: { $ref: '#/components/schemas/Review' }
+    Media:
+      type: object
+      required: [id, name, content_type, size, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        content_type: { type: string }
+        size: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+    MediaResponse:
+      type: object
+      required: [media]
+      properties:
+        media: { $ref: '#/components/schemas/Media' }
+    MediaListResponse:
+      type: object
+      required: [media]
+      properties:
+        media:
+          type: array
+          items: { $ref: '#/components/schemas/Media' }
+    ImportDeckRequest:
+      type: object
+      additionalProperties: false
+      required: [name, tsv]
+      properties:
+        name: { type: string }
+        tsv: { type: string }
+    ImportDeckResponse:
+      type: object
+      required: [deck, cards]
+      properties:
+        deck: { $ref: '#/components/schemas/Deck' }
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/AnkiCard' }
+    CampusLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [account, password]
+      properties:
+        account: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1, format: password }
+    CampusSessionResponse:
+      type: object
+      required: [user_number, nickname, expires_at]
+      properties:
+        user_number: { type: string }
+        nickname: { type: string }
+        expires_at: { type: string, format: date-time }
+    OfficeCaptchaResponse:
+      type: object
+      required: [captcha_id, content_type, data, expires_at]
+      properties:
+        captcha_id: { type: string }
+        content_type: { type: string }
+        data: { type: string, contentEncoding: base64 }
+        expires_at: { type: string, format: date-time }
+    OfficeSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password, captcha_id, captcha]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1, format: password }
+        captcha_id: { type: string }
+        captcha: { type: string, minLength: 1 }
+    OfficeSessionResponse:
+      type: object
+      required: [username, expires_at]
+      properties:
+        username: { type: string }
+        expires_at: { type: string, format: date-time }
+    CampusClassesResponse:
+      type: object
+      required: [courses, exams, gpa]
+      properties:
+        courses:
+          type: array
+          items: { $ref: '#/components/schemas/CampusCourse' }
+        exams:
+          type: array
+          items: { $ref: '#/components/schemas/CampusExam' }
+        gpa:
+          $ref: '#/components/schemas/CampusGPA'
+    CampusCourse:
+      type: object
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        name: { type: string }
+        teacher: { type: string }
+        classroom: { type: string }
+        weekday: { type: integer, minimum: 1, maximum: 7 }
+        start: { type: integer, minimum: 1 }
+        end: { type: integer, minimum: 1 }
+    CampusExam:
+      type: object
+      additionalProperties: true
+      properties:
+        name: { type: string }
+        course: { type: string }
+        date: { type: string, format: date-time }
+        room: { type: string }
+    CampusGPA:
+      type: object
+      additionalProperties: true
+      properties:
+        value: { type: number }
+        credits: { type: number }
+        courses:
+          type: array
+          items: { type: object, additionalProperties: true }
+    CampusExamsResponse:
+      type: object
+      required: [exams]
+      properties:
+        exams:
+          type: array
+          items: { $ref: '#/components/schemas/CampusExam' }
+    CampusGPAResponse:
+      type: object
+      required: [gpa]
+      properties:
+        gpa: { $ref: '#/components/schemas/CampusGPA' }
+    CampusSemesterResponse:
+      type: object
+      required: [semester]
+      properties:
+        semester: {}
+    CampusEntryCodeResponse:
+      type: object
+      required: [content, expires_at]
+      properties:
+        content: { type: string }
+        expires_at: { type: string, format: date-time }
+    CampusDataResponse:
+      type: object
+      required: [data]
+      properties:
+        data: {}
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+    StartAuthRequest:
+      type: object
+      additionalProperties: false
+      required: [email, captcha_token]
+      properties:
+        email: { type: string, format: email }
+        captcha_token: { type: string }
+    CaptchaRequest:
+      type: object
+      additionalProperties: false
+      required: [captcha_token]
+      properties:
+        captcha_token: { type: string }
+    CodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^[0-9]{6}$' }
+    PasswordAuthRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, captcha_token]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        captcha_token: { type: string }
+    FlowSubmission:
+      type: object
+      additionalProperties: true
+      required: [method]
+      properties:
+        method: { type: string, const: code }
+        csrf_token: { type: string }
+        identifier: { type: string }
+        email: { type: string, format: email }
+        traits: { type: object, additionalProperties: true }
+        code: { type: string }
+        resend: { type: boolean }

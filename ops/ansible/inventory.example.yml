@@ -12,5 +12,11 @@ all:
           ansible_host: target-node.invalid
           ansible_user: deploy
           ansible_port: 22
+    weknora_nodes:
+      hosts:
+        weknora-node-01.invalid:
+          ansible_host: weknora-node.invalid
+          ansible_user: deploy
+          ansible_port: 22
   vars:
     ansible_python_interpreter: auto_silent

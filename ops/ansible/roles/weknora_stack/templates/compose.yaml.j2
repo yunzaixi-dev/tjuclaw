@@ -137,6 +137,32 @@ services:
         max-size: "{{ weknora_logging_max_size }}"
         max-file: "{{ weknora_logging_max_file }}"
 
+{% if weknora_tunnel_enabled | bool %}
+  cloudflared:
+    image: {{ weknora_tunnel_image }}
+    container_name: {{ weknora_project_name }}-cloudflared
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflared_tunnel_token"]
+    secrets:
+      - cloudflared_tunnel_token
+    depends_on:
+      app:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks:
+      - default
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ weknora_logging_max_size }}"
+        max-file: "{{ weknora_logging_max_file }}"
+{% endif %}
+
 volumes:
   weknora_pg_data:
   weknora_redis_data:
@@ -146,3 +172,9 @@ volumes:
 networks:
   weknora_internal:
     internal: true
+
+{% if weknora_tunnel_enabled | bool %}
+secrets:
+  cloudflared_tunnel_token:
+    file: .tunnel-token
+{% endif %}

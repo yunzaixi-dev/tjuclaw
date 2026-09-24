@@ -37,9 +37,28 @@
       weknora_sandbox_docker_enabled must stay false. Mounting docker.sock is
       equivalent to host root and is out of scope for this stack.
 
-- name: Count optional LLM settings
+- name: Validate Cloudflare Tunnel settings
+  ansible.builtin.assert:
+    that:
+      - weknora_tunnel_ui_hostname == 'weknora-map.agentwego.com'
+      - weknora_tunnel_api_hostname == 'weknora-api.agentwego.com'
+      - (weknora_tunnel_token | default('') | trim | length) >= 32
+    fail_msg: >-
+      The WeKnora Tunnel requires the approved token and the exact UI/API
+      hostnames when enabled.
+  when: weknora_tunnel_enabled | bool
+
+- name: Count split and legacy chat settings
   ansible.builtin.set_fact:
-    weknora_llm_configured_count: >-
+    weknora_chat_split_configured_count: >-
+      {{
+        (
+          (1 if (weknora_chat_base_url | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_chat_api_key | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_chat_model_name | default('') | trim | length > 0) else 0)
+        )
+      }}
+    weknora_chat_legacy_configured_count: >-
       {{
         (
           (1 if (weknora_llm_base_url | default('') | trim | length > 0) else 0) +
@@ -48,11 +67,63 @@
         )
       }}
 
-- name: Assert LLM settings are empty or complete
+- name: Assert chat namespaces are atomic and unambiguous
   ansible.builtin.assert:
     that:
-      - (weknora_llm_configured_count | int == 0) or (weknora_llm_configured_count | int == 3)
+      - (weknora_chat_split_configured_count | int == 0) or (weknora_chat_split_configured_count | int == 3)
+      - (weknora_chat_legacy_configured_count | int == 0) or (weknora_chat_legacy_configured_count | int == 3)
+      - not ((weknora_chat_split_configured_count | int == 3) and (weknora_chat_legacy_configured_count | int == 3))
     fail_msg: >-
-      Incomplete LLM configuration. Set weknora_llm_base_url, weknora_llm_api_key
-      and weknora_llm_model_name together, or leave all three empty and configure
-      models in the WeKnora UI after first boot.
+      Chat configuration must use exactly one complete namespace. Set all three
+      split chat fields or all three legacy LLM fields, but do not mix namespaces
+      or provide a partial namespace.
+
+- name: Resolve complete chat namespace
+  ansible.builtin.set_fact:
+    weknora_chat_base_url_effective: "{{ weknora_chat_base_url if (weknora_chat_split_configured_count | int == 3) else weknora_llm_base_url }}"
+    weknora_chat_api_key_effective: "{{ weknora_chat_api_key if (weknora_chat_split_configured_count | int == 3) else weknora_llm_api_key }}"
+    weknora_chat_model_name_effective: "{{ weknora_chat_model_name if (weknora_chat_split_configured_count | int == 3) else weknora_llm_model_name }}"
+
+- name: Count optional model settings
+  ansible.builtin.set_fact:
+    weknora_embedding_configured_count: >-
+      {{
+        (
+          (1 if (weknora_embedding_base_url | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_embedding_api_key | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_embedding_model_name | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_embedding_dimension | default('') | string | trim | length > 0) else 0)
+        )
+      }}
+    weknora_rerank_configured_count: >-
+      {{
+        (
+          (1 if (weknora_rerank_base_url | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_rerank_api_key | default('') | trim | length > 0) else 0) +
+          (1 if (weknora_rerank_model_name | default('') | trim | length > 0) else 0)
+        )
+      }}
+
+- name: Assert embedding settings are empty or complete
+  ansible.builtin.assert:
+    that:
+      - (weknora_embedding_configured_count | int == 0) or (weknora_embedding_configured_count | int == 4)
+    fail_msg: >-
+      Incomplete embedding configuration. Set weknora_embedding_base_url,
+      weknora_embedding_api_key, weknora_embedding_model_name and
+      weknora_embedding_dimension together, or leave all four empty.
+
+- name: Assert embedding dimension is positive
+  ansible.builtin.assert:
+    that:
+      - (weknora_embedding_configured_count | int == 0) or (weknora_embedding_dimension | int > 0)
+    fail_msg: "weknora embedding dimension must be positive when embedding is configured."
+
+- name: Assert rerank settings are empty or complete
+  ansible.builtin.assert:
+    that:
+      - (weknora_rerank_configured_count | int == 0) or (weknora_rerank_configured_count | int == 3)
+    fail_msg: >-
+      Incomplete rerank configuration. Set weknora_rerank_base_url,
+      weknora_rerank_api_key and weknora_rerank_model_name together, or leave
+      all three empty.

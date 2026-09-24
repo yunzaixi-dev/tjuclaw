@@ -4,6 +4,12 @@ weknora_project_name: tjuclaw-weknora
 weknora_app_listen_addr: "127.0.0.1:18181"
 weknora_ui_listen_addr: "127.0.0.1:18180"
 
+weknora_tunnel_enabled: false
+weknora_tunnel_image: "cloudflare/cloudflared:2025.9.1"
+weknora_tunnel_token: ""
+weknora_tunnel_ui_hostname: "weknora-map.agentwego.com"
+weknora_tunnel_api_hostname: "weknora-api.agentwego.com"
+
 weknora_version: "v0.8.0"
 weknora_app_image: "wechatopenai/weknora-app:{{ weknora_version }}"
 weknora_ui_image: "wechatopenai/weknora-ui:{{ weknora_version }}"
@@ -27,6 +33,17 @@ weknora_db_name: WeKnora
 weknora_disable_registration: true
 weknora_sandbox_docker_enabled: false
 weknora_bootstrap_admin_email: ""
+
+weknora_chat_base_url: ""
+weknora_chat_api_key: ""
+weknora_chat_model_name: ""
+weknora_embedding_base_url: ""
+weknora_embedding_api_key: ""
+weknora_embedding_model_name: ""
+weknora_embedding_dimension: ""
+weknora_rerank_base_url: ""
+weknora_rerank_api_key: ""
+weknora_rerank_model_name: ""
 
 weknora_llm_base_url: ""
 weknora_llm_api_key: ""

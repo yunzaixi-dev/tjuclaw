@@ -1,7 +1,21 @@
 ---
 # Playbook to deploy isolated WeKnora knowledge stack
-- name: Deploy WeKnora knowledge engine
+- name: Validate WeKnora deployment inventory
   hosts: all
+  gather_facts: false
+  tasks:
+    - name: Require dedicated WeKnora host group
+      ansible.builtin.assert:
+        that:
+          - groups['weknora_nodes'] is defined
+          - groups['weknora_nodes'] | length > 0
+        fail_msg: >-
+          Inventory must define a non-empty weknora_nodes group. Refusing to
+          deploy WeKnora to an implicit or shared host group.
+      run_once: true
+
+- name: Deploy WeKnora knowledge engine
+  hosts: weknora_nodes
   become: "{{ weknora_become | default(true) }}"
   gather_facts: false
 

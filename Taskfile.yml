@@ -382,6 +382,15 @@ tasks:
     desc: Format Go code
     dir: backend
     cmds: [go fmt ./...]
+  api:docs:
+    desc: Sync backend OpenAPI to Fumadocs and build the documentation site
+    cmds:
+      - node scripts/sync-api-docs.mjs
+      - pnpm --filter @tjuclaw/docs types:check
+      - task: docs:build
+  api:docs:check:
+    desc: Verify backend routes and Fumadocs OpenAPI are synchronized
+    cmds: [node scripts/sync-api-docs.mjs --check]
   lint:
     desc: Check JS/TS and Go source
     cmds:
@@ -409,6 +418,7 @@ tasks:
       - task: types
       - task: test
       - task: docs:check-sync
+      - task: api:docs:check
       - task: git:check
   build:
     desc: Build Web, docs and API (native builds have separate targets)

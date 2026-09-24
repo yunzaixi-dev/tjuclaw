@@ -11,3 +11,11 @@
 	path = crawler
 	url = https://github.com/yunzaixi-dev/tjuclaw-crawler.git
 	branch = release
+[submodule "sandbox"]
+	path = sandbox
+	url = https://github.com/yunzaixi-dev/tjuclaw-sandbox.git
+	branch = release
+[submodule "ClaudeAnimationBase"]
+	path = ClaudeAnimationBase
+	url = https://github.com/JohnHeibel/ClaudeAnimationBase.git
+	branch = main

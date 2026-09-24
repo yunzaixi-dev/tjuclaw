@@ -25,6 +25,11 @@
         path: "{{ weknora_base_dir }}/.env.app"
       register: weknora_existing_app_env_stat
 
+    - name: Stat existing Tunnel token
+      ansible.builtin.stat:
+        path: "{{ weknora_base_dir }}/.tunnel-token"
+      register: weknora_existing_tunnel_token_stat
+
     - name: Slurp previous compose.yaml if present
       ansible.builtin.slurp:
         path: "{{ weknora_base_dir }}/compose.yaml"
@@ -38,11 +43,19 @@
       when: weknora_existing_app_env_stat.stat.exists
       no_log: true
 
+    - name: Slurp previous Tunnel token if present
+      ansible.builtin.slurp:
+        path: "{{ weknora_base_dir }}/.tunnel-token"
+      register: weknora_previous_tunnel_token_slurp
+      when: weknora_existing_tunnel_token_stat.stat.exists
+      no_log: true
+
     - name: Record previous configuration state
       ansible.builtin.set_fact:
         weknora_had_previous_deployment: "{{ weknora_existing_compose_stat.stat.exists }}"
         weknora_previous_compose_content: "{{ weknora_previous_compose_slurp.content | b64decode if weknora_existing_compose_stat.stat.exists else '' }}"
         weknora_previous_app_env_content: "{{ weknora_previous_app_env_slurp.content | b64decode if weknora_existing_app_env_stat.stat.exists else '' }}"
+        weknora_previous_tunnel_token_content: "{{ weknora_previous_tunnel_token_slurp.content | b64decode if weknora_existing_tunnel_token_stat.stat.exists else '' }}"
       no_log: true
 
 - name: Render .env.db file with strict permissions
@@ -71,6 +84,22 @@
     group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
     mode: "0644"
 
+- name: Render Cloudflare Tunnel token
+  ansible.builtin.template:
+    src: tunnel-token.j2
+    dest: "{{ weknora_base_dir }}/.tunnel-token"
+    owner: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (weknora_simulate | bool) else omit }}"
+    mode: "0600"
+  when: weknora_tunnel_enabled | bool
+  no_log: true
+
+- name: Remove disabled Cloudflare Tunnel token
+  ansible.builtin.file:
+    path: "{{ weknora_base_dir }}/.tunnel-token"
+    state: absent
+  when: not (weknora_tunnel_enabled | bool)
+
 - name: Deploy containers and verify health with automated rollback
   when: not (weknora_simulate | bool)
   block:
@@ -91,7 +120,10 @@
 
     - name: Start WeKnora app and UI
       ansible.builtin.command:
-        cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+        cmd: >-
+          docker compose -p "{{ weknora_project_name }}"
+          -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+          {{ 'cloudflared' if (weknora_tunnel_enabled | bool) else '' }}
       register: weknora_app_up
       changed_when: "'Started' in (weknora_app_up.stdout + weknora_app_up.stderr) or 'Created' in (weknora_app_up.stdout + weknora_app_up.stderr)"
 
@@ -114,7 +146,10 @@
 
     - name: Stop failed WeKnora app and UI
       ansible.builtin.command:
-        cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" stop app frontend
+        cmd: >-
+          docker compose -p "{{ weknora_project_name }}"
+          -f "{{ weknora_base_dir }}/compose.yaml" stop app frontend
+          {{ 'cloudflared' if (weknora_tunnel_enabled | bool) else '' }}
       ignore_errors: true
 
     - name: Restore previous compose.yaml and .env.app if present
@@ -133,9 +168,26 @@
             mode: "0600"
           no_log: true
 
+        - name: Restore previous Tunnel token
+          ansible.builtin.copy:
+            content: "{{ weknora_previous_tunnel_token_content }}"
+            dest: "{{ weknora_base_dir }}/.tunnel-token"
+            mode: "0600"
+          when: weknora_existing_tunnel_token_stat.stat.exists
+          no_log: true
+
+        - name: Remove Tunnel token when previous deployment had none
+          ansible.builtin.file:
+            path: "{{ weknora_base_dir }}/.tunnel-token"
+            state: absent
+          when: not weknora_existing_tunnel_token_stat.stat.exists
+
         - name: Restart app with previous configuration
           ansible.builtin.command:
-            cmd: docker compose -p "{{ weknora_project_name }}" -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+            cmd: >-
+              docker compose -p "{{ weknora_project_name }}"
+              -f "{{ weknora_base_dir }}/compose.yaml" up -d app frontend
+              {{ 'cloudflared' if (weknora_tunnel_enabled | bool) else '' }}
 
         - name: Verify restored service health
           ansible.builtin.uri:

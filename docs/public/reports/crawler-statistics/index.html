@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TJUClaw Crawler Repository Statistics</title>
+  <script src="./vendor/echarts.min.js"></script>
+  <style>
+    :root { --ink:#17212b; --muted:#64748b; --line:#dbe4ee; --paper:#f7fafc; --blue:#2563eb; --cyan:#0891b2; --orange:#ea580c; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:Inter,"Noto Sans SC","Microsoft YaHei",sans-serif; }
+    .wrap { width:min(1440px,calc(100% - 48px)); margin:0 auto; padding:42px 0 56px; }
+    header { display:flex; justify-content:space-between; gap:28px; align-items:flex-end; border-bottom:1px solid var(--line); padding-bottom:24px; }
+    h1 { margin:0 0 8px; font-size:clamp(28px,4vw,48px); letter-spacing:-.02em; }
+    h2 { margin:0; font-size:19px; }
+    p { margin:8px 0 0; color:var(--muted); line-height:1.65; }
+    .stamp { color:var(--muted); font-size:13px; text-align:right; white-space:nowrap; }
+    .metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin:24px 0; }
+    .metric { background:#fff; border:1px solid var(--line); padding:18px; min-height:104px; }
+    .metric b { display:block; font-size:28px; margin-bottom:8px; }
+    .metric span { color:var(--muted); font-size:13px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+    .panel { min-width:0; background:#fff; border:1px solid var(--line); padding:20px; }
+    .panel.wide { grid-column:1/-1; }
+    .chart { height:380px; margin-top:12px; }
+    .note { margin-top:24px; background:#eef6ff; border-left:4px solid var(--blue); padding:16px 18px; color:#334155; font-size:14px; line-height:1.7; }
+    code { background:#eef2f7; padding:2px 5px; border-radius:3px; }
+    @media (max-width:900px) { .metrics { grid-template-columns:repeat(2,1fr); } .grid { grid-template-columns:1fr; } .panel.wide { grid-column:auto; } header { display:block; } .stamp { text-align:left; margin-top:12px; } }
+    @media (max-width:520px) { .wrap { width:min(100% - 24px,1440px); padding-top:24px; } .metrics { grid-template-columns:1fr 1fr; } .metric b { font-size:23px; } }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div>
+      <h1>爬虫仓库统计报告</h1>
+      <p>Forgejo crawler-sync raw / markdown 镜像与 crawler PostgreSQL 归档数据</p>
+    </div>
+    <div class="stamp">采集时间：2026-09-20<br>只读统计，不修改仓库</div>
+  </header>
+  <section class="metrics">
+    <div class="metric"><b>89,658</b><span>raw 条目 JSON 数</span></div>
+    <div class="metric"><b>89,566</b><span>Markdown 正文条目数</span></div>
+    <div class="metric"><b>2,376</b><span>附件关联记录</span></div>
+    <div class="metric"><b>99.4%</b><span>附件就绪率：2,361 / 2,376</span></div>
+    <div class="metric"><b>1,409</b><span>已生成文本抽取对象</span></div>
+  </section>
+  <section class="grid">
+    <article class="panel wide"><h2>1. 目录结构状态</h2><p>Git 镜像按 <code>sources/&lt;channel&gt;</code> 分组；展示文件数、目录数、附件目录数和最大目录深度。</p><div id="structure" class="chart"></div></article>
+    <article class="panel"><h2>2. 各渠道条目数量</h2><p>以 raw JSON 和 Markdown 条目文件分别统计。</p><div id="channels" class="chart"></div></article>
+    <article class="panel"><h2>3. 条目附件覆盖率</h2><p>来自 PostgreSQL 的活动附件关联记录；当前 source 为 <code>public-course-sharing</code>。</p><div id="coverage" class="chart"></div></article>
+    <article class="panel"><h2>4. 附件类型比例</h2><p>分母为 <code>archive_objects.kind=raw</code> 的 2,171 个原始对象；按 content type 聚合。</p><div id="types" class="chart"></div></article>
+    <article class="panel"><h2>5. Git 全量条目字符数分布</h2><p>扫描 Markdown 仓库全部 89,566 个正文条目，排除 <code>.attachments/</code>；按 Unicode 字符数、渠道堆叠。</p><div id="words" class="chart"></div></article>
+    <article class="panel"><h2>6. 附件页面量分布</h2><p>按 <code>preview_pN.webp</code> 预览对象数量推导页面数，统计 1,409 个可识别附件。</p><div id="pages" class="chart"></div></article>
+  </section>
+  <div class="note"><strong>口径说明：</strong>目录与字数图均来自 Git 镜像全量扫描：raw 共 97,506 个文件、72,287 个目录，含附件对象；Markdown 共 90,045 个文件、68,929 个目录，其中 89,566 个是正文条目。raw 条目 JSON 为 89,658 个。附件类型图只统计 2,171 个已落库的 raw 对象，不等同于 2,376 条附件关联；页面量图统计已生成 <code>preview_pN.webp</code> 的 1,409 个附件。附件覆盖率来自 <code>archive_item_records</code>。</div>
+</main>
+<script>
+const palette=['#2563eb','#0891b2','#14b8a6','#f59e0b','#ea580c','#8b5cf6','#64748b'];
+const base={animationDuration:500,tooltip:{trigger:'item'},textStyle:{fontFamily:'Inter,"Noto Sans SC",sans-serif'}};
+function chart(id,opt){const c=echarts.init(document.getElementById(id));c.setOption({...base,...opt});window.addEventListener('resize',()=>c.resize());}
+const channels=['course','studyroom','website','wepeiyang','wiki'];
+chart('structure',{tooltip:{trigger:'axis'},legend:{top:0},grid:{left:62,right:24,top:42,bottom:44},xAxis:{type:'category',data:channels,axisLabel:{interval:0}},yAxis:{type:'value'},series:[{name:'raw 文件',type:'bar',data:[2504,589,24204,61620,1377],itemStyle:{color:'#2563eb'}},{name:'Markdown 文件',type:'bar',data:[2497,589,23597,61619,1264],itemStyle:{color:'#14b8a6'}},{name:'raw 目录',type:'bar',data:[2194,591,17881,47132,1317],itemStyle:{color:'#94a3b8'}},{name:'Markdown 目录',type:'bar',data:[2187,591,17503,47131,1265],itemStyle:{color:'#cbd5e1'}},{name:'raw 附件目录',type:'line',data:[118,21,102,176,8],itemStyle:{color:'#ea580c'},lineStyle:{color:'#ea580c'}},{name:'raw 最大深度',type:'line',data:[6,5,6,5,6],itemStyle:{color:'#8b5cf6'},lineStyle:{color:'#8b5cf6'},yAxisIndex:0}]});
+chart('channels',{tooltip:{trigger:'axis'},grid:{left:68,right:24,top:22,bottom:72},xAxis:{type:'category',data:channels,axisLabel:{interval:0,rotate:28,fontSize:10}},yAxis:{type:'value'},series:[{name:'raw',type:'bar',data:[2498,589,23667,61620,1284],itemStyle:{color:'#2563eb'}},{name:'Markdown',type:'bar',data:[2497,589,23597,61619,1264],itemStyle:{color:'#14b8a6'}}]});
+chart('coverage',{legend:{bottom:0},tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},series:[{type:'pie',radius:['48%','72%'],data:[{value:2361,name:'附件已就绪'},{value:15,name:'附件未就绪'}],label:{show:false}}]});
+chart('types',{legend:{bottom:0,type:'scroll'},tooltip:{trigger:'item',formatter:'{b}: {c} ({d}%)'},series:[{type:'pie',radius:'62%',data:[{value:1410,name:'PDF'},{value:325,name:'压缩包'},{value:124,name:'Office/Visio'},{value:26,name:'文本/代码'},{value:4,name:'图片'},{value:282,name:'其他'}],label:{show:false}}]});
+chart('words',{tooltip:{trigger:'axis'},legend:{top:0},grid:{left:58,right:24,top:42,bottom:72},xAxis:{type:'category',data:['<100','100-499','500-999','1k-4.9k','5k-9.9k','10k-49.9k','>=50k'],axisLabel:{interval:0,rotate:25,fontSize:10}},yAxis:{type:'value',minInterval:1},series:[{name:'course',type:'bar',stack:'total',data:[0,23,1183,633,287,311,60],itemStyle:{color:'#2563eb'}},{name:'studyroom',type:'bar',stack:'total',data:[0,589,0,0,0,0,0],itemStyle:{color:'#14b8a6'}},{name:'website',type:'bar',stack:'total',data:[0,3149,7879,11452,831,283,3],itemStyle:{color:'#f59e0b'}},{name:'wepeiyang',type:'bar',stack:'total',data:[0,54155,6772,692,0,0,0],itemStyle:{color:'#ea580c'}},{name:'wiki',type:'bar',stack:'total',data:[0,24,169,831,225,15,0],itemStyle:{color:'#8b5cf6'}}]});
+chart('pages',{tooltip:{trigger:'axis'},grid:{left:58,right:24,top:22,bottom:42},xAxis:{type:'category',data:['1 页','2 页','3 页','4 页','5 页','6 页']},yAxis:{type:'value',minInterval:1},series:[{type:'bar',data:[66,87,1242,1,0,13],itemStyle:{color:'#ea580c'},label:{show:true,position:'top'}}]});
+</script>
+</body>
+</html>

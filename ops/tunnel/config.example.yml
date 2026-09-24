@@ -1,0 +1,7 @@
+tunnel: REPLACE_WITH_APPROVED_TUNNEL_ID
+credentials-file: /etc/cloudflared/REPLACE_WITH_APPROVED_TUNNEL_ID.json
+
+ingress:
+  - hostname: retrieval-gateway.example.invalid
+    service: http://127.0.0.1:18443
+  - service: http_status:404
