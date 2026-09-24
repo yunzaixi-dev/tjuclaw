@@ -80,7 +80,10 @@ async function finish(page, code, email) {
   const libraryButton = page.locator('.sidebar-library-button');
   await expect(libraryButton).toBeVisible();
   await expect(libraryButton).toContainText('个文件');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '资料夹', exact: true }).click();
+  await expect(libraryButton).toBeVisible();
 }
 
 test('real session survives a workspace refresh', async ({ page, request }) => {
@@ -207,7 +210,8 @@ test('real library persistence and cross-identity isolation', async ({ page, req
   const { libraries } = await (await page.request.get('/api/libraries')).json();
   expect(libraries.map(item => item.id)).not.toContain(note.libraryId);
   await expect(page.getByRole('treeitem', { name: title })).toHaveCount(0);
-  await expect(page.getByRole('treeitem', { name: '新手向导' })).toBeVisible();
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
 });
 
 
