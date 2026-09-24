@@ -56,6 +56,7 @@ async function finish(page, code, email) {
   await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
   await page.getByRole('button', { name: '验证并继续', exact: true }).click();
   await expect(page).toHaveURL(/\/workspace$/);
+  await expect(page.locator('.sidebar-library-button, .workspace-vault-screen').first()).toBeVisible({ timeout: 30000 });
   const firstWorkspace = page.getByRole('heading', { name: '创建工作空间', exact: true });
   if (await firstWorkspace.isVisible().catch(() => false)) {
     const passphrase = `TJUClaw-e2e-${Date.now()}`;
