@@ -253,9 +253,10 @@ function commitList(cwd, ref) {
   ], cwd);
   return raw
     .split('\x1e')
+    .map((record) => record.trim())
     .filter(Boolean)
     .map((record) => {
-      const [sha, parents, authoredAt, committedAt, authorName, authorEmail, subject] = record.trim().split('\x1f');
+      const [sha, parents, authoredAt, committedAt, authorName, authorEmail, subject] = record.split('\x1f');
       return {
         sha: sha.trim(),
         shortSha: sha.slice(0, 12),
