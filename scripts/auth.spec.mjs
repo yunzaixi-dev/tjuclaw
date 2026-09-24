@@ -142,7 +142,11 @@ test('real Cap under production CSP, enrollment, wrong code, resend, reload, log
   const session = await page.request.get('/api/auth/session');
   expect(session.status()).toBe(200);
   expect(await session.json()).toMatchObject({ email, email_verified: true });
-  expect(await page.evaluate(() => Object.keys(localStorage).every(key => key === 'tjuclaw.appearance.v1'))).toBe(true);
+  expect(await page.evaluate(() => Object.keys(localStorage).every(key =>
+    key === 'tjuclaw.appearance.v1'
+    || key === 'tjuclaw.contest-banner.v1'
+    || key.startsWith('tjuclaw.workspace.vault.v1.')
+  ))).toBe(true);
   await page.goto('/auth/complete');
   await expect(page.getByRole('heading', { name: '已安全登录。' })).toBeVisible();
   await captureState(page, info, 'complete');
