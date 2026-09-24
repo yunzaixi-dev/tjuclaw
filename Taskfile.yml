@@ -511,3 +511,7 @@ tasks:
   git:check:
     desc: Check staged paths and whitespace without staging anything
     cmds: [pnpm git:check]
+  git:history:
+    desc: Generate root and submodule Git history, code delta and key commit reports
+    cmds:
+      - node scripts/git-history-report.mjs {{.CLI_ARGS}}
