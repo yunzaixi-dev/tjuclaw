@@ -51,11 +51,34 @@ async function begin(page, email, route = '/auth/login') {
   await expect(page.getByLabel('邮箱验证码', { exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toHaveCount(0);
 }
-async function finish(page, code) {
+const workspacePassphrases = new Map();
+async function finish(page, code, email) {
   await page.getByLabel('邮箱验证码', { exact: true }).fill(code);
   await page.getByRole('button', { name: '验证并继续', exact: true }).click();
   await expect(page).toHaveURL(/\/workspace$/);
-  await expect(page.getByRole('button', { name: /我的知识库，\d+ 个文件/ })).toBeVisible();
+  const firstWorkspace = page.getByRole('heading', { name: '创建工作空间', exact: true });
+  if (await firstWorkspace.isVisible().catch(() => false)) {
+    const passphrase = `TJUClaw-e2e-${Date.now()}`;
+    workspacePassphrases.set(email, passphrase);
+    await page.getByLabel('工作空间名称', { exact: true }).fill('我的知识库');
+    await page.getByLabel('创建工作区口令', { exact: true }).fill(passphrase);
+    await page.getByLabel('再次输入口令', { exact: true }).fill(passphrase);
+    await page.getByRole('checkbox').check();
+    await page.getByRole('button', { name: '创建并下载备份', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '口令已创建', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '我已安全备份，进入工作区', exact: true }).click();
+  } else {
+    const unlockWorkspace = page.getByRole('heading', { name: '解锁工作区', exact: true });
+    if (await unlockWorkspace.isVisible().catch(() => false)) {
+      const passphrase = workspacePassphrases.get(email);
+      expect(passphrase, `missing workspace passphrase for ${email}`).toBeTruthy();
+      await page.getByLabel('工作区口令', { exact: true }).fill(passphrase);
+      await page.getByRole('button', { name: '解锁进入工作区', exact: true }).click();
+    }
+  }
+  const libraryButton = page.locator('.sidebar-library-button');
+  await expect(libraryButton).toBeVisible();
+  await expect(libraryButton).toContainText('个文件');
   await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
 }
 
@@ -63,11 +86,12 @@ test('real session survives a workspace refresh', async ({ page, request }) => {
   test.setTimeout(120000);
   const email = `refresh-${Date.now()}@example.com`;
   await begin(page, email);
-  await finish(page, (await latestCode(request, email)).code);
+  await finish(page, (await latestCode(request, email)).code, email);
   expect((await page.request.get('/api/auth/session')).status()).toBe(200);
   await page.reload();
   await expect(page).toHaveURL(/\/workspace$/);
-  await expect(page.getByRole('button', { name: /我的知识库，\d+ 个文件/ })).toBeVisible();
+  await expect(page.locator('.sidebar-library-button')).toBeVisible();
+  await expect(page.locator('.sidebar-library-button')).toContainText('个文件');
   expect((await page.request.get('/api/auth/session')).status()).toBe(200);
   await page.goto('/auth/login');
   await expect(page).toHaveURL(/\/workspace$/);
@@ -110,7 +134,7 @@ test('real Cap under production CSP, enrollment, wrong code, resend, reload, log
   await expect(page.getByRole('status')).toContainText('新验证码已发送');
   const resent = await latestCode(request, email, [mail.id]);
   await captureState(page, info, 'resend');
-  await finish(page, resent.code);
+  await finish(page, resent.code, email);
   const sessionCookie = (await context.cookies()).find(cookie => cookie.name.includes('session'));
   expect(Boolean(sessionCookie?.httpOnly)).toBe(true);
   expect(sessionCookie.sameSite).toBe('Lax');
@@ -137,7 +161,7 @@ test('real library persistence and cross-identity isolation', async ({ page, req
   test.setTimeout(180000);
   const emailA = `lib-a-${Date.now()}@example.com`;
   await begin(page, emailA);
-  await finish(page, (await latestCode(request, emailA)).code);
+  await finish(page, (await latestCode(request, emailA)).code, emailA);
   const title = `Note for user A ${Date.now()}`;
   const body = 'Details owned by A';
   await page.getByRole('button', { name: '新建笔记', exact: true }).click();
@@ -168,7 +192,7 @@ test('real library persistence and cross-identity isolation', async ({ page, req
   await context.clearCookies();
   const emailB = `lib-b-${Date.now()}@example.com`;
   await begin(page, emailB);
-  await finish(page, (await latestCode(request, emailB)).code);
+  await finish(page, (await latestCode(request, emailB)).code, emailB);
   const foreign = await page.request.get(`/api/entries/${note.id}`);
   const missing = await page.request.get(`/api/entries/${'0'.repeat(32)}`);
   expect(foreign.status()).toBe(404);
