@@ -617,12 +617,14 @@ def main() -> int:
 
         for index, item in enumerate(items, start=1):
             started_at = time.time()
+            source_sha256 = hashlib.sha256(item.body.encode("utf-8")).hexdigest()
             estimated_prompt_tokens = max(1, (len(item.body) + 1800) // 4)
             emit({
                 "event": "request_start",
                 "index": index,
                 "total": len(items),
                 "source_path": str(item.relative),
+                "source_sha256": source_sha256,
                 "characters": len(item.body),
                 "estimated_prompt_tokens": estimated_prompt_tokens,
                 "model": args.model,
@@ -633,6 +635,7 @@ def main() -> int:
                 "index": index,
                 "total": len(items),
                 "source_path": str(item.relative),
+                "source_sha256": source_sha256,
                 "reasons": list(item.reasons),
                 "status": "skipped",
                 "model": args.model,
