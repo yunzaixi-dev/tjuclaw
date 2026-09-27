@@ -7,6 +7,7 @@
 //
 //   task draw:dev &    # loopback 5175
 //   node scripts/draw-export.mjs [name ...]
+/* global document */ // used inside page.evaluate (browser context)
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { createRequire } from 'node:module';
