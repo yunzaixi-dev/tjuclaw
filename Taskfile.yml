@@ -82,6 +82,10 @@ tasks:
     desc: Build and test appearance, keyboard access and four responsive sizes
     cmds:
       - task --dir frontend ui:test
+  store:test:
+    desc: Test the device-local SQLite store on Web (OPFS) and Tauri (native)
+    cmds:
+      - task --dir frontend store:test
   auth:up:
     desc: Start persistent local Kratos, Cap and real SMTP by default (captured Mailpit is explicit; Docker required)
     cmds: [node scripts/auth-test-stack.mjs --dev --up]
