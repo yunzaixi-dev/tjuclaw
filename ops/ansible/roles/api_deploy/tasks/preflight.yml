@@ -105,7 +105,58 @@
       {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^ZITADEL_DOMAIN=(.+)$') | first | default('') | trim }}
     api_target_auth_provider_explicit: >-
       {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^AUTH_PROVIDER=(.+)$') | first | default('') | trim }}
+    api_target_sandbox_url: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_SESSION_URL=(.*)$') | first | default('') | trim }}
+    api_target_sandbox_public_url: >-
+      {{ api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_PUBLIC_URL=(.*)$') | first | default('') | trim }}
+    api_target_database_configured: >-
+      {{ (api_env_file_slurp.content | b64decode | regex_findall('(?m)^DATABASE_URL=([^\r\n]+)$') | length) > 0 }}
   no_log: true
+
+- name: Inspect existing file-backed records before PostgreSQL cutover
+  ansible.builtin.stat:
+    path: "{{ api_data_dir }}"
+  register: api_existing_data_dir
+  when: api_target_database_configured | bool
+
+- name: Reject symlinked data directory during PostgreSQL cutover
+  ansible.builtin.assert:
+    that:
+      - not (api_existing_data_dir.stat.islnk | default(false))
+    fail_msg: PostgreSQL cutover requires a real data directory so legacy records cannot be hidden.
+  when: api_target_database_configured | bool
+
+- name: Find records that the PostgreSQL backend would no longer read
+  ansible.builtin.find:
+    paths: "{{ api_data_dir }}"
+    patterns: "*.json"
+    recurse: true
+    file_type: file
+  register: api_file_backed_records
+  when:
+    - api_target_database_configured | bool
+    - api_existing_data_dir.stat.isdir | default(false)
+
+- name: Check explicit migration verification marker
+  ansible.builtin.stat:
+    path: "{{ api_data_dir }}/.postgres-migration-verified"
+  register: api_migration_marker
+  when:
+    - api_target_database_configured | bool
+    - (api_file_backed_records.matched | default(0) | int) > 0
+
+- name: Refuse PostgreSQL cutover with unverified file-backed data
+  ansible.builtin.assert:
+    that:
+      - api_migration_marker.stat.isreg | default(false)
+      - (api_deploy_simulate_systemd | bool) or (api_migration_marker.stat.uid == 0 and api_migration_marker.stat.mode == '0600')
+    fail_msg: >-
+      DATABASE_URL would hide existing FileStore records. Back up and migrate
+      task, run, library and Anki data, verify the result, then create a root-owned
+      mode-0600 {{ api_data_dir }}/.postgres-migration-verified marker.
+  when:
+    - api_target_database_configured | bool
+    - (api_file_backed_records.matched | default(0) | int) > 0
 
 - name: Resolve the single selected identity provider
   ansible.builtin.set_fact:
@@ -124,6 +175,338 @@
     fail_msg: >-
       Environment file {{ api_env_file }} must define APP_PUBLIC_URL (starting with https://)
       and an HTTP(S) origin for the selected identity provider, using unquoted assignments.
+
+- name: Validate production sandbox gateway configuration before deployment
+  ansible.builtin.assert:
+    that:
+      - api_target_sandbox_url == '' or api_target_sandbox_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_sandbox_public_url == '' or api_target_sandbox_public_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_sandbox_public_url == '' or api_target_sandbox_url != ''
+      - api_target_sandbox_url != '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]+)$') | length) == 0
+      - api_target_sandbox_url == '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]+)$') | length) == 1
+      - api_target_sandbox_url == '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]{32,})$') | length) == 1
+    fail_msg: >-
+      Sandbox mode requires a HTTPS SANDBOX_SESSION_URL and exactly one
+      SANDBOX_GATEWAY_HMAC_SECRET of at least 32 bytes; no secret or public
+      gateway URL may be configured without the private origin.
+  no_log: true
+
+- name: Validate sandbox cluster selection for live cutover screening
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_kube_context is match('^[a-zA-Z0-9@._:/-]+$')
+      - api_sandbox_kube_namespace is match('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')
+      - api_sandbox_kubectl_path is match('^/[a-zA-Z0-9/_.-]+$')
+    fail_msg: >-
+      Sandbox mode requires an explicit api_sandbox_kube_context and a controller-side
+      kubectl with read access to Sandbox resources in the runtime namespace.
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Query live Sandboxes before switching a sandbox-enabled API
+  ansible.builtin.command:
+    argv:
+      - "{{ api_sandbox_kubectl_path }}"
+      - --context
+      - "{{ api_sandbox_kube_context }}"
+      - --namespace
+      - "{{ api_sandbox_kube_namespace }}"
+      - get
+      - sandboxes.agents.x-k8s.io
+      - -o
+      - json
+      - --request-timeout=10s
+  delegate_to: localhost
+  become: false
+  register: api_sandbox_live_objects
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Require a successful Sandbox inventory query
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_live_objects.rc == 0
+      - api_sandbox_live_objects.stdout | trim | length > 0
+    fail_msg: >-
+      Cannot inspect live Sandbox resources. Check the explicit context, controller
+      kubeconfig, CRD availability and read-only RBAC before deploying.
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Parse live Sandbox inventory
+  ansible.builtin.set_fact:
+    api_sandbox_inventory: "{{ api_sandbox_live_objects.stdout | from_json }}"
+  no_log: true
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Require a complete Sandbox inventory
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_inventory.kind | default('') in ['List', 'SandboxList']
+      - api_sandbox_inventory['items'] | default(none) | type_debug == 'list'
+    fail_msg: kubectl returned an unexpected Sandbox inventory; deployment is blocked.
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Block legacy or unbound Sandboxes before API cutover
+  ansible.builtin.assert:
+    that:
+      - item.metadata.namespace | default('') == api_sandbox_kube_namespace
+      - item.metadata.annotations['tjuclaw.io/session-binding'] | default('') is match('^[0-9a-f]{64}$')
+    fail_msg: >-
+      A live Sandbox is missing its gateway session binding. Preserve and verify
+      its session checkpoint, drain it and recover under the new controller before
+      switching the API. Do not patch a binding annotation onto a legacy Sandbox.
+  loop: "{{ api_sandbox_inventory['items'] }}"
+  loop_control:
+    label: "{{ item.metadata.name | default('unknown') }}"
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_kube_probe_in_simulation | default(false) | bool)
+
+- name: Check sandbox Gateway readiness from the API host
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_url | regex_replace('/+$', '') }}/readyz"
+    method: GET
+    status_code: 200
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  register: api_sandbox_ready_check
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require a ready Gateway rather than an ingress fallback page
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_ready_check.json.status | default('') == 'ready'
+    fail_msg: Sandbox Gateway /readyz did not return the expected ready JSON response.
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Verify sandbox session and vault routes require authentication
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_url | regex_replace('/+$', '') }}{{ item.path }}"
+    method: "{{ item.method }}"
+    body_format: json
+    body: "{{ item.body | default(omit) }}"
+    status_code: 401
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  loop:
+    - path: /v1/sessions/ensure
+      method: POST
+      body:
+        version: session.v1
+        owner_id: preflight
+        session_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        entry_id: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        profile: study-agent
+    - path: /v1/vault/status
+      method: GET
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: GET
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: PUT
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: DELETE
+  loop_control:
+    label: "{{ item.method }} {{ item.path }}"
+  register: api_sandbox_route_checks
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require Gateway unauthorized responses rather than proxy errors
+  ansible.builtin.assert:
+    that:
+      - item.json.error.id | default('') == 'unauthorized'
+    fail_msg: "Sandbox Gateway route {{ item.item.path }} did not return a Gateway unauthorized response."
+  loop: "{{ api_sandbox_route_checks.results }}"
+  loop_control:
+    label: "{{ item.item.method }} {{ item.item.path }}"
+  when:
+    - api_target_sandbox_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Check browser-facing sandbox Gateway readiness
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_public_url | regex_replace('/+$', '') }}/readyz"
+    method: GET
+    status_code: 200
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  register: api_sandbox_public_ready_check
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require browser-facing Gateway readiness rather than a CDN fallback
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_public_ready_check.json.status | default('') == 'ready'
+    fail_msg: Browser-facing sandbox Gateway /readyz did not return ready JSON.
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Verify browser-facing sandbox session, quota and vault routes
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_public_url | regex_replace('/+$', '') }}{{ item.path }}"
+    method: "{{ item.method }}"
+    body_format: json
+    body: "{{ item.body | default(omit) }}"
+    status_code: 401
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  loop:
+    - path: /v1/sessions/ensure
+      method: POST
+      body:
+        version: session.v1
+        owner_id: preflight
+        session_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        entry_id: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        profile: study-agent
+    - path: /v1/quota
+      method: GET
+    - path: /v1/vault/status
+      method: GET
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: GET
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: PUT
+    - path: /v1/vault/objects/0123456789abcdef0123456789abcdef
+      method: DELETE
+  loop_control:
+    label: "{{ item.method }} {{ item.path }}"
+  register: api_sandbox_public_route_checks
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require Gateway authentication errors on browser-facing routes
+  ansible.builtin.assert:
+    that:
+      - item.json.error.id | default('') == 'unauthorized'
+    fail_msg: "Browser-facing sandbox route {{ item.item.path }} did not reach the Gateway."
+  loop: "{{ api_sandbox_public_route_checks.results }}"
+  loop_control:
+    label: "{{ item.item.method }} {{ item.item.path }}"
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Check browser-facing sandbox note CORS preflight for every method
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_public_url | regex_replace('/+$', '') }}{{ item.path }}"
+    method: OPTIONS
+    headers:
+      Origin: "{{ api_target_app_public_url | regex_replace('/+$', '') }}"
+      Access-Control-Request-Method: "{{ item.method }}"
+      Access-Control-Request-Headers: authorization, content-type
+    status_code: 204
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  loop:
+    - { path: /v1/sessions/notes, method: POST }
+    - { path: /v1/sessions/note, method: POST }
+    - { path: /v1/sessions/note, method: PUT }
+    - { path: /v1/sessions/note, method: PATCH }
+    - { path: /v1/sessions/note, method: DELETE }
+    - { path: /v1/sessions/note/move, method: POST }
+    - { path: /v1/sessions/search, method: POST }
+    - { path: /v1/sessions/graph, method: POST }
+  loop_control:
+    label: "OPTIONS {{ item.path }} ({{ item.method }})"
+  register: api_sandbox_browser_preflight_checks
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require exact browser-facing sandbox CORS headers
+  ansible.builtin.assert:
+    that:
+      - item.access_control_allow_origin | default('') == (api_target_app_public_url | regex_replace('/+$', ''))
+      - item.item.method in (item.access_control_allow_methods | default(''))
+      - "'authorization' in (item.access_control_allow_headers | default('') | lower)"
+      - "'content-type' in (item.access_control_allow_headers | default('') | lower)"
+    fail_msg: Browser-facing sandbox CORS preflight did not allow the exact client origin and method.
+  loop: "{{ api_sandbox_browser_preflight_checks.results }}"
+  loop_control:
+    label: "OPTIONS {{ item.item.path }} ({{ item.item.method }})"
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Check browser-facing sandbox note route reaches authentication
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_public_url | regex_replace('/+$', '') }}/v1/sessions/notes"
+    method: POST
+    headers:
+      Origin: "{{ api_target_app_public_url | regex_replace('/+$', '') }}"
+    body_format: json
+    body:
+      version: session.v1
+      owner_id: preflight
+      session_id: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      entry_id: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      profile: study-agent
+    status_code: 401
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  register: api_sandbox_browser_auth_check
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Require browser-facing sandbox note authentication
+  ansible.builtin.assert:
+    that:
+      - api_sandbox_browser_auth_check.json.error.id | default('') == 'unauthorized'
+    fail_msg: Browser-facing sandbox note route did not reach Gateway authentication.
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
+
+- name: Reject cross-origin browser sandbox preflight
+  ansible.builtin.uri:
+    url: "{{ api_target_sandbox_public_url | regex_replace('/+$', '') }}/v1/sessions/notes"
+    method: OPTIONS
+    headers:
+      Origin: https://untrusted.example.invalid
+      Access-Control-Request-Method: POST
+      Access-Control-Request-Headers: authorization, content-type
+    status_code: 403
+    timeout: 10
+    follow_redirects: none
+    validate_certs: true
+    ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
+  when:
+    - api_target_sandbox_public_url != ''
+    - not (api_deploy_simulate_systemd | bool) or (api_sandbox_probe_in_simulation | default(false) | bool)
 
 - name: Require the complete server-only ZITADEL and Cap configuration
   ansible.builtin.assert:

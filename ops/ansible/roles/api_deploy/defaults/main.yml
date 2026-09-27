@@ -23,6 +23,12 @@ api_verify_zitadel_ready: true
 # Test / simulation mode: skips real systemd / chown / user operations for unprivileged local unit testing
 api_deploy_simulate_systemd: false
 
+# An explicit context prevents a controller with the wrong default kubeconfig
+# from silently checking a different cluster during sandbox-enabled deployments.
+api_sandbox_kube_context: ""
+api_sandbox_kube_namespace: tjuclaw-sandbox-runtime
+api_sandbox_kubectl_path: /usr/bin/kubectl
+
 # Artifact inputs (must be provided by playbook / caller)
 # api_artifact_path: ""
 # api_artifact_sha256: ""

@@ -20,3 +20,7 @@ api_release_sha: '0123456789abcdef0123456789abcdef01234567'
 # api_listen_addr: 127.0.0.1:18080
 # api_env_file: /etc/tjuclaw-api.env
 # api_health_timeout_seconds: 15
+# Required when SANDBOX_SESSION_URL is set; context must identify the sandbox cluster.
+# The Ansible controller needs kubectl and read-only access to Sandbox resources.
+# api_sandbox_kube_context: admin@prod-sg
+# api_sandbox_kube_namespace: tjuclaw-sandbox-runtime
