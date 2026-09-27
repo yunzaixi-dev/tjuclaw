@@ -1633,6 +1633,28 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Ok' }
 
+  /media/image:
+    get:
+      tags: [Models]
+      summary: 代理读取公开校园图床的原图
+      description: 仅限已登录用户；只转发白名单主机（MEDIA_IMAGE_HOSTS）上的 https 图片，响应为 image/*，不跟随到白名单外的跳转。
+      operationId: getMediaImage
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        '200':
+          description: 原图
+          content:
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/png: { schema: { type: string, format: binary } }
+            image/gif: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '502': { $ref: '#/components/responses/Error' }
   /account/model:
     get:
       tags: [Models]
