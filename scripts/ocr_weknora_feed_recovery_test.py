@@ -46,9 +46,10 @@ class Client:
     def request(self, method, path):
         assert method == "GET" and "/knowledge?page=" in path
         page = int(path.split("page=")[1].split("&")[0])
+        size = int(path.split("page_size=")[1])
         return {
             "success": True,
-            "data": self.rows[(page - 1) * 100:page * 100],
+            "data": self.rows[(page - 1) * size:page * size],
             "total": len(self.rows),
         }
 
@@ -60,6 +61,7 @@ class RecoveryTests(unittest.TestCase):
             for n in range(101)
         ]
         self.assertEqual(len(feed.server_provenance(Client(rows))), 101)
+        self.assertEqual(len(feed.server_provenance(Client(rows), page_size=100)), 101)
         with self.assertRaisesRegex(RuntimeError, "duplicate_provenance"):
             feed.server_provenance(Client([rows[0], {**rows[0], "id": "knowledge-other"}]))
 
@@ -71,18 +73,45 @@ class RecoveryTests(unittest.TestCase):
             def request(self, method, path):
                 self.pages += 1
                 page = int(path.split("page=")[1].split("&")[0])
-                start = (page - 1) * 100
+                size = int(path.split("page_size=")[1])
+                start = (page - 1) * size
                 return {
                     "success": True,
                     "data": [{"id": f"knowledge-{n}", "knowledge_base_id": KB,
                               "metadata": {"source": "website"}}
-                             for n in range(start, min(start + 100, 10_001))],
+                             for n in range(start, min(start + size, 10_001))],
                     "total": 10_001,
                 }
 
         client = LargeClient()
         self.assertEqual(feed.server_provenance(client), {})
-        self.assertEqual(client.pages, 101)
+        self.assertEqual(client.pages, 11)
+
+    def test_provenance_rescans_when_replaced_versions_are_deleted_mid_scan(self):
+        rows = [
+            row(f"{n:064x}", "a" * 64, "body", f"knowledge-{n:04d}")
+            for n in range(150)
+        ]
+
+        class ShrinkingClient(Client):
+            calls = 0
+
+            def request(self, method, path):
+                self.calls += 1
+                if self.calls == 2:
+                    # A concurrent importer deleted a replaced version.
+                    self.rows = self.rows[1:]
+                return super().request(method, path)
+
+        self.assertEqual(len(feed.server_provenance(ShrinkingClient(rows), page_size=100)), 149)
+
+        class AlwaysShrinking(Client):
+            def request(self, method, path):
+                self.rows = self.rows[1:]
+                return super().request(method, path)
+
+        with self.assertRaisesRegex(RuntimeError, "invalid_knowledge_list"):
+            feed.server_provenance(AlwaysShrinking(rows), page_size=100)
 
     def test_ambiguous_upload_recovers_exact_server_record_without_second_post(self):
         import argparse

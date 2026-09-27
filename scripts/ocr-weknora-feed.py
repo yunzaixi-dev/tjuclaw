@@ -83,23 +83,36 @@ def wait_for_index(client, knowledge_id: str, timeout: int, interval: int,
     raise RuntimeError("index_timeout")
 
 
-def server_provenance(client) -> dict[tuple[str, str, str, str], str]:
-    """Find accepted uploads before retrying an ambiguous HTTP failure."""
+def server_provenance(client, page_size: int = 1000, restarts: int = 8) -> dict[tuple[str, str, str, str], str]:
+    """Find accepted uploads before retrying an ambiguous HTTP failure.
+
+    WeKnora lists newest first. Other importers may add documents while this
+    list is paged; a growing total only shifts rows later, so rows are re-seen
+    rather than missed. Deleting replaced versions shrinks it and can skip
+    rows, so a shrinking total restarts the scan.
+    """
+    for _ in range(restarts + 1):
+        found = scan_provenance(client, page_size)
+        if found is not None:
+            return found
+    raise RuntimeError("invalid_knowledge_list")
+
+
+def scan_provenance(client, page_size: int) -> dict[tuple[str, str, str, str], str] | None:
     found = {}
     total = None
-    for page in range(1, 10_001):
+    for page in range(1, 1_000_000 // page_size + 2):
         result = client.request(
             "GET", f"/knowledge-bases/{urllib.parse.quote(client.kb, safe='')}"
-                   f"/knowledge?page={page}&page_size=100",
+                   f"/knowledge?page={page}&page_size={page_size}",
         )
         rows = result.get("data")
         count = result.get("total")
-        # Other importers may add documents to the same knowledge base while
-        # this list is paged; a growing total only shifts rows later, so
-        # rows are re-seen rather than missed. A shrinking total is not expected.
         if (not isinstance(rows, list) or type(count) is not int or count < 0
-                or count > 1_000_000 or (total is not None and count < total)):
+                or count > 1_000_000):
             raise RuntimeError("invalid_knowledge_list")
+        if total is not None and count < total:
+            return None
         total = count
         for row in rows:
             if not isinstance(row, dict) or row.get("knowledge_base_id") != client.kb:
@@ -117,7 +130,7 @@ def server_provenance(client) -> dict[tuple[str, str, str, str], str]:
             if key in found and found[key] != identifier:
                 raise RuntimeError("duplicate_provenance")
             found[key] = identifier
-        if len(rows) + (page - 1) * 100 >= count:
+        if len(rows) + (page - 1) * page_size >= count:
             return found
         if not rows:
             raise RuntimeError("invalid_knowledge_list")
