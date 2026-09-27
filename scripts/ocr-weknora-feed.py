@@ -87,15 +87,18 @@ def server_provenance(client) -> dict[tuple[str, str, str, str], str]:
     """Find accepted uploads before retrying an ambiguous HTTP failure."""
     found = {}
     total = None
-    for page in range(1, 1001):
+    for page in range(1, 10_001):
         result = client.request(
             "GET", f"/knowledge-bases/{urllib.parse.quote(client.kb, safe='')}"
                    f"/knowledge?page={page}&page_size=100",
         )
         rows = result.get("data")
         count = result.get("total")
+        # Other importers may add documents to the same knowledge base while
+        # this list is paged; a growing total only shifts rows later, so
+        # rows are re-seen rather than missed. A shrinking total is not expected.
         if (not isinstance(rows, list) or type(count) is not int or count < 0
-                or count > 100_000 or (total is not None and total != count)):
+                or count > 1_000_000 or (total is not None and count < total)):
             raise RuntimeError("invalid_knowledge_list")
         total = count
         for row in rows:
