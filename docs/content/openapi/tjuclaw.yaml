@@ -28,6 +28,8 @@ tags:
     description: 知识库、条目与文件
   - name: Sessions
     description: 知识库智能体会话
+  - name: Vault
+    description: 用户 Forgejo 仓库中的不透明密封对象传输；尚未替换现有笔记存储
   - name: Models
     description: 用户模型配置与产品配额
   - name: Marketplace
@@ -653,7 +655,7 @@ paths:
                   format: binary
                 parent_id:
                   type: string
-                  description: 可选的父条目 ID。
+                  description: 可选的同库父文件夹 ID；普通笔记或文件不能作为父级。
       responses:
         '201':
           description: 文件条目创建成功
@@ -701,6 +703,7 @@ paths:
     patch:
       tags: [Libraries]
       summary: 更新条目
+      description: 修改笔记、富文本或文件标题必须发送上次读取的 updated_at 作为 expected_updated_at；缺少版本返回 428 entry_revision_required，版本过期返回 409 entry_conflict，服务器不会覆盖其他设备的修改。
       operationId: updateEntry
       parameters: [{ $ref: '#/components/parameters/ResourceId' }]
       requestBody:
@@ -718,6 +721,8 @@ paths:
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
         '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
     delete:
       tags: [Libraries]
       summary: 删除条目
@@ -789,10 +794,129 @@ paths:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /vault/status:
+    get:
+      tags: [Vault]
+      summary: 查询当前密封对象通道的配置状态
+      description: |
+        需要登录；configured 为 false 仅表示未配置远端通道或网关明确
+        报告未启用。网关不可达或返回无效状态时返回 503，客户端不得
+        降级为本地口令验证。此状态不表示笔记正文已加密。
+      operationId: getVaultStatus
+      responses:
+        '200':
+          description: 通道配置状态
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [configured]
+                properties:
+                  configured: { type: boolean }
+                additionalProperties: false
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+  /vault/objects/{id}:
+    get:
+      tags: [Vault]
+      summary: 读取当前用户仓库中的密封对象
+      description: |
+        从当前登录用户的私有 Forgejo 仓库读取固定路径的对象。API 不解密对象。
+        ETag 是仓库内容版本（Git blob SHA），用于后续条件写入。当前笔记
+        CRUD 仍使用原存储，不能把此端点视为笔记已完成端到端加密。
+      operationId: getVaultObject
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 密封对象及其当前 ETag
+          headers:
+            ETag:
+              description: 带引号的 40 位小写 Git blob SHA
+              schema: { type: string, pattern: '^"[0-9a-f]{40}"$' }
+          content:
+            application/vnd.tjuclaw.sealed+json:
+              schema: { $ref: '#/components/schemas/SealedObject' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Vault]
+      summary: 条件写入当前用户仓库中的密封对象
+      description: |
+        创建时发送 If-None-Match: *；更新时发送上次读取到的 If-Match ETag。
+        竞争更新返回 409，客户端需重新读取并自行处理冲突。对象格式校验
+        不等于服务端能够证明客户端提交的内容确实经过加密。
+      operationId: putVaultObject
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - name: If-Match
+          in: header
+          description: 更新已有对象时必填，带引号的 Git blob SHA；不可与 If-None-Match 同用
+          schema: { type: string, pattern: '^"[0-9a-f]{40}"$' }
+        - name: If-None-Match
+          in: header
+          description: 仅创建新对象时设置为 *
+          schema: { type: string, const: '*' }
+      requestBody:
+        required: true
+        content:
+          application/vnd.tjuclaw.sealed+json:
+            schema: { $ref: '#/components/schemas/SealedObject' }
+      responses:
+        '200':
+          description: 对象已更新
+          headers:
+            ETag:
+              schema: { type: string, pattern: '^"[0-9a-f]{40}"$' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '201':
+          description: 对象已创建
+          headers:
+            ETag:
+              schema: { type: string, pattern: '^"[0-9a-f]{40}"$' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '415': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Vault]
+      summary: 根据 ETag 条件删除当前用户仓库中的密封对象
+      description: |
+        必须发送上次读取到的 If-Match ETag；过期版本返回 409，缺失对象返回 404。
+        删除只改变当前仓库树，不清除 Git 历史。笔记 CRUD 尚未使用此端点。
+      operationId: deleteVaultObject
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - name: If-Match
+          in: header
+          required: true
+          schema: { type: string, pattern: '^"[0-9a-f]{40}"$' }
+      responses:
+        '204': { description: 当前版本已删除 }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '403': { $ref: '#/components/responses/OriginRejected' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Error' }
+        '428': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /sessions/{id}/sandbox-token:
     post:
       tags: [Sessions]
       summary: 获取会话的短期沙箱访问令牌
+      description: >-
+        网关的 POST /v1/sessions/note 在已授权且验证过的 Git 提交中找不到笔记时返回 404 note_not_found；沙箱或仓库读取故障返回 503 sandbox_unavailable，不能把后者当作笔记已删除。
+        仅会话所属用户可签发。必须配置合法的 HTTPS 公开网关 origin 和 HMAC 密钥，否则返回 503 sandbox_not_configured，不签发令牌。返回 v2/workspace 范围的短期令牌，只允许访问网关的 notes、note、note/move、search、graph 接口，不能调用 ensure 或 message 执行 Agent；后端执行会话仍单独签发 v1 令牌。浏览器使用返回的 gateway_url 直连沙箱的 POST /v1/sessions/notes 和 POST /v1/sessions/note 读取该会话绑定仓库 HEAD 中的普通 Markdown；POST /v1/sessions/search 在沙箱侧检索已提交 Markdown，返回至多 20 条路径和短摘录；POST /v1/sessions/graph 从已提交 Markdown 计算至多 200 个节点、512 条有向双链，客户端据此显示反向链接。查询和结果不经过后端。列表和图谱返回 revision。PUT /v1/sessions/note 携带列表的 expected_revision 和正文在根目录或普通嵌套目录新建不存在的 Markdown；POST /v1/sessions/note/move 携带 path、destination 和 expected_revision 重命名/移动已提交笔记，不覆盖目标，Git 不追踪空目录且不会重写双链；PATCH /v1/sessions/note 携带 expected_revision 和正文做条件写入；DELETE /v1/sessions/note 携带 path 和 expected_revision 从当前 Git 提交移除文件（历史版本仍可通过 Git 恢复），过期版本返回 409。正文不经过后端转发；令牌仅存内存，禁止写入持久存储。沙箱文件与旧知识库笔记尚未合并；EdgeOne、网关与 Forgejo 仍可看到明文，此接口不代表端到端加密。
       operationId: issueSandboxToken
       parameters: [{ $ref: '#/components/parameters/ResourceId' }]
       responses:
@@ -808,6 +932,7 @@ paths:
     post:
       tags: [Sessions]
       summary: 向智能体会话发送消息
+      description: 同一轮网络重试应沿用 client_request_id；已完成的请求直接返回已保存的会话，不再次执行 Agent。跨副本并发写入使用会话版本校验，过期写入返回 409 session_conflict，客户端应读取最新会话并保留未确认的草稿。启用沙箱网关时，在启动 Pi 前读取 Broker 共享模型请求配额；已耗尽返回 429 quota_exceeded，账本不可用返回 503 quota_unavailable。此预检不能代替 Broker 原子限额，额度按模型请求而非会话回合计数。
       operationId: postSessionMessage
       parameters: [{ $ref: '#/components/parameters/ResourceId' }]
       requestBody:
@@ -825,6 +950,7 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Error' }
         '429': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
@@ -924,7 +1050,7 @@ paths:
           description: 校区列表
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+              schema: { $ref: '#/components/schemas/CampusStudyroomRowsResponse' }
         '401': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
 
@@ -940,7 +1066,7 @@ paths:
           description: 楼宇列表
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+              schema: { $ref: '#/components/schemas/CampusStudyroomRowsResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
@@ -959,7 +1085,7 @@ paths:
           description: 自习室列表
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+              schema: { $ref: '#/components/schemas/CampusStudyroomRowsResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
@@ -976,7 +1102,7 @@ paths:
           description: 自习室时间表
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+              schema: { $ref: '#/components/schemas/CampusStudyroomRowsResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
@@ -1007,7 +1133,7 @@ paths:
           description: 论坛帖子数据
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/CampusDataResponse' }
+              schema: { $ref: '#/components/schemas/CampusForumPostsResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
@@ -1028,6 +1154,7 @@ paths:
     post:
       tags: [Campus]
       summary: 建立办公网 CAS 会话
+      description: 验证码、办公网账号与当前身份绑定；若登录期间验证码被替换或会话被删除，返回 409 campus_office_session_changed，不恢复旧会话。
       operationId: connectCampusOffice
       requestBody:
         required: true
@@ -1042,6 +1169,7 @@ paths:
               schema: { $ref: '#/components/schemas/OfficeSessionResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
     get:
       tags: [Campus]
       summary: 读取办公网会话
@@ -1063,6 +1191,7 @@ paths:
     post:
       tags: [Campus]
       summary: 刷新办公网会话
+      description: 刷新期间会话被删除或替换时返回 409 campus_office_session_changed。
       operationId: refreshCampusOfficeSession
       responses:
         '200':
@@ -1071,6 +1200,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OfficeSessionResponse' }
         '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
   /campus/academic/classes:
     get:
       tags: [Campus]
@@ -1096,6 +1226,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CampusExamsResponse' }
         '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
   /campus/academic/gpa:
     get:
       tags: [Campus]
@@ -1108,6 +1239,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CampusGPAResponse' }
         '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
 
   /libraries/{id}/folders:
     get:
@@ -1198,6 +1330,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/EntryResponse' }
         '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
   /libraries/{id}/entries/order:
     put:
@@ -1280,6 +1413,20 @@ paths:
           description: TSV 文件
           content:
             text/tab-separated-values: { schema: { type: string } }
+  /decks/{id}/study-summary:
+    get:
+      tags: [Anki]
+      summary: 获取牌组最近学习时间
+      description: 仅统计当前账号此牌组中仍存在的卡片，返回单条摘要而非完整复习历史。
+      operationId: getDeckStudySummary
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 牌组学习摘要
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeckStudySummary' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /decks/import:
     post:
       tags: [Anki]
@@ -1426,6 +1573,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ReviewResponse' }
+  /reviews/requests/{id}:
+    get:
+      tags: [Anki]
+      summary: 按客户端请求编号确认复习是否已提交
+      description: 用于网络中断后对账，不可仅根据卡片复习次数变化判断本次请求是否成功。仅返回当前账号的记录。
+      operationId: getReviewRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[0-9a-f]{32}$' }
+      responses:
+        '200':
+          description: 请求已提交
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewLookupResponse' }
+        '404': { description: 当前账号尚无此请求的复习记录 }
   /media:
     get:
       tags: [Anki]
@@ -1472,6 +1637,7 @@ paths:
     get:
       tags: [Models]
       summary: 获取当前模型配置与配额
+      description: 沙箱会话的额度按 UTC 日统计模型请求次数，而非会话消息轮数；额度源不可用时返回 503，不提供过期计数。
       operationId: getModel
       responses:
         '200':
@@ -1480,6 +1646,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ModelResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
     put:
       tags: [Models]
       summary: 保存自定义模型配置
@@ -1702,6 +1869,21 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
           example: { error: { id: not_found } }
   schemas:
+    SealedObject:
+      type: object
+      additionalProperties: false
+      required: [version, salt, nonce, ciphertext]
+      properties:
+        version: { type: integer, const: 1 }
+        salt:
+          type: string
+          description: 16 字节盐，base64url 无填充编码
+        nonce:
+          type: string
+          description: 12 字节随机数，base64url 无填充编码
+        ciphertext:
+          type: string
+          description: 16 至 98304 字节密文，base64url 无填充编码
     JsonObject:
       type: object
       additionalProperties: true
@@ -1865,6 +2047,7 @@ components:
         title: { type: string, maxLength: 80 }
         body: { type: string, maxLength: 20000 }
         parent_id: { type: string }
+        expected_updated_at: { type: string, format: date-time, description: 可选的乐观并发版本，编辑器应始终提供；不同于当前服务端版本返回 409 entry_conflict。 }
     Publication:
       type: object
       required: [id, name, created_at]
@@ -1906,6 +2089,10 @@ components:
       properties:
         role: { type: string, enum: [user, assistant] }
         content: { type: string }
+        client_request_id:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: 用户消息的可选请求标识，用于确认重试是否已经写入会话。
         tool_call_id: { type: string }
         tool_calls:
           type: array
@@ -1959,6 +2146,10 @@ components:
       required: [content]
       properties:
         content: { type: string, minLength: 1, maxLength: 8000 }
+        client_request_id:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: 同一轮重试沿用相同标识；同一标识对应不同内容返回 409。
     Model:
       type: object
       required: [configured, source, name, quota]
@@ -2018,6 +2209,10 @@ components:
       required: [parent_id]
       properties:
         parent_id: { type: string }
+        expected_updated_at:
+          type: string
+          format: date-time
+          description: 可选的条目版本；版本不匹配时返回 409 entry_conflict。编辑中的客户端应提供此值，避免移动与自动保存互相覆盖。
     ReorderEntriesRequest:
       type: object
       additionalProperties: false
@@ -2049,6 +2244,14 @@ components:
         decks:
           type: array
           items: { $ref: '#/components/schemas/Deck' }
+    DeckStudySummary:
+      type: object
+      required: [last_reviewed_at]
+      properties:
+        last_reviewed_at:
+          type: [string, 'null']
+          format: date-time
+          description: 此牌组现存卡片的最近复习时间；没有记录时为 null。
     CreateDeckRequest:
       type: object
       additionalProperties: false
@@ -2152,6 +2355,10 @@ components:
         rating: { type: integer, minimum: 1, maximum: 4 }
         interval: { type: integer, minimum: 0 }
         reviewed_at: { type: string, format: date-time }
+        client_request_id:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: 客户端请求标识；旧复习记录可能没有此字段。
     ReviewRequest:
       type: object
       additionalProperties: false
@@ -2159,11 +2366,20 @@ components:
       properties:
         card_id: { type: string }
         rating: { type: integer, minimum: 1, maximum: 4 }
+        client_request_id:
+          type: string
+          pattern: '^[0-9a-f]{32}$'
+          description: 可选。相同账号下重试需使用相同标识；同号不同卡片或评分返回 409。未提供时不去重。
     ReviewResponse:
       type: object
       required: [card, review]
       properties:
         card: { $ref: '#/components/schemas/AnkiCard' }
+        review: { $ref: '#/components/schemas/Review' }
+    ReviewLookupResponse:
+      type: object
+      required: [review]
+      properties:
         review: { $ref: '#/components/schemas/Review' }
     ReviewListResponse:
       type: object
@@ -2250,8 +2466,12 @@ components:
       required: [courses, exams, gpa]
       properties:
         courses:
-          type: array
-          items: { $ref: '#/components/schemas/CampusCourse' }
+          type: object
+          description: 课程按上游类别分组（例如 major、minor）。
+          minProperties: 1
+          additionalProperties:
+            type: array
+            items: { $ref: '#/components/schemas/CampusCourse' }
         exams:
           type: array
           items: { $ref: '#/components/schemas/CampusExam' }
@@ -2261,13 +2481,38 @@ components:
       type: object
       additionalProperties: true
       properties:
-        id: { type: string }
         name: { type: string }
-        teacher: { type: string }
-        classroom: { type: string }
+        classId: { type: string }
+        courseId: { type: string }
+        credit: { type: string }
+        campus: { type: string }
+        weeks: { type: string }
+        teacherList:
+          type: array
+          items: { type: string }
+        arrangeList:
+          type: array
+          items: { $ref: '#/components/schemas/CampusCourseArrangement' }
+    CampusCourseArrangement:
+      type: object
+      additionalProperties: true
+      properties:
+        name: { type: string }
+        location: { type: string }
         weekday: { type: integer, minimum: 1, maximum: 7 }
-        start: { type: integer, minimum: 1 }
-        end: { type: integer, minimum: 1 }
+        weekList:
+          type: array
+          items: { type: integer, minimum: 1 }
+          description: 仅在列出的教学周上课；缺失时客户端不可假定课程每周重复。
+        unitList:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { type: integer, minimum: 1 }
+          description: 首节与末节，均从 1 开始。
+        teacherList:
+          type: array
+          items: { type: string }
     CampusExam:
       type: object
       additionalProperties: true
@@ -2301,7 +2546,15 @@ components:
       type: object
       required: [semester]
       properties:
-        semester: {}
+        semester:
+          $ref: '#/components/schemas/CampusSemester'
+    CampusSemester:
+      type: object
+      required: [semesterName, semesterStartAt, semesterStartTimestamp]
+      properties:
+        semesterName: { type: string, minLength: 1, maxLength: 64 }
+        semesterStartAt: { type: string, format: date }
+        semesterStartTimestamp: { type: integer, format: int64, description: 学期起始时刻的 Unix 秒 }
     CampusEntryCodeResponse:
       type: object
       required: [content, expires_at]
@@ -2313,6 +2566,46 @@ components:
       required: [data]
       properties:
         data: {}
+    CampusStudyroomRowsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    CampusForumPost:
+      type: object
+      required: [id, title, created_at]
+      additionalProperties: true
+      properties:
+        id:
+          oneOf:
+            - { type: integer, minimum: 1 }
+            - { type: string, pattern: '^[1-9][0-9]*$' }
+        title: { type: string }
+        content: { type: string }
+        created_at: { type: string, description: 上游时间戳 }
+        comment_count: { type: integer, minimum: 0 }
+        like_count: { type: integer, minimum: 0 }
+        tag:
+          type: [object, 'null']
+          properties:
+            name: { type: string }
+    CampusForumPostsResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [list, total]
+          additionalProperties: true
+          properties:
+            list:
+              type: array
+              items: { $ref: '#/components/schemas/CampusForumPost' }
+            total: { type: integer, minimum: 0 }
     OkResponse:
       type: object
       required: [ok]

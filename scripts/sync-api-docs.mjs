@@ -8,6 +8,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const sourcePath = path.join(repoRoot, 'backend/openapi/tjuclaw.yaml');
 const targetPath = path.join(repoRoot, 'docs/content/openapi/tjuclaw.yaml');
 const routePattern = /mux\.HandleFunc\(\s*"((?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+[^"]+)"/g;
+const routeMapPattern = /for\s+path,\s*\w+\s*:=\s*range\s+map\[string\]http\.HandlerFunc\s*\{([\s\S]*?)\}\s*\{/g;
+const routeKeyPattern = /"((?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+\/[^"]+)"\s*:/g;
 const routeFiles = [
   path.join(repoRoot, 'backend/cmd'),
   path.join(repoRoot, 'backend/internal'),
@@ -40,11 +42,22 @@ function readSource() {
   return { text, document };
 }
 
-function implementedRoutes() {
+export function routesInGoSource(text) {
+  const routes = new Set();
+  for (const match of text.matchAll(routePattern)) routes.add(match[1]);
+  if (text.includes('mux.HandleFunc(path,')) {
+    for (const routeMap of text.matchAll(routeMapPattern)) {
+      for (const match of routeMap[1].matchAll(routeKeyPattern)) routes.add(match[1]);
+    }
+  }
+  return routes;
+}
+
+export function implementedRoutes() {
   const routes = new Set();
   for (const filename of routeFiles.flatMap(walk)) {
     const text = fs.readFileSync(filename, 'utf8');
-    for (const match of text.matchAll(routePattern)) routes.add(match[1]);
+    for (const route of routesInGoSource(text)) routes.add(route);
   }
   return routes;
 }
@@ -59,7 +72,7 @@ function documentedRoutes(document) {
   return routes;
 }
 
-function validate(document) {
+export function validate(document) {
   const missing = [...implementedRoutes()].filter((route) => !documentedRoutes(document).has(route)).sort();
   if (missing.length) {
     throw new Error(`OpenAPI is missing implemented backend routes:\n${missing.map((route) => `- ${route}`).join('\n')}`);
