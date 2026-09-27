@@ -1649,7 +1649,7 @@ paths:
         '503': { $ref: '#/components/responses/Error' }
     put:
       tags: [Models]
-      summary: 保存自定义模型配置
+      summary: 保存自定义模型或选择产品模型
       operationId: putModel
       requestBody:
         required: true
@@ -2097,6 +2097,10 @@ components:
         tool_calls:
           type: array
           items: { $ref: '#/components/schemas/ToolCall' }
+        tools:
+          type: array
+          description: 该条 Agent 回复之前调用过的工具名；只含名称，不含参数与结果
+          items: { type: string }
         created_at: { type: string, format: date-time }
     ToolCall:
       type: object
@@ -2157,6 +2161,20 @@ components:
         configured: { type: boolean }
         source: { type: string, enum: [none, custom, product] }
         name: { type: string }
+        choices:
+          type: array
+          description: 可选的产品模型；沙箱模式由 Broker 决定模型，返回空数组
+          items: { type: string }
+        agent:
+          type: object
+          description: Agent 当前实际可用的能力
+          required: [sandbox, tools]
+          properties:
+            sandbox: { type: boolean, description: 是否接通沙箱执行 }
+            tools:
+              type: array
+              description: 除知识库读写外可调用的只读工具名，例如 campus_timetable、search_course_materials
+              items: { type: string }
         quota:
           type: object
           required: [limit, used, remaining]
@@ -2170,13 +2188,20 @@ components:
       properties:
         model: { $ref: '#/components/schemas/Model' }
     PutModelRequest:
-      type: object
-      additionalProperties: false
-      required: [base_url, api_key]
-      properties:
-        base_url: { type: string, format: uri }
-        api_key: { type: string, minLength: 1, maxLength: 512 }
-        model: { type: string, maxLength: 80 }
+      description: 保存自定义上游，或在产品模型之间选择（二者互斥）。
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [base_url, api_key]
+          properties:
+            base_url: { type: string, format: uri }
+            api_key: { type: string, minLength: 1, maxLength: 512 }
+            model: { type: string, maxLength: 80 }
+        - type: object
+          additionalProperties: false
+          required: [product_model]
+          properties:
+            product_model: { type: string, description: 必须是 Model.choices 中的一项；替换已保存的自定义上游 }
     FolderResponse:
       type: object
       required: [folder]
