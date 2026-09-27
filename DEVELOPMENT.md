@@ -79,16 +79,42 @@ rtk task check
 rtk task ui:install
 rtk task ui:test
 rtk task auth:test
+rtk task session:e2e
+rtk task vault:e2e
+rtk task workspace:e2e
 rtk task compose:config
 rtk task compose:context
 ```
 
-`auth:test` requires local Docker, Go and Chromium. It starts isolated ZITADEL,
+`auth:test` requires local Docker, Go and Chromium. It starts isolated Kratos,
 PostgreSQL, Cap/Valkey, a captured mailbox, the Go API and a production preview
 behind Nginx with the production CSP. It does not contact a production mailbox
 or identity service. The `tjuclaw-auth-test` project uses synthetic accounts and
 removes its dedicated volumes on shutdown. Screenshots stay in ignored
 `test-results/`.
+
+`session:e2e` additionally starts a loopback HTTPS `session.v1` test endpoint
+with a disposable certificate and HMAC secret. It checks browser -> real Go API
+-> authenticated session protocol, including persisted replies and lost-response
+reconciliation. This endpoint is a test double, not a Kubernetes sandbox, Pi,
+Forgejo workspace, or live model. Production readiness still requires a separate
+real-runtime acceptance test.
+
+`vault:e2e` uses the same disposable identity and HTTPS stack to check the
+browser -> real Go API -> sealed-object protocol. It verifies a fresh browser
+can unlock without local verifier data, create and reopen a browser-encrypted
+private note, and reject conditional replay and cross-origin writes. It also
+checks that private titles, bodies, and passphrases never appear in sealed
+write payloads. Its in-memory owner-scoped store is a test double, not a
+Forgejo repository; ordinary and legacy note bodies still use their original
+plaintext paths. Enabling the production vault also requires the server-side
+Forgejo hook and dedicated writer to pass the actual deployment acceptance.
+
+`workspace:e2e` checks that the real Go API issues an owner-bound v2 capability,
+then the browser reads and writes notes over a separate HTTPS origin with exact
+CORS and conflict detection. Its in-memory workspace is not Forgejo, the real
+gateway, or Kubernetes; live Git persistence and regional connectivity remain
+separate production acceptance requirements.
 
 Do not run two build tasks concurrently against the same `frontend/dist`.
 Run real authentication tests after protocol/config changes and inspect light/
@@ -121,8 +147,9 @@ PostgreSQL for libraries, entries, sessions, model records, publications, and
 blobs. Do not share that database with Kratos, the crawler, or WeKnora. Local
 blobs are not COS.
 
-Run `task workspace:test` for the mocked browser contract, and `task auth:test`
-for real Kratos/API acceptance. Mocked transport checks are not evidence of
-working persistence or identity isolation. Run `go test -race ./...` in
+Run `task workspace:test` for the mocked browser contract, `task auth:test`
+for real Kratos/API acceptance, and `task session:e2e` for the isolated session
+protocol. Mocked transport checks are not evidence of a working Pi sandbox.
+Run `go test -race ./...` in
 `backend/` for concurrent storage behavior. Do not run browser suites
 concurrently against the shared `frontend/dist` output.

@@ -1,7 +1,7 @@
 {
-  "$id": "https://tjuclaw.agentwego.com/schemas/identity",
+  "$id": "https://tjuclaw.agentwego.com/schemas/identity-tju",
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "TJUClaw email identity",
+  "title": "TJUClaw campus email identity",
   "type": "object",
   "properties": {
     "traits": {
@@ -10,7 +10,7 @@
         "email": {
           "type": "string",
           "format": "email",
-          "title": "邮箱",
+          "title": "天津大学邮箱",
           "maxLength": 254,
           "pattern": "^[^@]+@[tT][jJ][uU]\\.[eE][dD][uU]\\.[cC][nN]$",
           "ory.sh/kratos": {

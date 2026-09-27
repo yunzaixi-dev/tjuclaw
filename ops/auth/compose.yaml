@@ -28,6 +28,20 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+  api-db:
+    profiles: [integration-db]
+    image: postgres:16.14-alpine
+    environment:
+      POSTGRES_USER: tjuclaw
+      POSTGRES_PASSWORD: isolated-test-only
+      POSTGRES_DB: tjuclaw
+    ports: ["127.0.0.1:${AUTH_API_DB_PORT:-15436}:5432"]
+    volumes: [api-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U tjuclaw -d tjuclaw]
+      interval: 2s
+      timeout: 3s
+      retries: 20
   migrate:
     image: oryd/kratos:v26.2.0
     command: migrate sql -e --yes
@@ -41,6 +55,7 @@ services:
     volumes:
       - ./kratos.yml:/etc/config/kratos/kratos.yml:ro
       - ./identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./identity.schema.tju.json:/etc/config/kratos/identity.schema.tju.json:ro
       - ./mail:/etc/config/kratos/mail:ro
     env_file:
       - path: .env.local
@@ -93,4 +108,5 @@ services:
     security_opt: [no-new-privileges:true]
 volumes:
   identity-db:
+  api-db:
   cap-valkey-data:

@@ -36,6 +36,7 @@ services:
     volumes:
       - ./config/kratos.yml:/etc/config/kratos/kratos.yml:ro
       - ./config/identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./config/identity.schema.tju.json:/etc/config/kratos/identity.schema.tju.json:ro
       - ./config/mail:/etc/config/kratos/mail:ro
     depends_on:
       db:
@@ -53,6 +54,7 @@ services:
     volumes:
       - ./config/kratos.yml:/etc/config/kratos/kratos.yml:ro
       - ./config/identity.schema.json:/etc/config/kratos/identity.schema.json:ro
+      - ./config/identity.schema.tju.json:/etc/config/kratos/identity.schema.tju.json:ro
       - ./config/mail:/etc/config/kratos/mail:ro
     ports:
       - "{{ identity_listen_addr }}:4433"

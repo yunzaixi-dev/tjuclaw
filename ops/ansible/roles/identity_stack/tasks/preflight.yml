@@ -24,6 +24,11 @@
         path: "{{ identity_source_auth_dir }}/identity.schema.json"
       register: identity_source_schema_stat
 
+    - name: Check source campus registration schema file
+      ansible.builtin.stat:
+        path: "{{ identity_source_auth_dir }}/identity.schema.tju.json"
+      register: identity_source_campus_schema_stat
+
     - name: Check source mail templates directory
       ansible.builtin.stat:
         path: "{{ identity_source_auth_dir }}/mail"
@@ -34,11 +39,13 @@
         that:
           - identity_source_schema_stat.stat.exists
           - identity_source_schema_stat.stat.isreg
+          - identity_source_campus_schema_stat.stat.exists
+          - identity_source_campus_schema_stat.stat.isreg
           - identity_source_mail_stat.stat.exists
           - identity_source_mail_stat.stat.isdir
         fail_msg: >-
           Source auth assets missing in {{ identity_source_auth_dir }}.
-          identity.schema.json or mail/ directory not found.
+          identity.schema.json, identity.schema.tju.json or mail/ directory not found.
 
 - name: Check existence of remote SMTP env file
   ansible.builtin.stat:

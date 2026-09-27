@@ -103,6 +103,21 @@ tasks:
     cmds:
       - task: web:build
       - pnpm exec playwright test --config scripts/auth.playwright.config.mjs {{.CLI_ARGS}}
+  session:e2e:
+    desc: Test browser, real API and isolated authenticated HTTPS session protocol
+    cmds:
+      - task: web:build
+      - TJUCLAW_SESSION_E2E=1 pnpm exec playwright test --config scripts/auth.playwright.config.mjs --grep 'browser-to-API Agent reply' {{.CLI_ARGS}}
+  vault:e2e:
+    desc: Test browser passphrase via real Kratos, Go API and isolated HTTPS sealed-object protocol
+    cmds:
+      - task: web:build
+      - TJUCLAW_SESSION_E2E=1 pnpm exec playwright test --config scripts/auth.playwright.config.mjs --grep 'browser-to-API vault' {{.CLI_ARGS}}
+  workspace:e2e:
+    desc: Test browser direct HTTPS Git workspace access via real Go-issued v2 capability
+    cmds:
+      - task: web:build
+      - TJUCLAW_SESSION_E2E=1 pnpm exec playwright test --config scripts/auth.playwright.config.mjs --grep 'browser-to-edge Git workspace' {{.CLI_ARGS}}
   workspace:test:
     desc: Test task workspace client behavior using isolated mocks
     cmds:

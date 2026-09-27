@@ -74,6 +74,14 @@
     group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
     mode: "0644"
 
+- name: Copy campus registration schema read-only
+  ansible.builtin.copy:
+    src: "{{ identity_source_auth_dir }}/identity.schema.tju.json"
+    dest: "{{ identity_base_dir }}/config/identity.schema.tju.json"
+    owner: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (identity_simulate | bool) else omit }}"
+    mode: "0644"
+
 - name: Copy mail templates read-only
   ansible.builtin.copy:
     src: "{{ identity_source_auth_dir }}/mail/"

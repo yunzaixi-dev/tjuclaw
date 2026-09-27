@@ -27,6 +27,9 @@ Cap and Valkey. Vite's development proxy defaults to this API; an explicit
   default real SMTP it checks login UI and Cap only; full OTP login needs
   `AUTH_DEV_MAIL_MODE=captured`.
 - Disposable regression: `task auth:test`, using separate ports and test volumes.
+  Its Go API uses an isolated PostgreSQL business database (`api-db` profile),
+  never the Kratos identity database; the test profile and volumes are removed
+  after the suite. The persistent development API still uses local FileStore.
 
 Use the documented `127.0.0.1` browser origin. Existing ZITADEL containers and
 other checkouts' API processes are not automatically stopped or deleted.
@@ -49,6 +52,15 @@ before issuing a session cookie, and password registration continues into the
 existing OTP verification flow. No password reset, social login, locally
 generated codes, or second identity store. Losing access to a mailbox requires
 recovering it with its provider, not bypassing auth.
+
+New registrations require an `@tju.edu.cn` email. Go checks both password and
+automatic code registration; Kratos uses the campus-only v2 schema as the default
+and applies the same constraint to the retained v1 schema, so choosing an older
+schema cannot bypass the restriction. The v1 schema ID remains configured for
+existing identities (including users with other email domains); their sign-in
+remains available, though future schema-validated profile edits may need an
+explicit migration. Deploy the API and Kratos policy together, preserving both
+schema files and identities. This does not migrate existing accounts.
 
 The checked-in policy targets `https://tjuclaw.agentwego.com`. It is a reviewed
 configuration input, **not evidence that the domain or existing cluster has been

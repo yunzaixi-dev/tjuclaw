@@ -7,20 +7,23 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveAuthDevMailConfig } from './auth-mail-config.mjs';
+import { startSessionTestController } from './session-test-controller.mjs';
 
 // Tests are disposable; --dev keeps identities and credentials across restarts.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const development = process.argv.includes('--dev');
+const sessionE2E = !development && process.env.TJUCLAW_SESSION_E2E === '1';
 const devDirectory = join(root, 'ops/local/auth-dev');
 const statePath = development ? join(devDirectory, 'state.json') : join(root, 'ops/local/auth-test-stack.json');
 const project = development ? 'tjuclaw-auth-dev' : 'tjuclaw-auth-test';
-const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/compose.yaml'];
+const composeArgs = ['compose', '-p', project, '-f', 'ops/auth/compose.yaml', ...(development ? [] : ['--profile', 'integration-db'])];
 const identityPort = development ? 4433 : 14435;
 const mailPort = development ? 8025 : 18026;
 const capPort = development ? 13302 : 13301;
 const apiPort = development ? 8080 : 18089;
+const apiDatabasePort = 15436;
 const publicOrigin = development ? 'http://127.0.0.1:5173' : 'http://127.0.0.1:1423';
-let runtime, api, web, docs, stopping = false;
+let runtime, api, web, docs, sessionController, stopping = false;
 
 const secret = () => randomBytes(24).toString('hex');
 const compose = (args, env) => spawnSync('docker', [...composeArgs, ...args], { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit', timeout: 180000 });
@@ -37,6 +40,7 @@ function composeResetEnv(saved) {
     AUTH_KRATOS_PORT: saved?.env?.AUTH_KRATOS_PORT || saved?.env?.AUTH_IDENTITY_PORT || String(identityPort),
     AUTH_MAIL_PORT: saved?.env?.AUTH_MAIL_PORT || String(mailPort),
     AUTH_CAP_PORT: saved?.env?.AUTH_CAP_PORT || String(capPort),
+    AUTH_API_DB_PORT: saved?.env?.AUTH_API_DB_PORT || String(apiDatabasePort),
   };
 }
 async function discardUnusableDevState(saved) {
@@ -75,6 +79,9 @@ async function json(base, path, options = {}) {
   return res.value;
 }
 async function overlayProductModel(env) {
+  if (!development) {
+    return isolateTestApiEnv(env);
+  }
   let text = '';
   try {
     text = await readFile(join(root, '.env.auth.local'), 'utf8');
@@ -98,6 +105,17 @@ async function overlayProductModel(env) {
   return next;
 }
 
+export function isolateTestApiEnv(env) {
+  const isolated = { ...env };
+  // Test identities may not reach live model, sandbox, or campus services.
+  for (const key of [
+    'NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_DAILY_QUOTA',
+    'SANDBOX_SESSION_URL', 'SANDBOX_SESSION_TOKEN', 'SANDBOX_GATEWAY_HMAC_SECRET',
+    'SANDBOX_GATEWAY_PUBLIC_URL', 'WPY_APP_TICKET',
+  ]) delete isolated[key];
+  return isolated;
+}
+
 async function stopChild(child) {
   if (!child || child.exitCode !== null) return;
   child.kill('SIGTERM');
@@ -110,6 +128,7 @@ async function cleanup(exitCode = 0) {
   await stopChild(api);
   await stopChild(web);
   await stopChild(docs);
+  if (sessionController) await sessionController.close();
 
   if (runtime && !development) {
     const result = compose(['down', '--volumes', '--remove-orphans'], runtime.env);
@@ -156,6 +175,7 @@ try {
     runtime = { directory, provider: 'kratos', cookieKey: randomBytes(32).toString('base64'), env: {
       CAP_ADMIN_KEY: secret(),
       AUTH_KRATOS_PORT: String(identityPort), AUTH_MAIL_PORT: String(mailPort), AUTH_CAP_PORT: String(capPort),
+      AUTH_API_DB_PORT: String(apiDatabasePort),
       AUTH_BROWSER_URL: publicOrigin,
       ...mailConfig.composeEnv,
     } };
@@ -171,6 +191,7 @@ try {
       AUTH_KRATOS_PORT: String(identityPort),
       AUTH_MAIL_PORT: String(mailPort),
       AUTH_CAP_PORT: String(capPort),
+      AUTH_API_DB_PORT: String(apiDatabasePort),
       ...mailConfig.composeEnv,
     };
   }
@@ -187,6 +208,15 @@ try {
   await ready(identityBase, '/health/ready');
   if (mailConfig.mode === 'captured') await ready(`http://127.0.0.1:${mailPort}`, '/api/v1/messages');
   await ready(`http://127.0.0.1:${capPort}`, '/');
+  if (!development) {
+    let databaseReady = false;
+    for (let attempt = 0; attempt < 60 && !stopping; attempt++) {
+      const probe = compose(['exec', '-T', 'api-db', 'pg_isready', '-q', '-U', 'tjuclaw', '-d', 'tjuclaw'], runtime.env);
+      if (probe.status === 0) { databaseReady = true; break; }
+      await new Promise(resolveWait => setTimeout(resolveWait, 1000));
+    }
+    if (!databaseReady) throw new Error('Isolated API database did not become ready');
+  }
 
   const capBase = `http://127.0.0.1:${capPort}`;
   let site = runtime.site;
@@ -205,12 +235,21 @@ try {
   }
   const backendDir = join(root, 'backend');
   const apiEnv = await overlayProductModel({
-    ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`, DATABASE_URL: '',
+    ...process.env, HTTP_ADDR: `127.0.0.1:${apiPort}`,
+    DATABASE_URL: development ? '' : `postgres://tjuclaw:isolated-test-only@127.0.0.1:${apiDatabasePort}/tjuclaw?sslmode=disable`,
     TASK_DATA_DIR: join(directory, 'tasks'), AUTH_PROVIDER: 'kratos',
     APP_PUBLIC_URL: publicOrigin, KRATOS_PUBLIC_URL: identityBase,
     AUTH_COOKIE_KEY: runtime.cookieKey,
     CAP_URL: capBase, CAP_SITE_KEY: site.siteKey, CAP_SECRET_KEY: site.secretKey,
   });
+  if (sessionE2E) {
+    const secret = randomBytes(32).toString('hex');
+    sessionController = await startSessionTestController(directory, secret);
+    apiEnv.SANDBOX_SESSION_URL = sessionController.url;
+    apiEnv.SANDBOX_GATEWAY_PUBLIC_URL = sessionController.url;
+    apiEnv.SANDBOX_GATEWAY_HMAC_SECRET = secret;
+    apiEnv.SSL_CERT_FILE = sessionController.certificate;
+  }
 
   if (development) {
     api = spawn('go', ['run', 'github.com/air-verse/air@v1.67.4', '-c', '.air.toml'], { cwd: backendDir, stdio: 'inherit', env: apiEnv });

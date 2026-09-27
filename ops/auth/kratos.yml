@@ -67,10 +67,12 @@ cookies:
   path: /
   same_site: Lax
 identity:
-  default_schema_id: tjuclaw-email-v1
+  default_schema_id: tjuclaw-email-tju-v2
   schemas:
     - id: tjuclaw-email-v1
       url: file:///etc/config/kratos/identity.schema.json
+    - id: tjuclaw-email-tju-v2
+      url: file:///etc/config/kratos/identity.schema.tju.json
 log:
   level: warning
   format: json
