@@ -49,7 +49,7 @@ tasks:
         -c:v libwebp -q:v 90 -compression_level 6 -y frontend/src/assets/brand-icon.webp
       - >-
         ffmpeg -hide_banner -loglevel error -i "{{.SOURCE}}"
-        -vf "scale=900:900:force_original_aspect_ratio=decrease:flags=lanczos,pad=1024:1024:(ow-iw)/2:(oh-ih)/2:color=black,format=rgb24"
+        -filter_complex "color=white:s=1024x1024[bg];[0:v]scale=900:900:force_original_aspect_ratio=decrease:flags=lanczos,format=rgba[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=rgb24"
         -frames:v 1 -y frontend/app-icon.png
       - >-
         ffmpeg -hide_banner -loglevel error -i frontend/app-icon.png
@@ -431,7 +431,7 @@ tasks:
     desc: Inspect Tauri and native SDK requirements
     cmds: [pnpm --dir frontend tauri info]
   native:icons:
-    desc: Regenerate platform icons from the black-background app icon
+    desc: Regenerate platform icons from the white-background app icon
     cmds: [task --dir frontend native:icons]
   native:check:
     desc: Check native Rust code on the current host
