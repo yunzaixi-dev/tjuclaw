@@ -378,6 +378,7 @@ tasks:
     dir: crawler
     cmds:
       - python3 ../scripts/ocr_backfill_test.py
+      - python3 ../scripts/attachment_text_extract_test.py
       - bun run test:integration
   weknora:up:
     desc: Start isolated WeKnora on loopback 18180/18181 (keeps volumes)
