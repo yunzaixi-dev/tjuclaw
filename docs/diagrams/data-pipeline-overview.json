@@ -1,0 +1,182 @@
+{
+  "title": "TJUClaw 公开知识管道：从原件到可引用的检索结果",
+  "boxes": [
+    {
+      "id": "src",
+      "x": 0,
+      "y": 0,
+      "w": 250,
+      "h": 96,
+      "color": "blue",
+      "text": "校园公开来源\n学院官网 · Wiki · 论坛\n自习室 · 公开课程"
+    },
+    {
+      "id": "crawler",
+      "x": 320,
+      "y": 0,
+      "w": 250,
+      "h": 96,
+      "color": "blue",
+      "text": "crawler（Bun）\n有界发现 · 规则脱敏\n独立 PostgreSQL"
+    },
+    {
+      "id": "raw",
+      "x": 640,
+      "y": 0,
+      "w": 250,
+      "h": 96,
+      "color": "amber",
+      "text": "raw Git 仓库\n规范化 JSON\nGit LFS 原件"
+    },
+    {
+      "id": "ocr",
+      "x": 960,
+      "y": 0,
+      "w": 250,
+      "h": 96,
+      "color": "violet",
+      "text": "PaddleOCR-VL v1.6\n扫描 PDF · 图片 · 课件"
+    },
+    {
+      "id": "repair",
+      "x": 1280,
+      "y": 0,
+      "w": 250,
+      "h": 96,
+      "color": "violet",
+      "text": "校园大模型修复\ntju-llm-max\n拒绝大幅改写"
+    },
+    {
+      "id": "md",
+      "x": 640,
+      "y": 170,
+      "w": 250,
+      "h": 96,
+      "color": "amber",
+      "text": "Markdown Git 仓库\n模板化派生正文"
+    },
+    {
+      "id": "attach",
+      "x": 960,
+      "y": 170,
+      "w": 250,
+      "h": 96,
+      "color": "violet",
+      "text": "附件文字层提取\n断网 LibreOffice\n· pdftotext"
+    },
+    {
+      "id": "pii",
+      "x": 1280,
+      "y": 170,
+      "w": 250,
+      "h": 96,
+      "color": "rose",
+      "text": "PII 复检\n命中即隔离\n原文不进索引"
+    },
+    {
+      "id": "inject",
+      "x": 1280,
+      "y": 340,
+      "w": 250,
+      "h": 96,
+      "color": "green",
+      "text": "离线导入器\n来源与哈希绑定\n分片 · 旧版本替换"
+    },
+    {
+      "id": "weknora",
+      "x": 960,
+      "y": 340,
+      "w": 250,
+      "h": 96,
+      "color": "green",
+      "text": "WeKnora 公开知识库\nqwen3.7 向量 1024 维\n+ 关键词混合检索"
+    },
+    {
+      "id": "api",
+      "x": 640,
+      "y": 340,
+      "w": 250,
+      "h": 96,
+      "color": "slate",
+      "text": "Go API\nsearch_course_materials\n清洗摘录 · 取原图"
+    },
+    {
+      "id": "agent",
+      "x": 320,
+      "y": 340,
+      "w": 250,
+      "h": 96,
+      "color": "slate",
+      "text": "产品 Agent\n带出处回答\nread_image 看原图"
+    },
+    {
+      "id": "user",
+      "x": 0,
+      "y": 340,
+      "w": 250,
+      "h": 96,
+      "color": "blue",
+      "text": "用户\nWeb · 桌面 · 移动端"
+    }
+  ],
+  "edges": [
+    {
+      "from": "src",
+      "to": "crawler"
+    },
+    {
+      "from": "crawler",
+      "to": "raw",
+      "label": "增量提交"
+    },
+    {
+      "from": "crawler",
+      "to": "md"
+    },
+    {
+      "from": "raw",
+      "to": "ocr"
+    },
+    {
+      "from": "raw",
+      "to": "attach"
+    },
+    {
+      "from": "ocr",
+      "to": "repair"
+    },
+    {
+      "from": "repair",
+      "to": "pii"
+    },
+    {
+      "from": "attach",
+      "to": "pii"
+    },
+    {
+      "from": "md",
+      "to": "inject",
+      "label": "逐条复核"
+    },
+    {
+      "from": "pii",
+      "to": "inject"
+    },
+    {
+      "from": "inject",
+      "to": "weknora"
+    },
+    {
+      "from": "weknora",
+      "to": "api"
+    },
+    {
+      "from": "api",
+      "to": "agent"
+    },
+    {
+      "from": "agent",
+      "to": "user"
+    }
+  ]
+}

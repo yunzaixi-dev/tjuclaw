@@ -1,0 +1,176 @@
+{
+  "title": "从子模块提交到上线：GitHub Actions 为准，GitLab 单向镜像",
+  "boxes": [
+    {
+      "id": "root",
+      "x": 520,
+      "y": 0,
+      "w": 320,
+      "h": 96,
+      "color": "blue",
+      "text": "tjuclaw 集成仓库\n按 SHA 钉住子模块\nDocs · Ops · 脚本"
+    },
+    {
+      "id": "fe",
+      "x": -60,
+      "y": 170,
+      "w": 200,
+      "h": 80,
+      "color": "slate",
+      "text": "frontend\n客户端（GPL）"
+    },
+    {
+      "id": "be",
+      "x": 190,
+      "y": 170,
+      "w": 200,
+      "h": 80,
+      "color": "slate",
+      "text": "backend\nGo API"
+    },
+    {
+      "id": "cli",
+      "x": 440,
+      "y": 170,
+      "w": 200,
+      "h": 80,
+      "color": "slate",
+      "text": "cli\ntjucli（GPL）"
+    },
+    {
+      "id": "cr",
+      "x": 800,
+      "y": 170,
+      "w": 200,
+      "h": 80,
+      "color": "slate",
+      "text": "crawler\nBun 采集"
+    },
+    {
+      "id": "sb",
+      "x": 1020,
+      "y": 170,
+      "w": 200,
+      "h": 80,
+      "color": "slate",
+      "text": "sandbox\n执行边界"
+    },
+    {
+      "id": "hook",
+      "x": 1160,
+      "y": 0,
+      "w": 260,
+      "h": 96,
+      "color": "rose",
+      "text": "提交策略钩子\nEMOJI [vX.Y.Z] type(scope)\n版本号须与 package.json 一致"
+    },
+    {
+      "id": "ci",
+      "x": 480,
+      "y": 330,
+      "w": 400,
+      "h": 96,
+      "color": "violet",
+      "text": "GitHub Actions（自托管 runner）\ncheck · integration · ops\n真实 Kratos / Cap / 邮件链路"
+    },
+    {
+      "id": "mirror",
+      "x": 1040,
+      "y": 330,
+      "w": 280,
+      "h": 80,
+      "color": "amber",
+      "text": "GitLab 比赛仓库\n单向镜像 · Release"
+    },
+    {
+      "id": "edge",
+      "x": 0,
+      "y": 520,
+      "w": 300,
+      "h": 96,
+      "color": "green",
+      "text": "EdgeOne\nWeb · Docs · Draw\n静态产物"
+    },
+    {
+      "id": "ansible",
+      "x": 400,
+      "y": 520,
+      "w": 300,
+      "h": 96,
+      "color": "green",
+      "text": "API 核心主机\n校验 SHA-256 的制品\nAnsible 发布 · 失败回滚"
+    },
+    {
+      "id": "images",
+      "x": 800,
+      "y": 520,
+      "w": 300,
+      "h": 96,
+      "color": "green",
+      "text": "集群工作负载\ncrawler 镜像 · WeKnora\nGitOps 声明"
+    },
+    {
+      "id": "native",
+      "x": 1200,
+      "y": 520,
+      "w": 260,
+      "h": 96,
+      "color": "green",
+      "text": "客户端安装包\nLinux · Windows · Android\n摘要校验后发布"
+    }
+  ],
+  "edges": [
+    {
+      "from": "root",
+      "to": "fe"
+    },
+    {
+      "from": "root",
+      "to": "be"
+    },
+    {
+      "from": "root",
+      "to": "cli"
+    },
+    {
+      "from": "root",
+      "to": "cr"
+    },
+    {
+      "from": "root",
+      "to": "sb"
+    },
+    {
+      "from": "root",
+      "to": "hook",
+      "dashed": true,
+      "muted": true
+    },
+    {
+      "from": "root",
+      "to": "ci",
+      "label": "push"
+    },
+    {
+      "from": "ci",
+      "to": "mirror"
+    },
+    {
+      "from": "ci",
+      "to": "edge"
+    },
+    {
+      "from": "ci",
+      "to": "ansible",
+      "label": "制品"
+    },
+    {
+      "from": "ci",
+      "to": "images"
+    },
+    {
+      "from": "ci",
+      "to": "native"
+    }
+  ]
+}

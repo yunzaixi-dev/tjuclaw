@@ -1,0 +1,213 @@
+{
+  "title": "TJUClaw 服务端拓扑：一个 Go 单体，清晰的模块边界",
+  "titleX": 250,
+  "boxes": [
+    {
+      "id": "client",
+      "x": 560,
+      "y": 0,
+      "w": 300,
+      "h": 80,
+      "color": "blue",
+      "text": "客户端\nWeb · Tauri 桌面 · Android"
+    },
+    {
+      "id": "edge",
+      "x": 560,
+      "y": 140,
+      "w": 300,
+      "h": 80,
+      "color": "blue",
+      "text": "EdgeOne\n静态资源 · 同源 /api 回源"
+    },
+    {
+      "id": "api",
+      "x": 510,
+      "y": 280,
+      "w": 400,
+      "h": 90,
+      "color": "slate",
+      "text": "Go API（标准库 net/http）\n同源校验 · 有界 JSON · 统一错误码"
+    },
+    {
+      "id": "auth",
+      "x": 0,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "rose",
+      "text": "认证网关\nKratos 验证码\nCap · HttpOnly"
+    },
+    {
+      "id": "library",
+      "x": 210,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "green",
+      "text": "知识库与会话\n条目树 · 发布\n模型网关 · 工具循环"
+    },
+    {
+      "id": "campus",
+      "x": 420,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "amber",
+      "text": "校园服务\n课表 · 考试 · GPA\n自习室 · 论坛"
+    },
+    {
+      "id": "knowledge",
+      "x": 630,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "violet",
+      "text": "公开知识检索\n摘录清洗\n原图地址"
+    },
+    {
+      "id": "media",
+      "x": 840,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "violet",
+      "text": "原图代理与看图\n图床白名单\nread_image"
+    },
+    {
+      "id": "anki",
+      "x": 1050,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "green",
+      "text": "记忆卡片\n牌组 · 复习记录\n存 PostgreSQL"
+    },
+    {
+      "id": "vault",
+      "x": 1260,
+      "y": 450,
+      "w": 190,
+      "h": 96,
+      "color": "rose",
+      "text": "密文对象\n只存不解密"
+    },
+    {
+      "id": "kratos",
+      "x": 0,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "Kratos · Cap\nSMTP 验证码"
+    },
+    {
+      "id": "pg",
+      "x": 210,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "PostgreSQL\n按身份归属"
+    },
+    {
+      "id": "campusapi",
+      "x": 420,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "教务 · 微北洋\n用户自己的会话"
+    },
+    {
+      "id": "weknora",
+      "x": 630,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "WeKnora\n混合检索"
+    },
+    {
+      "id": "img",
+      "x": 840,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "校园图床\n仅 HTTPS"
+    },
+    {
+      "id": "forgejo",
+      "x": 1260,
+      "y": 620,
+      "w": 190,
+      "h": 80,
+      "color": "slate",
+      "text": "Forgejo 仓库\n仅保存密文"
+    }
+  ],
+  "edges": [
+    {
+      "from": "client",
+      "to": "edge"
+    },
+    {
+      "from": "edge",
+      "to": "api",
+      "label": "剥离一次 /api"
+    },
+    {
+      "from": "api",
+      "to": "auth"
+    },
+    {
+      "from": "api",
+      "to": "library"
+    },
+    {
+      "from": "api",
+      "to": "campus"
+    },
+    {
+      "from": "api",
+      "to": "knowledge"
+    },
+    {
+      "from": "api",
+      "to": "media"
+    },
+    {
+      "from": "api",
+      "to": "anki"
+    },
+    {
+      "from": "api",
+      "to": "vault"
+    },
+    {
+      "from": "auth",
+      "to": "kratos"
+    },
+    {
+      "from": "library",
+      "to": "pg"
+    },
+    {
+      "from": "campus",
+      "to": "campusapi"
+    },
+    {
+      "from": "knowledge",
+      "to": "weknora"
+    },
+    {
+      "from": "media",
+      "to": "img"
+    },
+    {
+      "from": "vault",
+      "to": "forgejo"
+    }
+  ]
+}

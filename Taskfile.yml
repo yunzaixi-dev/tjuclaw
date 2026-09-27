@@ -72,6 +72,10 @@ tasks:
   draw:build:
     desc: Build static Excalidraw board
     cmds: [pnpm --dir draw build]
+  draw:export:
+    desc: Render docs/diagrams/*.json with the Excalidraw board (needs task draw:dev running)
+    cmds:
+      - node scripts/draw-export.mjs {{.CLI_ARGS}}
   draw:preview:
     desc: Preview built Excalidraw board on loopback port 4175
     cmds: [pnpm --dir draw preview]

@@ -1,0 +1,30 @@
+{
+  "title": "Agent 执行面：线上工具循环，与已实现、待切换的沙箱",
+  "zones": [
+    { "x": -30, "y": 110, "w": 1000, "h": 420, "label": "线上：Go API 内的工具循环" },
+    { "x": 1010, "y": 110, "w": 560, "h": 420, "label": "已实现、待切换：自建 Kubernetes 沙箱" }
+  ],
+  "boxes": [
+    { "id": "user", "x": 360, "y": 0, "w": 260, "h": 76, "color": "blue", "text": "会话消息\n身份来自已登录会话" },
+    { "id": "loop", "x": 330, "y": 170, "w": 320, "h": 96, "color": "slate", "text": "Agent 循环\n最多 8 轮工具调用 · 150 秒上限\n工具结果截断至 16 KiB" },
+    { "id": "model", "x": 0, "y": 180, "w": 250, "h": 80, "color": "violet", "text": "产品模型\n蓝色大肥鱼（多模态）\n或用户自定义 API" },
+    { "id": "campus", "x": 0, "y": 370, "w": 250, "h": 96, "color": "amber", "text": "校园工具\n课表 · 考试 · 学期\n自习室 · 论坛" },
+    { "id": "search", "x": 340, "y": 370, "w": 300, "h": 96, "color": "green", "text": "search_course_materials\nWeKnora 混合检索\n带出处与原图地址" },
+    { "id": "vision", "x": 700, "y": 370, "w": 250, "h": 96, "color": "violet", "text": "read_image\n只读白名单图床\n用多模态模型读图" },
+    { "id": "gateway", "x": 1040, "y": 170, "w": 240, "h": 96, "color": "rose", "text": "沙箱网关\nsession.v1 · HMAC\n不暴露 Pod 地址" },
+    { "id": "pod", "x": 1310, "y": 170, "w": 240, "h": 96, "color": "slate", "text": "每会话一个 Sandbox\nPi · /workspace/repo\n默认拒绝出入网" },
+    { "id": "broker", "x": 1040, "y": 370, "w": 240, "h": 96, "color": "rose", "text": "Broker\n模型与 Git 凭据\n不进入沙箱" },
+    { "id": "forgejo", "x": 1310, "y": 370, "w": 240, "h": 96, "color": "amber", "text": "Forgejo 仓库\n固定 commit 检出\n每步 commit + push" }
+  ],
+  "edges": [
+    { "from": "user", "to": "loop" },
+    { "from": "loop", "to": "model", "label": "工具定义" },
+    { "from": "loop", "to": "campus", "label": "回放用户请求" },
+    { "from": "loop", "to": "search" },
+    { "from": "loop", "to": "vision" },
+    { "from": "loop", "to": "gateway", "dashed": true, "muted": true, "label": "切换后" },
+    { "from": "gateway", "to": "pod" },
+    { "from": "pod", "to": "broker" },
+    { "from": "broker", "to": "forgejo" }
+  ]
+}

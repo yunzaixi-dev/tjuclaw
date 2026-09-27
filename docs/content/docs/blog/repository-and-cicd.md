@@ -1,142 +1,138 @@
 ---
 title: 《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》
-description: 多技术栈异构、公私仓库混合、跨平台四端构建与比赛合规镜像——深度解析 TJUClaw 从 Git 子模块拓扑到持续集成流水线的交付工程实践。
+description: 多技术栈异构、公私仓库混合、跨平台构建与比赛镜像——TJUClaw 如何用一个集成仓库按 SHA 钉住六个组件，以 GitHub Actions 为权威 CI、GitLab 为单向镜像，把 Web、API、采集器与客户端安装包各自送到该去的地方。
 ---
 
 # 《从代码仓库到持续交付：TJUClaw 的仓库划分与 CI/CD》
 
-在构建一个涵盖“跨端客户端（Web / Linux / Windows / Android）、Golang 业务后端、分布式爬虫、校园专属 CLI 工具链以及 Next.js 文档站”的复杂系统时，项目初期面临的最大挑战往往不仅是业务逻辑本身，而是**工程结构的组织方式与持续交付（CI/CD）体系的设计**。
+TJUClaw 同时包含跨端客户端、Go 业务后端、Bun 采集器、校园 CLI、Kubernetes 沙箱和 Next.js 文档站。项目初期最大的挑战往往不是业务逻辑，而是**工程结构的组织方式与持续交付体系的设计**。
 
-如果采用单一巨石仓库（Monorepo），不仅跨语言依赖管理（pnpm、Go Modules、Bun、Cargo/Tauri）容易相互冲突，还受制于竞赛评审合规、代码可见性划分（开源客户端与私有后端）等外部约束；而如果完全拆散为各自独立的孤岛仓库（Multi-repo），则组件之间的版本契约与集成测试将变得极难追溯。
+单一巨石仓库会让 pnpm、Go Modules、Bun、Cargo 的依赖互相干扰，也无法同时满足「客户端开源、后端私有」的可见性要求；完全拆散的多仓库，又会让组件之间的版本契约和集成测试难以追溯。
 
-TJUClaw 最终探索出了一套**“以私有集成仓库为主干、强版本契约 Git Submodule 为纽带、单向受控镜像与两步构建流水线”**的持续交付工程架构。
-
----
-
-## 1. 仓库划分全景与可见性边界
-
-TJUClaw 由一个主集成仓库与四个核心组件仓库协同构成。每个仓库各司其职，拥有完全独立的版本生命周期与技术栈环境：
-
-| 仓库 | 可见性 | 核心技术栈 | 核心职责 |
-| :--- | :--- | :--- | :--- |
-| **`tjuclaw`** (主集成仓库) | Private | Taskfile, Next.js (Fumadocs), Ansible | 版本集成中枢、精确组件 Gitlink 锚定、技术文档、端到端集成测试、GitLab 镜像与 Release 发布 |
-| **`tjuclaw-client`** (`frontend/`) | Public | React 19, Vite, Tailwind v4, Tauri v2 | 统一跨端交互界面、UI 与工作区组件回归、四端（Web / Linux / Windows / Android）打包 |
-| **`tjuclaw-server`** (`backend/`) | Private | Go 1.27 (stdlib net/http), PostgreSQL | 核心业务 API、ZITADEL / Cap 会话网关、任务隔离存储、鉴权与所有权校验 |
-| **`tjucli`** (`cli/`) | Private | Go 1.27, CLI / Tool Server | 校园课程搜索、公共数据 CLI、Pi Agent 原生工具标准抽象（JSON Envelope） |
-| **`tjuclaw-crawler`** (`crawler/`) | Private | Bun 1.3.14, PostgreSQL, 对象存储 | 校园多渠道高频爬虫、PII 规则脱敏、文档归一化、RSS 与增量更新回放 |
-
-```text
-                  +-----------------------------------------+
-                  |        yunzaixi-dev/tjuclaw             |
-                  |        (私有集成中枢 / 主分支 release)     |
-                  +----+----------+----------+----------+---+
-                       |          |          |          |
-         git submodule |          |          |          | git submodule
-         (Pinned SHA)  |          |          |          | (Pinned SHA)
-                       v          v          v          v
-                  +---------++---------++---------++---------+
-                  |frontend || backend ||   cli   || crawler |
-                  | (Public)||(Private)||(Private)||(Private)|
-                  +---------++---------++---------++---------+
-                       |
-                       | 单向代码镜像 / 状态回写
-                       v
-                  +-----------------------------------------+
-                  |       GitLab Competition Mirror         |
-                  |       (比赛评审镜像 / 离线安装包归档)        |
-                  +-----------------------------------------+
-```
-
-这种设计的核心收益在于：
-1. **依赖隔离**：根目录仅承载 Next.js 文档站与编排脚本；客户端拥有专属 `pnpm-lock.yaml`；后端与 CLI 采用独立 `go.mod`；爬虫拥有专属 `bun.lock`。没有任何两个子系统互相争抢全局包依赖。
-2. **安全与最小特权**：客户端作为公开展示前端，代码完全脱敏且不包含任何服务端凭证；私有核心（API 与沙箱权限）受到严格的 SSH 访问密钥与 CI Deploy Token 保护。
+TJUClaw 的做法是：**一个集成仓库做主干，Git 子模块按 SHA 钉住每个组件，GitHub Actions 为权威 CI，GitLab 作为单向镜像。**
 
 ---
 
-## 2. 强版本控制与 Git Hooks 约束
+## 1. 仓库划分与可见性
 
-在跨子模块的开发中，“Submodule 悬空（Detached HEAD）”或“版本号与 Git 标签不一致”是极为致命的隐患。TJUClaw 通过根目录下的 `scripts/` 工具链与严格的 Git Hooks 建立了强版本约束契约：
+| 仓库 | 路径 | 可见性 | 技术栈 | 职责 |
+| :--- | :--- | :--- | :--- | :--- |
+| `tjuclaw` | 根目录 | 公开 | Taskfile、Next.js + Fumadocs、Ansible | 集成中枢、文档与博客、运维、跨组件测试 |
+| `tjuclaw-client` | `frontend/` | 公开（GPL） | React 19、Vite 8、Tailwind CSS 4、Tauri v2 | Web、桌面与 Android 客户端 |
+| `tjucli` | `cli/` | 公开（GPL） | Go | 公开课程 CLI、知识检索、带授权的工具服务 |
+| `tjuclaw-server` | `backend/` | 私有 | Go 标准库 `net/http` | 业务 API、认证网关、Agent 工具循环 |
+| `tjuclaw-crawler` | `crawler/` | 私有 | Bun、PostgreSQL | 公开源采集、脱敏、Git 同步、WeKnora 导入 |
+| `tjuclaw-sandbox` | `sandbox/` | 私有 | Go、Kubernetes | 会话网关、控制器与执行边界 |
 
-- **显式路径暂存（Explicit Staging）**：禁止盲目执行 `git add .`。开发者修改组件后，必须逐个路径显式暂存。
-- **语义化提交规范**：提交信息必须严格遵循带有 Emoji 与版本号的格式：
+根目录的 Apache-2.0 许可证只覆盖集成仓库本身，不覆盖 GPL 子模块，也不覆盖私有组件。
+
+依赖彼此隔离：根目录与文档站使用 pnpm 工作区；客户端和绘图板各有自己的锁文件；采集器使用 Bun；后端、CLI 与沙箱各有独立的 `go.mod`。没有任何两个子系统争抢同一份全局依赖。
+
+---
+
+## 2. 强版本约束：提交策略钩子
+
+跨子模块开发里，「子模块指针悬空」和「版本号与提交不一致」都是很隐蔽的隐患。根目录的 `scripts/git-policy.mjs` 在提交时强制执行：
+
+- **提交主题格式**：
+
   ```text
   EMOJI [vMAJOR.MINOR.PATCH] type(scope): summary
-  ✨ [v0.0.26] feat(pipeline): introduce qwen embeddings
+  ✨ [v0.0.43] feat(weknora): import extracted attachment text cited to its article
   ```
-- **版本号同态校验**：提交时，钩子会自动检查暂存的 `package.json`（或各组件版本声明文件）中的 `version`，必须与提交主题中的 `[vX.Y.Z]` 严格保持完全一致。
+
+  并且 emoji 必须与类型匹配：`feat ✨`、`fix 🐛`、`docs 📝`、`refactor ♻️`、`perf ⚡`、`test ✅`、`chore 🔧`、`ci 👷`、`build 🚀`、`revert ⏪`；
+- **版本号一致**：主题里的 `[vX.Y.Z]` 必须等于被暂存组件 `package.json` 中的版本；
+- **显式暂存**：禁止 `git add .`，每个路径逐一暂存；禁止强制推送。
+
+每个组件先在自己的仓库提交、推送，再由集成仓库提交一次「钉住」子模块指针的 `chore(integration)`。于是集成仓库的任意一个提交，都精确对应着一组可以复现的组件版本。
 
 ---
 
-## 3. 持续集成体系 (CI)
+## 3. 持续集成：GitHub Actions 为准
 
-整个 CI 流水线基于托管构建机运行，依托根目录统一的 `Taskfile.yml`（在 Agent 会话中统一使用 `rtk task` 执行），将复杂的跨语言检查规整为确定性的入口：
+![从子模块提交到上线](./images/delivery-pipeline.webp)
+
+*图：集成仓库的推送触发 CI；通过后，静态产物、API 制品、集群镜像与客户端安装包分别进入各自的发布通道。*
+
+所有工作流运行在项目自托管的 runner 上，统一通过根目录 `Taskfile.yml` 调用，本地与 CI 执行的是同一组命令：
 
 ```text
-Commit Push (release / dev / tag)
-   │
-   ├─► 1. 源码镜像 (Mirror Job)
-   │      └── 严格检查 release 分支与完整 tag ref，单向同步至 GitLab 比赛仓库
-   │
-   ├─► 2. 组件检出与白名单环境预热 (Setup)
-   │      ├── 注入只读 Deploy Key 检出各个私有 Submodule
-   │      ├── 启动 Docker ephemeral PostgreSQL 17 服务容器 (供爬虫与 API 测试)
-   │      └── 安装 ffmpeg、poppler-utils、webp、python3 等多媒体与脱敏依赖
-   │
-   ├─► 3. 便携式多语言静态与类型检查 (Check)
-   │      ├── Go API & CLI: go vet, staticcheck, race test
-   │      ├── Client & Docs: TypeScript strict check, ESLint
-   │      └── Crawler: Bun test, schema validation, PII regression check
-   │
-   └─► 4. 真实端到端集成测试 (Integration Test)
-          └── 拒绝 Mock！拉起真实的 Kratos/ZITADEL + Cap + Mailpit 容器进行全流程验收
+push（release / dev / tag）
+  │
+  ├─ mirror        只把选定的 ref 以非强制方式推送到 GitLab 比赛仓库
+  │
+  ├─ check         检出钉住的子模块
+  │                Go vet 与 race 测试、TypeScript 严格检查、ESLint
+  │                采集器 Bun 测试（隔离的临时 PostgreSQL）
+  │                构建 Web、Docs、API、CLI，并产出带 SHA 的 API 制品
+  │
+  ├─ ops           Ansible playbook 语法检查与回滚回归
+  │
+  ├─ sandbox-images 构建并冒烟测试网关与控制器镜像（非阻塞）
+  │
+  └─ integration   真实 Kratos + Cap + 邮件捕获的认证回归
+                   浏览器到 API 的会话回归
+                   密文对象（私人笔记本）回归
+                   浏览器到网关的 Git 工作区回归
 ```
 
-### 为什么坚持“拒绝 Mock”的真实集成测试？
-在很多轻量级项目中，认证逻辑常常只用 Mock 模拟一个 200 OK 的响应。然而真实世界的 Bug 往往出在：Cookie 的 `HttpOnly` / `SameSite` 跨域表现、反向代理层剥离 `/api` 前缀的边界、邮件验证码生成与核销的原子性、以及图形验证码 Token 的单次消费逻辑。
+### 为什么坚持真实的集成测试
 
-TJUClaw 的 CI 测试中包含 `task auth:test`：流水线会启动真实的认证中心、Valkey 缓存与无头浏览器，在完全受控的容器网络中模拟真实用户的登录、发信、截获与任务保存，只有真实交互通过，才能打上通过标记。
+在很多项目里，认证只用 Mock 返回一个 200。但真实世界的问题往往出在：Cookie 的 `HttpOnly`/`SameSite` 行为、代理只剥离一次 `/api` 前缀的边界、验证码生成与核销的原子性、人机验证令牌的单次消费。
+
+`task auth:test` 会拉起真实的身份服务、人机验证服务和邮件捕获服务，用无头浏览器完成「输入邮箱 → 收到验证码 → 登录 → 保存数据 → 退出」的完整流程。只有真实交互通过，这一轮 CI 才算通过。
+
+与之配套，工作区的 UI 回归使用隔离的 Mock API（`task workspace:test`），保证界面测试稳定、可重复；这两类测试的边界写得很清楚：**Mock、健康检查或 CI 通过，都不能当作线上部署成功的证明。**
 
 ---
 
-## 4. 跨平台四端构建与“两步发版”机制
+## 4. 各自的发布通道
 
-TJUClaw 客户端面向校园多端场景，支持四大操作系统平台（Web、Linux amd64、Windows x64、Android arm64）。如果每一次服务端小改动都触发四端打包，将耗费数十倍的无谓算力。
+CI 通过之后，不同的产物去往不同的地方：
 
-为此，TJUClaw 设计了**职责解耦的两步发布流程（Two-Step Release Workflow）**：
+| 产物 | 通道 |
+| --- | --- |
+| Web 客户端 | 客户端仓库 `release` 分支推送后，便携检查与浏览器检查通过，发布到 EdgeOne |
+| 文档站与绘图板 | 独立工作流构建静态产物（`output: 'export'`），发布到 EdgeOne |
+| API | CI 产出带 SHA 的二进制制品；Ansible 在目标主机校验 SHA-256 后原子切换版本目录，健康检查失败自动回滚 |
+| 采集器与 WeKnora | 采集器镜像由工作流构建；集群工作负载以 GitOps 声明管理，密钥不进 Git |
+| 客户端安装包 | Linux、Windows、Android 在客户端仓库构建；「Publish Client Downloads」工作流核对 release 祖先关系、两条 CI 与全部制品摘要后才发布 |
+
+API 的发布合同值得多说一句：制品路径、SHA-256 与对应的集成提交写在一个被忽略的本地配置里，playbook 先比对摘要，再把二进制放进以提交 SHA 命名的版本目录，最后切换 `current` 链接并重启服务。任何一步失败都会回到上一个版本。
+
+---
+
+## 5. 比赛镜像与两步发版
+
+比赛评审使用 GitLab。GitLab 仓库只是 GitHub 的**单向镜像**，从不反向同步。
+
+正式版本采用两步发布：
 
 ```text
-Step 1: 客户端仓库触发打包 (Client Release)
-   │
-   ├─► 针对特定 SHA 构建 Linux (.deb)、Windows (.exe)、Android (.apk)
-   ├─► 对构建产物进行 SHA-256 完整性哈希校验
-   └─► 上传至 GitLab Generic Package Registry 并签发 manifest.json
-         │
-Step 2: 主集成仓库综合发布 (Integration Release)
-   │
-   ├─► 核对集成 CI 状态与当前锁定的 Submodule Gitlink
-   ├─► 下载并二次校验客户端 Manifest 与下载摘要
-   ├─► 提取纯净的各组件源码快照（生成附带 SOURCE.json 溯源信息的 tar.gz）
-   └─► 统一向 GitLab Release 挂载完整安装包、源码包与 SHA256SUMS.txt
+第一步：客户端仓库
+  针对特定 SHA 构建安装包 → 计算 SHA-256 → 上传并生成 manifest
+
+第二步：集成仓库
+  核对集成 CI 与子模块指针 → 下载并复核客户端 manifest
+  → 生成附带 SOURCE.json 的各组件源码包
+  → 在 GitLab Release 挂载安装包、源码包与 SHA256SUMS.txt
 ```
 
-这种两步机制确保了：
-1. **构建过程不可篡改**：所有安装包都有唯一的 SHA-256 哈希保障，并在 Release 页面公开对齐；
-2. **可溯源性**：评审专家下载源码包时，解压即可获取所有组件与当时精确的 Git 提交快照；
-3. **极高迭代效率**：前端界面修改只跑前端打包流水线，核心架构升级只跑集成回归，边界清晰，分工明确。
+评审下载源码包时，解压即可得到所有组件在当时的精确提交；所有安装包都有公开可核对的哈希。
 
 ---
 
-## 5. 云边协同部署：从 EdgeOne 到边缘网关
+## 6. 运维配置与数据隔离
 
-对于在线服务的持续交付，系统采用分层分流的云边协同策略：
-- **静态前端与文档站**：编译为纯静态产物（`output: 'export'`），自动化推送到腾讯云 **EdgeOne** 边缘安全加速平台。利用边缘节点的全局缓存，校园用户可以在数毫秒内完成首屏文档与客户端 HTML 的极速加载；
-- **动态后端 API 网关**：针对 `/api/*` 的动态事务请求，EdgeOne 规则引擎自动反向代理回源至核心云主机上的 Go 原生服务容器；
-- **配置与数据隔离**：运维配置完全通过 Ansible Playbook 编排落地，服务器敏感凭据与数据库持久化卷严格挂载在宿主机的安全隔离目录，杜绝代码仓库对生产敏感数据的任何直接依赖。
+- 主机配置全部由 Ansible playbook 描述；真实的 inventory、制品路径与主机凭据放在不进入版本库的 `ops/local/` 下；
+- 服务凭据以 `0600` 权限的环境文件保存在主机上，不出现在源码、日志、文档或构建上下文里；
+- 采集器、WeKnora、身份服务与 API 各自使用独立的数据库，从不共享。
 
 ---
 
-## 总结：基础设施也是核心生产力
+## 总结：基础设施也是生产力
 
-一个真正经得起生产考验与竞赛评审的智能体项目，绝不仅仅是几段提示词或几个模型接口的拼凑。
+一个经得起生产与评审考验的智能体项目，绝不只是几段提示词和几个模型接口的拼凑。
 
-从严谨的 Git 仓库划分、强版本控制、拒绝假冒模拟的真实 CI 验证，到跨平台四端的两步打包与云边协同部署，TJUClaw 构建起了一套**透明、可追溯、安全且极度工程化**的交付体系。这套稳固的基础设施底座，不仅赋予了我们高频迭代的底气，也为后续复杂智能体能力的稳定挂载与演进提供了最坚实的保障。
+清晰的仓库划分、钉住 SHA 的子模块、强制的提交策略、拒绝 Mock 的认证回归、各自独立且可回滚的发布通道——这些看似琐碎的规则，给了我们高频迭代的底气，也让每一次上线都能被追溯到一个确定的提交。
