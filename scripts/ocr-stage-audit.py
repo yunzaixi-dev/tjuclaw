@@ -16,6 +16,8 @@ RAW_PATH_RE = re.compile(
     r"(?P<object>[a-f0-9]{64})(?P<suffix>\.[A-Za-z0-9]+)?$"
 )
 MARKER = "<!-- TJUCLAW_OCR_V1\n"
+APPLEDOUBLE_MAGIC = b"\x00\x05\x16\x07\x00\x02\x00\x00"
+LFS_POINTER_PREFIX = b"version https://git-lfs.github.com/spec/v1\n"
 SUPPORTED = {
     ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
     ".doc", ".docx", ".docm", ".ppt", ".pptx", ".pptm", ".pps", ".ppsx", ".ppsm",
@@ -49,6 +51,17 @@ def parse_provenance(markdown: str) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
+def extensionless_utf8_text(path: Path) -> bool:
+    try:
+        data = path.read_bytes()
+        if b"\x00" in data:
+            return False
+        data.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    return True
+
+
 def audit(raw: Path, staging: Path) -> dict[str, object]:
     counts = Counter()
     failures: list[dict[str, str]] = []
@@ -57,7 +70,23 @@ def audit(raw: Path, staging: Path) -> dict[str, object]:
             continue
         relative = source_path.relative_to(raw).as_posix()
         match = RAW_PATH_RE.fullmatch(relative)
-        if not match or (match.group("suffix") or "").lower() not in SUPPORTED:
+        if not match:
+            continue
+        suffix = (match.group("suffix") or "").lower()
+        if suffix not in SUPPORTED and not (not suffix and extensionless_utf8_text(source_path)):
+            continue
+        try:
+            with source_path.open("rb") as source:
+                if source.read(len(APPLEDOUBLE_MAGIC)) == APPLEDOUBLE_MAGIC:
+                    counts["metadata_excluded"] += 1
+                    continue
+                source.seek(0)
+                if source.read(len(LFS_POINTER_PREFIX)) == LFS_POINTER_PREFIX:
+                    counts["lfs_deferred"] += 1
+                    continue
+        except OSError:
+            counts["unreadable"] += 1
+            failures.append({"path": relative, "reason": "unreadable_source"})
             continue
         counts["candidates"] += 1
         output = staging / Path(relative).with_name(f"{match.group('object')}.md")

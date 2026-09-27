@@ -60,6 +60,49 @@ class StageAuditTest(unittest.TestCase):
         result = AUDIT.audit(self.raw, self.stage)
         self.assertEqual(result["summary"]["missing_assets"], 1)
 
+    def test_appledouble_metadata_is_counted_but_not_a_document(self):
+        metadata = self.source.with_name("c" * 64 + ".txt")
+        metadata.write_bytes(AUDIT.APPLEDOUBLE_MAGIC + b"resource fork")
+        result = AUDIT.audit(self.raw, self.stage)
+        self.assertEqual(result["summary"],
+                         {"candidates": 1, "metadata_excluded": 1, "missing": 1})
+        self.assertEqual(len(result["failures"]), 1)
+
+    def test_lfs_pointer_is_deferred_until_materialized(self):
+        pointer = self.source.with_name("c" * 64 + ".pdf")
+        pointer.write_bytes(
+            AUDIT.LFS_POINTER_PREFIX
+            + b"oid sha256:"
+            + b"c" * 64
+            + b"\nsize 123\n"
+        )
+        result = AUDIT.audit(self.raw, self.stage)
+        self.assertEqual(
+            result["summary"],
+            {"candidates": 1, "lfs_deferred": 1, "missing": 1},
+        )
+        self.assertEqual(len(result["failures"]), 1)
+
+    def test_extensionless_utf8_text_is_audited(self):
+        self.write_markdown("existing attachment")
+        source = self.source.with_name("d" * 64)
+        source.write_text("plain text attachment", encoding="utf-8")
+        output = self.stage / source.relative_to(self.raw)
+        output = output.with_name(f"{source.name}.md")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            "<!-- TJUCLAW_OCR_V1\n"
+            + json.dumps({
+                "source_path": source.relative_to(self.raw).as_posix(),
+                "source_sha256": source.name,
+                "processor": "PaddleOCR-VL",
+            })
+            + "\n-->\n\nplain text attachment\n",
+            encoding="utf-8",
+        )
+        result = AUDIT.audit(self.raw, self.stage)
+        self.assertEqual(result["summary"], {"candidates": 2, "valid": 2})
+
 
 if __name__ == "__main__":
     unittest.main()

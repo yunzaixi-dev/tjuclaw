@@ -1,0 +1,2 @@
+# google-colab-cli 0.7.2 pins an incompatible PyPI 0.8.0; see upstream issue #137.
+jupyter-kernel-client==0.15.0

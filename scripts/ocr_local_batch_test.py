@@ -1,10 +1,12 @@
 import importlib.util
 import hashlib
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).with_name("ocr-local-batch.py")
 SPEC = importlib.util.spec_from_file_location("ocr_local_batch", SCRIPT)
@@ -70,6 +72,42 @@ class LocalBatchTest(unittest.TestCase):
                 "--raw-repo", "/tmp/raw", "--staging", "/tmp/stage",
                 "--state-dir", "/tmp/state", "--python", "/tmp/python",
                 "--batch-size", "0",
+            ])
+
+    def test_pdf_chunk_pages_is_bounded(self):
+        with self.assertRaises(SystemExit):
+            BATCH.main([
+                "--raw-repo", "/tmp/raw", "--staging", "/tmp/stage",
+                "--state-dir", "/tmp/state", "--python", "/tmp/python",
+                "--pdf-chunk-pages", "65",
+            ])
+
+    def test_pdf_chunk_pages_is_forwarded_to_worker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            args = SimpleNamespace(
+                python=Path("/tmp/python"), raw_repo=root / "raw",
+                staging=root / "stage", max_pixels=940800, timeout=60,
+                cpu_cores=1, worker_log=root / "worker.log", pdf_chunk_pages=2,
+                pipeline_device="cpu",
+            )
+            process = Mock()
+            process.wait.return_value = 0
+            with (
+                patch.object(BATCH.os, "sched_getaffinity", return_value={0}),
+                patch.object(BATCH.subprocess, "Popen", return_value=process) as popen,
+            ):
+                self.assertEqual(BATCH.run_group(args, [], io.StringIO()), 0)
+            command = popen.call_args.args[0]
+            self.assertEqual(command[command.index("--pdf-chunk-pages") + 1], "2")
+            self.assertEqual(command[command.index("--pipeline-device") + 1], "cpu")
+
+    def test_invalid_pipeline_device_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            BATCH.main([
+                "--raw-repo", "/tmp/raw", "--staging", "/tmp/stage",
+                "--state-dir", "/tmp/state", "--python", "/tmp/python",
+                "--pipeline-device", "cuda:1",
             ])
 
     def test_pdf_page_count(self):

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections import Counter
+import fcntl
 import hashlib
 import json
 import mimetypes
@@ -33,6 +35,38 @@ DEFAULT_MODEL = "tju-llm-max"
 # Keep these high so large course notes are not silently deferred.
 DEFAULT_MAX_INPUT = 220_000
 DEFAULT_MAX_OUTPUT = 100_000
+ROOT = Path(__file__).resolve().parent.parent
+PII_SCAN = (
+    'import {scanForPii} from "./crawler/src/archive/pii.ts"; '
+    'console.log(JSON.stringify(scanForPii(await Bun.stdin.text()).matches));'
+)
+
+
+class PrivacyBlocked(Exception):
+    def __init__(self, categories: tuple[str, ...]):
+        super().__init__("privacy_blocked")
+        self.categories = categories
+
+
+def scan_privacy(body: str) -> tuple[str, ...]:
+    """Run the authoritative local scanner without exposing matched values."""
+    try:
+        result = subprocess.run(
+            ["bun", "-e", PII_SCAN], input=body, capture_output=True,
+            text=True, cwd=ROOT, timeout=20, check=False,
+        )
+        if result.returncode:
+            raise ValueError("scanner_failed")
+        matches = json.loads(result.stdout)
+        allowed = {"credential", "id_card", "phone", "student_log"}
+        if not isinstance(matches, list) or any(
+            not isinstance(item, dict) or item.get("category") not in allowed
+            for item in matches
+        ):
+            raise ValueError("invalid_scanner_report")
+        return tuple(sorted({item["category"] for item in matches}))
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+        raise RuntimeError("privacy_scan_unavailable") from None
 
 
 @dataclass(frozen=True)
@@ -66,6 +100,10 @@ RETRYABLE_STATUSES = frozenset({
     "incomplete",
     "rejected",
     "timeout",
+})
+FOLLOW_ATTEMPT_STATUSES = frozenset({
+    "deferred_input_too_large", "error", "failed", "incomplete",
+    "rejected", "timeout", "would_repair", "privacy_blocked",
 })
 
 
@@ -118,6 +156,50 @@ def _unescaped_count(text: str, character: str) -> int:
     return count
 
 
+def _markdown_math_text(text: str) -> str:
+    """Exclude literal code without changing the document being repaired."""
+    lines = []
+    fence: tuple[str, int] | None = None
+    for line in text.splitlines(keepends=True):
+        match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
+        if fence is not None:
+            if (match and match[1][0] == fence[0] and len(match[1]) >= fence[1]
+                    and not match[2].strip()):
+                fence = None
+            lines.append("\n")
+        elif match and not (match[1][0] == "`" and "`" in match[2]):
+            fence = (match[1][0], len(match[1]))
+            lines.append("\n")
+        else:
+            lines.append(line)
+    value = "".join(lines)
+    runs = list(re.finditer(r"`+", value))
+    successors: dict[int, int] = {}
+    latest: dict[int, int] = {}
+    for index in range(len(runs) - 1, -1, -1):
+        width = len(runs[index][0])
+        if width in latest:
+            successors[index] = latest[width]
+        latest[width] = index
+    parts = []
+    cursor = index = 0
+    while index < len(runs):
+        opening = runs[index]
+        preceding = opening.start() - 1
+        while preceding >= 0 and value[preceding] == "\\":
+            preceding -= 1
+        escaped = (opening.start() - 1 - preceding) % 2
+        closing = successors.get(index)
+        if escaped or closing is None:
+            index += 1
+            continue
+        parts.append(value[cursor:opening.start()])
+        cursor = runs[closing].end()
+        index = closing + 1
+    parts.append(value[cursor:])
+    return "".join(parts)
+
+
 def _balanced_latex_environments(text: str) -> bool:
     stack: list[str] = []
     for match in re.finditer(r"\\(begin|end)\{([^{}\n]+)\}", text):
@@ -131,11 +213,12 @@ def _balanced_latex_environments(text: str) -> bool:
 
 def repair_reasons(body: str, metadata: dict, source_size: int | None = None) -> tuple[str, ...]:
     reasons: list[str] = []
+    math_text = _markdown_math_text(body)
     if "\ufffd" in body:
         reasons.append("replacement_character")
-    if _unescaped_count(body, "$") % 2:
+    if _unescaped_count(math_text, "$") % 2:
         reasons.append("unbalanced_math_delimiter")
-    if not _balanced_latex_environments(body):
+    if not _balanced_latex_environments(math_text):
         reasons.append("unbalanced_latex_environment")
     if body.count("<table") != body.count("</table>"):
         reasons.append("unbalanced_table")
@@ -229,6 +312,56 @@ def load_repair_history(paths: list[Path]) -> dict[str, RepairHistory]:
     return history
 
 
+def load_follow_attempts(paths: list[Path]) -> Counter[tuple[str, str]]:
+    attempts: Counter[tuple[str, str]] = Counter()
+    for log in dict.fromkeys(paths):
+        if not log.is_file():
+            continue
+        with log.open(encoding="utf-8", errors="replace") as stream:
+            for line in stream:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(event, dict) or event.get("status") not in FOLLOW_ATTEMPT_STATUSES:
+                    continue
+                relative = safe_relative_path(str(event.get("source_path", "")))
+                digest = event.get("source_sha256")
+                if relative and isinstance(digest, str) and re.fullmatch(r"[a-fA-F0-9]{64}", digest):
+                    attempts[(relative.as_posix(), digest.lower())] += 1
+    return attempts
+
+
+def pending_follow_items(
+    staging: Path,
+    raw: Path | None,
+    output: Path,
+    attempts: Counter[tuple[str, str]],
+    retry_limit: int,
+    limit: int | None = None,
+) -> list[Candidate]:
+    pending: list[Candidate] = []
+    for item in candidates(staging, raw):
+        # The OCR producer writes directly to the staging path; wait until a
+        # new file has stopped changing before reading it as an LLM input.
+        try:
+            recently_modified = time.time() - item.source.stat().st_mtime < 2
+        except OSError:
+            continue
+        if recently_modified:
+            continue
+        key = (item.relative.as_posix(), hashlib.sha256(item.body.encode("utf-8")).hexdigest())
+        destination = output / item.relative
+        if output_matches_source(destination, item.body) or destination.exists():
+            continue
+        if attempts[key] >= retry_limit:
+            continue
+        pending.append(item)
+        if limit and len(pending) >= limit:
+            break
+    return pending
+
+
 def candidates_from_history(
     staging: Path,
     raw: Path | None,
@@ -287,10 +420,8 @@ def error_status(exc: Exception) -> str:
 
 
 def safe_error_message(exc: Exception, api_key: str) -> str:
-    message = str(exc)
-    if api_key:
-        message = message.replace(api_key, "[REDACTED]")
-    return message[:2000]
+    # Provider exceptions can echo document text, URLs, or credentials.
+    return type(exc).__name__
 
 
 def prompt_for(body: str, image_count: int = 0) -> str:
@@ -304,9 +435,13 @@ def prompt_for(body: str, image_count: int = 0) -> str:
 1. 修复确定的错别字、乱码、断行和标题层级；
 2. 保留所有原文信息、数字、选项、答案、图片引用、HTML 表格和代码；
 3. 数学公式只有在上下文可以确定时才修复；无法确定时原样保留；
+   公式的 $ 和 $$ 分隔符必须配对，LaTeX 环境必须闭合。
+   程序变量、命令和代码使用行内代码或代码块；代码里的 $ 不代表公式，
+   不要给代码中的 $ 添加转义。普通文字中的字面美元符号使用 \\$；
 4. 不得凭常识补写缺失内容，不得总结、删节、改写成摘要；
 5. 不要把 HTML 表格改成列表，不要删除图片；
-6. 如果原始图像也无法确认某个字符，不要猜测，保留原文并使用 [无法识别] 标记；
+6. OCR 中的替换字符 � 不是可保留的原文。能从上下文或原始图像确认时修复；
+   否则只将该字符替换为 [无法识别]，不得猜测或原样输出 �；
 7. 只输出修复后的 Markdown 正文，不要输出解释、JSON 或 ``` 包裹。
 
 OCR 正文开始：
@@ -484,6 +619,7 @@ def normalized_anchors(text: str) -> set[str]:
 def validate_repair(original: str, repaired: str) -> tuple[bool, tuple[str, ...]]:
     reasons: list[str] = []
     value = repaired.strip()
+    math_text = _markdown_math_text(value)
     if not value:
         reasons.append("empty")
     if value.startswith("```") and value.endswith("```"):
@@ -492,7 +628,11 @@ def validate_repair(original: str, repaired: str) -> tuple[bool, tuple[str, ...]
         reasons.append("prompt_leak")
     if "\ufffd" in value:
         reasons.append("replacement_character")
-    if original and not 0.45 <= len(value) / len(original) <= 2.25:
+    # The explicit uncertainty marker is longer than the OCR replacement
+    # character; do not mistake that safe, deterministic expansion for a
+    # hallucinated longer document.
+    comparison_length = len(original.replace("\ufffd", "[无法识别]"))
+    if comparison_length and not 0.45 <= len(value) / comparison_length <= 2.25:
         reasons.append("length_outlier")
     if original.count("<table") != value.count("<table"):
         reasons.append("table_count_changed")
@@ -502,13 +642,19 @@ def validate_repair(original: str, repaired: str) -> tuple[bool, tuple[str, ...]
     repaired_anchors = normalized_anchors(value)
     if original_anchors and len(original_anchors & repaired_anchors) / len(original_anchors) < 0.55:
         reasons.append("anchor_loss")
-    if _unescaped_count(value, "$") % 2:
+    if _unescaped_count(math_text, "$") % 2:
         reasons.append("unbalanced_math_delimiter")
     if value.count("<table") != value.count("</table>"):
         reasons.append("unbalanced_table")
-    if not _balanced_latex_environments(value):
+    if not _balanced_latex_environments(math_text):
         reasons.append("unbalanced_latex_environment")
     return not reasons, tuple(reasons)
+
+
+def replace_unrecognized_characters(repaired: str) -> tuple[str, int]:
+    """Use the prompt's explicit uncertainty marker instead of guessing OCR text."""
+    count = repaired.count("\ufffd")
+    return repaired.replace("\ufffd", "[无法识别]"), count
 
 
 def render(
@@ -552,6 +698,12 @@ def main() -> int:
         ),
     )
     parser.add_argument("--limit", type=int)
+    parser.add_argument("--follow", action="store_true",
+                        help="keep scanning for new OCR documents; do not replace existing results")
+    parser.add_argument("--poll-interval", type=float, default=15,
+                        help="seconds between follow scans (default: 15)")
+    parser.add_argument("--follow-retry-limit", type=int, default=1,
+                        help="maximum attempts per OCR body across follow logs (default: 1)")
     parser.add_argument(
         "--base-url",
         default=os.environ.get("NEWAPI_BASE_URL") or os.environ.get("OPENAI_BASE_URL", ""),
@@ -580,12 +732,21 @@ def main() -> int:
     parser.add_argument("--log", type=Path)
     args = parser.parse_args()
 
+    if args.vision and not args.dry_run:
+        parser.error("--vision requires a local image privacy gate before remote upload")
+    if args.follow and (args.input_list or not args.log):
+        parser.error("--follow requires --log and cannot use --input-list")
+    if args.follow and (args.poll_interval <= 0 or args.follow_retry_limit < 1):
+        parser.error("--poll-interval and --follow-retry-limit must be positive")
     if not args.base_url and not args.dry_run:
         parser.error("--base-url or NEWAPI_BASE_URL is required")
     if not args.api_key and not args.dry_run:
         parser.error("--api-key or NEWAPI_API_KEY is required")
     history = load_repair_history(args.resume_log)
-    if args.input_list:
+    follow_attempts = load_follow_attempts([*args.resume_log, args.log]) if args.follow else Counter()
+    if args.follow:
+        items = []
+    elif args.input_list:
         items = read_input_list(args.staging, args.input_list)
     elif history:
         items = candidates_from_history(args.staging, args.raw, history)
@@ -594,7 +755,16 @@ def main() -> int:
     if args.limit:
         items = items[:args.limit]
     args.output.mkdir(parents=True, exist_ok=True)
-    log_file = args.log.open("a", encoding="utf-8") if args.log else None
+    log_file = None
+    if args.log:
+        descriptor = os.open(args.log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        if args.follow:
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                os.close(descriptor)
+                parser.error("another follow worker already owns the log")
+        log_file = os.fdopen(descriptor, "a", encoding="utf-8")
     temporary_render_dir = None
     if args.vision:
         if args.raw is None:
@@ -615,14 +785,28 @@ def main() -> int:
                 log_file.write(line + "\n")
                 log_file.flush()
 
-        for index, item in enumerate(items, start=1):
+        def work_items():
+            if not args.follow:
+                for index, item in enumerate(items, start=1):
+                    yield index, item, len(items)
+                return
+            while True:
+                batch = pending_follow_items(
+                    args.staging, args.raw, args.output, follow_attempts,
+                    args.follow_retry_limit, args.limit,
+                )
+                for index, item in enumerate(batch, start=1):
+                    yield index, item, len(batch)
+                time.sleep(args.poll_interval)
+
+        for index, item, total in work_items():
             started_at = time.time()
             source_sha256 = hashlib.sha256(item.body.encode("utf-8")).hexdigest()
             estimated_prompt_tokens = max(1, (len(item.body) + 1800) // 4)
             emit({
                 "event": "request_start",
                 "index": index,
-                "total": len(items),
+                "total": total,
                 "source_path": str(item.relative),
                 "source_sha256": source_sha256,
                 "characters": len(item.body),
@@ -633,7 +817,7 @@ def main() -> int:
             record = {
                 "event": "request_complete",
                 "index": index,
-                "total": len(items),
+                "total": total,
                 "source_path": str(item.relative),
                 "source_sha256": source_sha256,
                 "reasons": list(item.reasons),
@@ -643,6 +827,8 @@ def main() -> int:
             destination = args.output / item.relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             previous = history.get(item.relative.as_posix())
+            if previous and previous.status in SUCCESS_STATUSES and not destination.exists():
+                record["resume"] = "missing_output_after_success_log"
             if output_matches_source(destination, item.body):
                 record["status"] = "existing"
                 record["resume"] = "verified_output"
@@ -651,15 +837,15 @@ def main() -> int:
                 # OCR body. A later manual review can decide whether to replace it.
                 record["status"] = "stale_existing"
                 record["resume"] = "output_source_mismatch"
-            elif previous and previous.status in SUCCESS_STATUSES:
-                # A success log without its output is not a success: retry it.
-                record["resume"] = "missing_output_after_success_log"
             elif len(item.body) > args.max_input_chars:
                 record["status"] = "deferred_input_too_large"
             elif args.dry_run:
                 record["status"] = "would_repair"
             else:
                 try:
+                    categories = scan_privacy(item.body)
+                    if categories:
+                        raise PrivacyBlocked(categories)
                     user_content: str | list[dict] = prompt_for(item.body)
                     vision_pages: list[int] = []
                     if args.vision:
@@ -679,7 +865,7 @@ def main() -> int:
                         emit({
                             "event": "stream_progress",
                             "index": index,
-                            "total": len(items),
+                            "total": total,
                             "source_path": str(item.relative),
                             "estimated_prompt_tokens": estimated_prompt_tokens,
                             "estimated_completion_tokens": completion_tokens,
@@ -687,7 +873,6 @@ def main() -> int:
                                 estimated_prompt_tokens + completion_tokens
                             ),
                             "output_chars": len(partial),
-                            "output_tail": partial[-1600:],
                             "at": time.time(),
                         })
 
@@ -701,8 +886,19 @@ def main() -> int:
                         args.retries,
                         on_progress=on_progress,
                     )
-                    repaired = api_result.content
-                    record["usage"] = api_result.usage
+                    repaired, unresolved_characters = replace_unrecognized_characters(
+                        api_result.content
+                    )
+                    if unresolved_characters:
+                        record["unrecognized_characters_marked"] = unresolved_characters
+                    record["usage"] = {
+                        key: value for key, value in api_result.usage.items()
+                        if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                        and isinstance(value, int) and not isinstance(value, bool)
+                    }
+                    categories = scan_privacy(repaired)
+                    if categories:
+                        raise PrivacyBlocked(categories)
                     valid, validation_reasons = validate_repair(item.body, repaired)
                     record["validation"] = list(validation_reasons)
                     if valid:
@@ -719,12 +915,17 @@ def main() -> int:
                         record["status"] = "repaired"
                     else:
                         record["status"] = "rejected"
+                except PrivacyBlocked as exc:
+                    record["status"] = "privacy_blocked"
+                    record["privacy_categories"] = list(exc.categories)
                 except Exception as exc:  # keep the long-running batch alive
                     record["status"] = error_status(exc)
                     record["error_type"] = type(exc).__name__
                     record["error"] = safe_error_message(exc, args.api_key)
             record["duration_seconds"] = round(time.time() - started_at, 3)
             emit(record)
+            if args.follow and record["status"] in FOLLOW_ATTEMPT_STATUSES:
+                follow_attempts[(item.relative.as_posix(), source_sha256)] += 1
             if args.sleep:
                 time.sleep(args.sleep)
     finally:

@@ -23,6 +23,7 @@ PADDLEOCR_VERSION = "3.7.0"
 PIPELINE_VERSION = "v1.6"
 PROVENANCE_MARKER = "TJUCLAW_OCR_V1"
 VLM_MAX_PIXELS = 28 * 28 * 1200
+VLM_FALLBACK_MIN_PIXELS = 28 * 28 * 448
 MAX_ALLOWED_PIXELS = VLM_MAX_PIXELS * 4
 REPETITION_PENALTY = 1.0
 DOCUMENT_TIMEOUT_SECONDS = 1800
@@ -56,6 +57,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         help="Process only newline-separated raw-repo-relative source paths.",
     )
+    parser.add_argument(
+        "--prepared-office-dir",
+        type=Path,
+        help="Use only hash-verified, privacy-screened Office PDFs from this cache; refuse uncached Office inputs.",
+    )
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--shard-index", type=int, default=0,
                         help="Process only this zero-based shard of the pending set.")
@@ -78,6 +84,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--document-timeout-seconds", type=int, default=DOCUMENT_TIMEOUT_SECONDS,
                         help="Fail one attachment after this many seconds; zero disables the watchdog.")
+    parser.add_argument("--pdf-chunk-pages", type=int, default=0,
+                        help="Infer PDFs in bounded chunks, then restructure all pages together.")
+    parser.add_argument("--chunk-timeout-seconds", type=int, default=0,
+                        help="Bound each PDF chunk; zero uses only the document watchdog.")
     parser.add_argument("--use-queues", action="store_true")
     parser.add_argument("--vl-rec-backend", choices=("native", "vllm-server"), default="native")
     parser.add_argument("--vl-rec-server-url", default="http://127.0.0.1:8118/v1")
@@ -92,6 +102,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         parser.error("--shard-index must be between zero and shard-count - 1")
     if args.document_timeout_seconds < 0:
         parser.error("--document-timeout-seconds must be zero or positive")
+    if not 0 <= args.pdf_chunk_pages <= 64:
+        parser.error("--pdf-chunk-pages must be between zero and 64")
+    if args.chunk_timeout_seconds < 0:
+        parser.error("--chunk-timeout-seconds must be zero or positive")
+    if args.chunk_timeout_seconds and not args.pdf_chunk_pages:
+        parser.error("--chunk-timeout-seconds requires --pdf-chunk-pages")
     if any(not re.fullmatch(r"\.[a-z0-9]+", suffix) for suffix in args.include_suffix):
         parser.error("--include-suffix requires lowercase file extensions such as .pdf")
     if not 1 <= args.page_batch_size <= 8:
@@ -106,8 +122,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "http://127.0.0.1:8118/v1", "http://localhost:8118/v1"
     ):
         parser.error("--vl-rec-server-url must be the local inference service")
-    if args.vl_rec_backend == "native" and args.repetition_penalty != 1.0:
-        parser.error("--repetition-penalty requires --vl-rec-backend vllm-server")
     return args
 
 
@@ -130,6 +144,26 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def checked_prepared_office(cache: Path, source: str, original: Path) -> tuple[Path, dict] | None:
+    key = hashlib.sha256(source.encode()).hexdigest()
+    metadata, pdf = cache / f"{key}.json", cache / f"{key}.pdf"
+    if any(path.is_symlink() or not path.is_file() for path in (metadata, pdf, original)):
+        return None
+    try:
+        record = json.loads(metadata.read_text(encoding="utf-8"))
+        if (not isinstance(record, dict) or set(record) != {
+            "source", "original_sha256", "pdf_sha256", "pdf_bytes", "pages", "converter"
+        } or record["source"] != source or record["converter"] != "isolated-libreoffice"
+                or record["original_sha256"] != file_sha256(original)
+                or record["pdf_sha256"] != file_sha256(pdf)
+                or record["pdf_bytes"] != pdf.stat().st_size
+                or not isinstance(record["pages"], int) or not 1 <= record["pages"] <= 2000):
+            return None
+        return pdf, record
+    except (OSError, ValueError, TypeError):
+        return None
 
 
 def looks_like_html(path: Path) -> bool:
@@ -193,7 +227,9 @@ def materialize_lfs(raw_repo: Path, pending: list[tuple[Path, str, str, Path]]) 
     if not (raw_repo / ".git").exists():
         raise RuntimeError("raw_repo_git_metadata_missing_for_lfs")
     for offset in range(0, len(lfs_paths), 64):
-        include = ",".join(path.relative_to(raw_repo).as_posix() for path in lfs_paths[offset : offset + 64])
+        batch = lfs_paths[offset : offset + 64]
+        relative_paths = [path.relative_to(raw_repo).as_posix() for path in batch]
+        include = ",".join(relative_paths)
         process = subprocess.run(
             ["git", "lfs", "pull", "--include", include, "--exclude", ""],
             cwd=raw_repo,
@@ -206,6 +242,20 @@ def materialize_lfs(raw_repo: Path, pending: list[tuple[Path, str, str, Path]]) 
         )
         if process.returncode != 0:
             raise RuntimeError("lfs_pull_failed")
+        checkout = subprocess.run(
+            ["git", "lfs", "checkout", "--", *relative_paths],
+            cwd=raw_repo,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=3600,
+            check=False,
+        )
+        if checkout.returncode != 0:
+            raise RuntimeError("lfs_checkout_failed")
+        if any(is_lfs_pointer(path) for path in batch):
+            raise RuntimeError("lfs_materialization_failed")
 
 
 def convert_office_to_pdf(source: Path, work_dir: Path) -> Path:
@@ -377,13 +427,98 @@ def has_generation_loop(markdown: str) -> bool:
     return any(count >= 40 and count * width >= len(markdown) * 0.4 for count in counts.values())
 
 
+def predict_document(pipeline: Any, source: Path, options: dict[str, Any],
+                     chunk_pages: int = 0, chunk_timeout_seconds: int = 0) -> list[Any]:
+    if not chunk_pages or source.suffix.lower() != ".pdf":
+        return list(pipeline.predict(input=str(source), **options))
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
+    results = []
+    def infer_chunk(chunk_path: Path, start: int, end: int, total_pages: int) -> None:
+        with document_timeout(chunk_timeout_seconds):
+            pages = list(pipeline.predict(input=str(chunk_path), **options))
+        if len(pages) != end - start:
+            raise RuntimeError("incomplete_chunk_coverage")
+        for offset, page in enumerate(pages):
+            if page.get("page_index") != offset:
+                raise RuntimeError("unordered_chunk_pages")
+            page["page_index"] = start + offset
+            page["page_count"] = total_pages
+            page["input_path"] = str(source)
+        results.extend(pages)
+        print(json.dumps({"event": "ocr_chunk_complete",
+                          "completed_pages": end, "total_pages": total_pages}),
+              flush=True)
+
+    with tempfile.TemporaryDirectory(prefix="tjuclaw-ocr-pages-") as temporary:
+        work = Path(temporary)
+        chunk_path = work / "chunk.pdf"
+        if fitz is not None:
+            with fitz.open(source) as document:
+                if document.is_encrypted or document.page_count < 1:
+                    raise RuntimeError("invalid_chunked_pdf")
+                total_pages = document.page_count
+                for start in range(0, total_pages, chunk_pages):
+                    end = min(start + chunk_pages, total_pages)
+                    with fitz.open() as chunk:
+                        chunk.insert_pdf(document, from_page=start, to_page=end - 1)
+                        chunk.save(chunk_path)
+                    try:
+                        infer_chunk(chunk_path, start, end, total_pages)
+                    finally:
+                        chunk_path.unlink(missing_ok=True)
+        else:
+            # The pinned OCR environment does not include PyMuPDF. Poppler is
+            # already required for PDF screening and avoids a second PDF stack.
+            info = subprocess.run(
+                ["pdfinfo", str(source)], capture_output=True, text=True,
+                timeout=20, check=False,
+            )
+            match = re.search(r"^Pages:\s+(\d+)\s*$", info.stdout, re.M)
+            if (info.returncode or not match or int(match[1]) < 1 or
+                    re.search(r"^Encrypted:\s+yes\b", info.stdout, re.M | re.I)):
+                raise RuntimeError("invalid_chunked_pdf")
+            total_pages = int(match[1])
+            for start in range(0, total_pages, chunk_pages):
+                end = min(start + chunk_pages, total_pages)
+                pattern = work / "page-%d.pdf"
+                split = subprocess.run(
+                    ["pdfseparate", "-f", str(start + 1), "-l", str(end),
+                     str(source), str(pattern)],
+                    capture_output=True, timeout=60, check=False,
+                )
+                parts = [work / f"page-{page}.pdf" for page in range(start + 1, end + 1)]
+                if split.returncode or any(not part.is_file() for part in parts):
+                    raise RuntimeError("pdf_chunk_split_failed")
+                try:
+                    if len(parts) == 1:
+                        parts[0].replace(chunk_path)
+                    else:
+                        merged = subprocess.run(
+                            ["pdfunite", *(str(part) for part in parts), str(chunk_path)],
+                            capture_output=True, timeout=60, check=False,
+                        )
+                        if merged.returncode or not chunk_path.is_file():
+                            raise RuntimeError("pdf_chunk_merge_failed")
+                    infer_chunk(chunk_path, start, end, total_pages)
+                finally:
+                    chunk_path.unlink(missing_ok=True)
+                    for part in parts:
+                        part.unlink(missing_ok=True)
+    return results
+
+
 def run_ocr(pipeline: Any, source: Path, output: Path, max_pixels: int = VLM_MAX_PIXELS,
             repetition_penalty: float = REPETITION_PENALTY,
-            accept_generation_loop: bool = False) -> tuple[str, int]:
-    predict_options: dict[str, Any] = {"input": str(source), "max_pixels": max_pixels}
+            accept_generation_loop: bool = False, pdf_chunk_pages: int = 0,
+            chunk_timeout_seconds: int = 0) -> tuple[str, int]:
+    predict_options: dict[str, Any] = {"max_pixels": max_pixels}
     if repetition_penalty != 1.0:
         predict_options["repetition_penalty"] = repetition_penalty
-    pages = list(pipeline.predict(**predict_options))
+    pages = predict_document(pipeline, source, predict_options,
+                             pdf_chunk_pages, chunk_timeout_seconds)
     if not pages:
         raise RuntimeError("empty_ocr_result")
 
@@ -417,13 +552,14 @@ def run_ocr(pipeline: Any, source: Path, output: Path, max_pixels: int = VLM_MAX
         if str(error) != "ocr_generation_loop":
             raise
 
-    fallback_pixels = max(VLM_MAX_PIXELS, max_pixels // 2)
+    fallback_pixels = max(VLM_FALLBACK_MIN_PIXELS, max_pixels // 2)
     if fallback_pixels >= max_pixels:
         raise RuntimeError("ocr_generation_loop")
-    fallback_options = {"input": str(source), "max_pixels": fallback_pixels}
+    fallback_options = {"max_pixels": fallback_pixels}
     if repetition_penalty != 1.0:
         fallback_options["repetition_penalty"] = repetition_penalty
-    fallback_pages = list(pipeline.predict(**fallback_options))
+    fallback_pages = predict_document(pipeline, source, fallback_options,
+                                      pdf_chunk_pages, chunk_timeout_seconds)
     if not fallback_pages:
         raise RuntimeError("empty_ocr_result")
     return reconstruct(fallback_pages, False), len(fallback_pages)
@@ -431,7 +567,8 @@ def run_ocr(pipeline: Any, source: Path, output: Path, max_pixels: int = VLM_MAX
 
 def provenance(source_path: str, sha256: str, max_pixels: int = VLM_MAX_PIXELS,
                backend: str = "native", device: str = "gpu:0",
-               repetition_penalty: float = REPETITION_PENALTY) -> str:
+               repetition_penalty: float = REPETITION_PENALTY,
+               conversion: dict | None = None) -> str:
     metadata = {
         "source_path": source_path,
         "source_sha256": sha256,
@@ -443,6 +580,8 @@ def provenance(source_path: str, sha256: str, max_pixels: int = VLM_MAX_PIXELS,
         "pipeline_device": device,
         "repetition_penalty": repetition_penalty,
     }
+    if conversion is not None:
+        metadata["conversion"] = conversion
     return f"<!-- {PROVENANCE_MARKER}\n{json.dumps(metadata, ensure_ascii=False, sort_keys=True)}\n-->\n\n"
 
 
@@ -463,15 +602,19 @@ def document_timeout(seconds: int):
     def on_alarm(_signum: int, _frame: Any) -> None:
         raise TimeoutError("document_timeout")
 
+    started = time.monotonic()
     previous_handler = signal.signal(signal.SIGALRM, on_alarm)
-    previous_timer = signal.setitimer(signal.ITIMER_REAL, seconds)
+    previous_timer = signal.getitimer(signal.ITIMER_REAL)
+    effective_seconds = min(seconds, previous_timer[0]) if previous_timer[0] > 0 else seconds
+    signal.setitimer(signal.ITIMER_REAL, effective_seconds)
     try:
         yield
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous_handler)
-        if previous_timer[0] > 0:
-            signal.setitimer(signal.ITIMER_REAL, previous_timer[0], previous_timer[1])
+        remaining = previous_timer[0] - (time.monotonic() - started)
+        if remaining > 0:
+            signal.setitimer(signal.ITIMER_REAL, remaining, previous_timer[1])
 
 
 def staged_at_quality(path: Path, source_path: str, sha256: str, max_pixels: int,
@@ -569,6 +712,8 @@ def main(argv: list[str]) -> int:
     args = parse_args(argv)
     raw_repo = args.raw_repo.resolve()
     staging = args.staging.resolve()
+    if args.prepared_office_dir and not args.prepared_office_dir.is_dir():
+        raise ValueError("prepared_office_dir_missing")
     candidates = discover(raw_repo, args.source)
     if args.include_suffix:
         candidates = [item for item in candidates if item[0].suffix.lower() in args.include_suffix]
@@ -612,16 +757,25 @@ def main(argv: list[str]) -> int:
     processed = 0
     copied = 0
     reused = 0
+    metadata_excluded = 0
     failed = 0
     pages_total = 0
     elapsed_total = 0.0
-    ocr_cache: dict[tuple[str, str], tuple[str, int, Path]] = {}
+    ocr_cache: dict[tuple[str, str], tuple[str, int, Path, dict | None]] = {}
     for source_path, _, sha256, relative_output in pending:
         output = staging / relative_output
         relative_source = source_path.relative_to(raw_repo).as_posix()
         started = time.perf_counter()
         try:
             with document_timeout(args.document_timeout_seconds):
+                # LFS pointers hide AppleDouble headers until after materialization.
+                if is_appledouble(source_path):
+                    metadata_excluded += 1
+                    print(json.dumps({
+                        "event": "ocr_skipped", "source_path": relative_source,
+                        "reason": "appledouble_metadata",
+                    }, ensure_ascii=False))
+                    continue
                 if file_sha256(source_path) != sha256:
                     # The attachment basename is the crawler's content-addressed
                     # object id, not necessarily the SHA-256 of the materialized
@@ -642,8 +796,13 @@ def main(argv: list[str]) -> int:
                 else:
                     output.parent.mkdir(parents=True, exist_ok=True)
                     cached = ocr_cache.get((sha256, suffix))
+                    conversion = None
                     if cached:
-                        body, pages, original_assets = cached
+                        if suffix in OFFICE_SUFFIXES and args.prepared_office_dir and not checked_prepared_office(
+                            args.prepared_office_dir, relative_source, source_path,
+                        ):
+                            raise RuntimeError("office_not_prepared_or_cache_invalid")
+                        body, pages, original_assets, conversion = cached
                         assets = output.with_suffix(".assets")
                         if assets.is_symlink() or assets.is_file():
                             assets.unlink()
@@ -653,14 +812,29 @@ def main(argv: list[str]) -> int:
                             shutil.copytree(original_assets, assets)
                         reused += 1
                     else:
-                        if pipeline is None:
-                            pipeline = create_pipeline(args.use_queues, args.vl_rec_backend,
-                                                       args.vl_rec_server_url, args.vl_rec_max_concurrency,
-                                                       args.pipeline_device, args.page_batch_size)
                         with tempfile.TemporaryDirectory(prefix="tjuclaw-ocr-") as temporary:
                             ocr_input = source_path
                             if suffix in OFFICE_SUFFIXES:
-                                ocr_input = convert_office_to_pdf(source_path, Path(temporary))
+                                if args.prepared_office_dir:
+                                    prepared = checked_prepared_office(
+                                        args.prepared_office_dir, relative_source, source_path,
+                                    )
+                                    if prepared is None:
+                                        raise RuntimeError("office_not_prepared_or_cache_invalid")
+                                    ocr_input, prepared_record = prepared
+                                    conversion = {
+                                        "converter": prepared_record["converter"],
+                                        "pdf_sha256": prepared_record["pdf_sha256"],
+                                        "pages": prepared_record["pages"],
+                                    }
+                                else:
+                                    ocr_input = convert_office_to_pdf(source_path, Path(temporary))
+                            # Do not allocate the GPU model for an Office file
+                            # that cannot first be converted to a valid PDF.
+                            if pipeline is None:
+                                pipeline = create_pipeline(args.use_queues, args.vl_rec_backend,
+                                                           args.vl_rec_server_url, args.vl_rec_max_concurrency,
+                                                           args.pipeline_device, args.page_batch_size)
                             temporary_output = Path(temporary) / output.name
                             body, pages = run_ocr(
                                 pipeline,
@@ -669,6 +843,8 @@ def main(argv: list[str]) -> int:
                                 args.max_pixels,
                                 args.repetition_penalty,
                                 args.accept_generation_loop,
+                                args.pdf_chunk_pages,
+                                args.chunk_timeout_seconds,
                             )
                             staged_assets = temporary_output.with_suffix(".assets")
                             assets = output.with_suffix(".assets")
@@ -678,8 +854,8 @@ def main(argv: list[str]) -> int:
                                 shutil.rmtree(assets)
                             if staged_assets.exists():
                                 shutil.move(staged_assets, assets)
-                    atomic_write(output, provenance(relative_source, sha256, args.max_pixels, args.vl_rec_backend, args.pipeline_device, args.repetition_penalty) + body + "\n")
-                    ocr_cache[(sha256, suffix)] = (body, pages, output.with_suffix(".assets"))
+                    atomic_write(output, provenance(relative_source, sha256, args.max_pixels, args.vl_rec_backend, args.pipeline_device, args.repetition_penalty, conversion) + body + "\n")
+                    ocr_cache[(sha256, suffix)] = (body, pages, output.with_suffix(".assets"), conversion)
                     processed += 1
                     pages_total += pages
             elapsed = time.perf_counter() - started
@@ -688,7 +864,7 @@ def main(argv: list[str]) -> int:
         except Exception as error:
             failed += 1
             print(json.dumps({"event": "ocr_failed", "source_path": relative_source, "error": str(error)}, ensure_ascii=False), file=sys.stderr)
-    print(json.dumps({"event": "ocr_summary", "processed": processed, "copied": copied, "reused": reused, "pages": pages_total, "seconds": round(elapsed_total, 3), "unsupported": unsupported, "failed": failed}))
+    print(json.dumps({"event": "ocr_summary", "processed": processed, "copied": copied, "reused": reused, "metadata_excluded": metadata_excluded, "pages": pages_total, "seconds": round(elapsed_total, 3), "unsupported": unsupported, "failed": failed}))
     return 1 if failed else 0
 
 

@@ -124,7 +124,10 @@ def run_group(args, relatives: list[str], log) -> int:
             "--input-list", str(worklist),
             "--preserve-valid-stage", "--max-pixels", str(args.max_pixels),
             "--page-batch-size", "1", "--document-timeout-seconds", str(args.timeout),
+            "--pipeline-device", args.pipeline_device,
         ]
+        if args.pdf_chunk_pages:
+            command += ["--pdf-chunk-pages", str(args.pdf_chunk_pages)]
         available_cpus = sorted(os.sched_getaffinity(0))
         command = ["taskset", "-c", ",".join(map(str, available_cpus[:args.cpu_cores]))] + command
         environment = dict(os.environ, OMP_NUM_THREADS="2", MKL_NUM_THREADS="2",
@@ -189,6 +192,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--cpu-cores", type=int, default=4)
     parser.add_argument("--batch-size", type=int, default=1,
                         help="Documents per model process; use 4-8 for short homogeneous files.")
+    parser.add_argument("--pdf-chunk-pages", type=int, default=0,
+                        help="Infer PDFs and converted Office files in bounded page chunks.")
+    parser.add_argument("--pipeline-device", choices=("cpu", "gpu:0"), default="gpu:0",
+                        help="Use CPU as an isolated fallback when the local GPU runs out of memory.")
     parser.add_argument("--all-supported", action="store_true",
                         help="Include PDF, image, Office, and text attachments instead of only PDFs.")
     parser.add_argument("--retry-failed", action="store_true",
@@ -200,6 +207,8 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     if min(args.limit, args.max_pages, args.max_bytes, args.timeout, args.cpu_cores, args.batch_size) < 1:
         parser.error("limit, page/byte/CPU/batch caps and timeout must be positive")
+    if not 0 <= args.pdf_chunk_pages <= 64:
+        parser.error("--pdf-chunk-pages must be between zero and 64")
     if args.wait_for_unit and not re.fullmatch(r"tjuclaw-ocr-[a-z0-9-]+", args.wait_for_unit):
         parser.error("--wait-for-unit must name a TJUClaw OCR unit")
     if args.wait_for_unit:
