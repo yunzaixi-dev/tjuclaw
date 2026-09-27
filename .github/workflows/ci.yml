@@ -133,7 +133,54 @@ jobs:
           done
           node --test ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
 
+  sandbox-images:
+    name: Pinned sandbox gateway and controller images
+    runs-on: tjuclaw
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Read pinned CLI reference
+        id: cli
+        run: |
+          entry=$(git ls-tree HEAD cli)
+          test "$(printf '%s' "$entry" | awk '{print $1}')" = 160000
+          echo "sha=$(printf '%s' "$entry" | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+      - name: Require sandbox repository access
+        id: access
+        env:
+          SANDBOX_READ_KEY: ${{ secrets.SANDBOX_READ_KEY }}
+        run: |
+          if [ -z "$SANDBOX_READ_KEY" ]; then
+            echo '::notice::SANDBOX_READ_KEY is not configured; skipping pinned sandbox image verification'
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout pinned CLI
+        if: steps.access.outputs.available == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: yunzaixi-dev/tjucli
+          ref: ${{ steps.cli.outputs.sha }}
+          path: cli
+          ssh-key: ${{ secrets.CLI_READ_KEY }}
+          persist-credentials: false
+      - uses: ./.github/actions/checkout-sandbox
+        if: steps.access.outputs.available == 'true'
+        with:
+          sandbox-key: ${{ secrets.SANDBOX_READ_KEY }}
+      - name: Build and smoke-test sandbox images
+        if: steps.access.outputs.available == 'true'
+        run: |
+          docker build --file sandbox/image/controller.Dockerfile --tag tjuclaw-controller:ci .
+          bash sandbox/ops/controller-image-smoke.sh tjuclaw-controller:ci
+          docker build --file sandbox/image/gateway.Dockerfile --tag tjuclaw-gateway:ci .
+          docker image inspect tjuclaw-gateway:ci --format '{{.Config.User}}' | grep -qx 65532:65532
+
   deploy:
+    # Sandbox images are verified but not deployed; they do not gate the API release.
     needs: [check, integration, ops]
     if: github.event_name == 'push' && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
     uses: ./.github/workflows/deploy.yml
@@ -177,6 +224,12 @@ jobs:
           docker pull valkey/valkey:9-alpine
       - name: Run real auth regression
         run: task auth:test
+      - name: Run isolated browser-to-API session regression
+        run: task session:e2e
+      - name: Run isolated browser-to-API sealed vault regression
+        run: task vault:e2e
+      - name: Run isolated browser-to-edge Git workspace regression
+        run: task workspace:e2e
       - name: Clean up exact test stack
         if: always()
         run: node scripts/auth-test-stack.mjs --down

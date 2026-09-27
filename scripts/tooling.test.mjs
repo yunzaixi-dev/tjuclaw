@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
 import { prependToolPath } from '../frontend/scripts/native-env.mjs';
-import { isReusableKratosDevState } from './auth-test-stack.mjs';
+import { isReusableKratosDevState, isolateTestApiEnv } from './auth-test-stack.mjs';
 
 import { renderDocuments } from './generate-design-doc.mjs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -82,6 +82,35 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.ok(windowsWorkflow.on.workflow_dispatch !== undefined);
   assert.equal(windowsWorkflow.on.pull_request_target, undefined);
   assert.equal(windowsWorkflow.permissions.contents, 'read');
+});
+
+test('sandbox image check builds pinned private sources without gating the API release', () => {
+  const workflow = parse(read('.github/workflows/ci.yml'));
+  const job = workflow.jobs['sandbox-images'];
+  assert.equal(job['runs-on'], 'tjuclaw');
+  assert.ok(!workflow.jobs.deploy.needs.includes('sandbox-images'));
+  const steps = job.steps;
+  const cliRef = steps.find(step => step.id === 'cli');
+  assert.match(cliRef.run, /git ls-tree HEAD cli/);
+  const cliCheckout = steps.find(step => step.with?.repository === 'yunzaixi-dev/tjucli');
+  assert.equal(cliCheckout.with.ref, '${{ steps.cli.outputs.sha }}');
+  assert.equal(cliCheckout.with['ssh-key'], '${{ secrets.CLI_READ_KEY }}');
+  const keyGate = steps.find(step => step.name === 'Require sandbox repository access');
+  assert.equal(keyGate.env.SANDBOX_READ_KEY, '${{ secrets.SANDBOX_READ_KEY }}');
+  assert.match(keyGate.run, /available=false/);
+  assert.doesNotMatch(keyGate.run, /exit 1/);
+  for (const step of steps.slice(steps.indexOf(keyGate) + 1)) assert.equal(step.if, "steps.access.outputs.available == 'true'");
+  const sandboxCheckout = steps.find(step => step.uses === './.github/actions/checkout-sandbox');
+  assert.equal(sandboxCheckout.with['sandbox-key'], '${{ secrets.SANDBOX_READ_KEY }}');
+  const action = parse(read('.github/actions/checkout-sandbox/action.yml'));
+  assert.match(action.runs.steps[0].run, /git ls-tree HEAD sandbox/);
+  assert.equal(action.runs.steps[1].with.ref, '${{ steps.ref.outputs.sha }}');
+  assert.equal(action.runs.steps[1].with['persist-credentials'], false);
+  const smoke = steps.find(step => step.name === 'Build and smoke-test sandbox images').run;
+  assert.match(smoke, /docker build --file sandbox\/image\/controller\.Dockerfile/);
+  assert.match(smoke, /bash sandbox\/ops\/controller-image-smoke\.sh/);
+  assert.match(smoke, /docker build --file sandbox\/image\/gateway\.Dockerfile/);
+  assert.doesNotMatch(smoke, /docker push|--push/);
 });
 
 test('Windows workflow is configured with pinned actions and checksums', () => {
@@ -167,7 +196,17 @@ test('email auth policy keeps browser identity boundaries and local mail isolate
   assert.equal(config.cookies.domain, undefined);
   assert.equal(config.cookies.same_site, 'Lax');
   assert.deepEqual(config.selfservice.flows.registration.after.code.hooks, [{ hook: 'session' }]);
+  assert.equal(config.identity.default_schema_id, 'tjuclaw-email-tju-v2');
+  assert.deepEqual(config.identity.schemas.map(schema => schema.id), ['tjuclaw-email-v1', 'tjuclaw-email-tju-v2']);
+  const campusSchema = JSON.parse(read('ops/auth/identity.schema.tju.json'));
+  const campusEmail = campusSchema.properties.traits.properties.email;
+  const pattern = new RegExp(campusEmail.pattern);
+  for (const email of ['student@tju.edu.cn', 'STUDENT@TJU.EDU.CN']) assert.match(email, pattern);
+  for (const email of ['student@sub.tju.edu.cn', 'student@tju.edu.cn.evil.com', 'student@example.com']) assert.doesNotMatch(email, pattern);
+  assert.equal(campusEmail['ory.sh/kratos'].credentials.code.identifier, true);
+  assert.equal(JSON.parse(read('ops/auth/identity.schema.json')).properties.traits.properties.email.pattern, campusEmail.pattern);
   const local = parse(read('ops/auth/compose.yaml'));
+  assert.ok(local.services.kratos.volumes.some(volume => volume.includes('identity.schema.tju.json')));
   for (const service of Object.values(local.services)) {
     assert.ok((service.ports || []).every(port => port.startsWith('127.0.0.1:')));
     assert.ok((service.volumes || []).every(path => !path.includes('docker.sock')));
@@ -182,6 +221,7 @@ test('email auth policy keeps browser identity boundaries and local mail isolate
   assert.match(read('ops/images/nginx.conf'), /limit_req_status 429/);
   assert.match(read('ops/images/nginx.conf'), /access_log off/);
 });
+
 
 test('ZITADEL leftover development state is not reused for Kratos task dev', () => {
   const directory = '/tmp/tjuclaw-auth-dev';
@@ -218,6 +258,20 @@ test('task dev starts the Web client only after the Kratos API is ready', () => 
   assert.match(read('scripts/auth-test-stack.mjs'), /NEWAPI_BASE_URL/);
 
   assert.equal(tasks['api:dev'].cmds[0], 'go run github.com/air-verse/air@v1.67.4 -c .air.toml');
+});
+
+test('isolated auth API never inherits live model, sandbox, or campus credentials', () => {
+  const inherited = {
+    NEWAPI_BASE_URL: 'https://model.invalid', NEWAPI_API_KEY: 'live-model',
+    NEWAPI_MODEL: 'billable-model', NEWAPI_DAILY_QUOTA: '100',
+    SANDBOX_SESSION_URL: 'https://sandbox.invalid', SANDBOX_SESSION_TOKEN: 'legacy-token',
+    SANDBOX_GATEWAY_HMAC_SECRET: 'live-sandbox-secret',
+    SANDBOX_GATEWAY_PUBLIC_URL: 'https://public-sandbox.invalid',
+    WPY_APP_TICKET: 'live-campus-ticket', HTTP_ADDR: '127.0.0.1:18089',
+  };
+  const isolated = isolateTestApiEnv(inherited);
+  assert.deepEqual(isolated, { HTTP_ADDR: inherited.HTTP_ADDR });
+  assert.equal(inherited.SANDBOX_SESSION_URL, 'https://sandbox.invalid');
 });
 
 test('homepage source stays synchronized with generated README and DESIGN documents', () => {

@@ -1,0 +1,24 @@
+name: Checkout pinned sandbox
+description: Checkout the sandbox revision recorded by the integration gitlink
+inputs:
+  sandbox-key:
+    description: Read-only deploy key for the private sandbox repository
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Read immutable sandbox reference
+      id: ref
+      shell: bash
+      run: |
+        entry=$(git ls-tree HEAD sandbox)
+        test "$(printf '%s' "$entry" | awk '{print $1}')" = 160000
+        echo "sha=$(printf '%s' "$entry" | awk '{print $3}')" >> "$GITHUB_OUTPUT"
+    - name: Checkout private sandbox
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        repository: yunzaixi-dev/tjuclaw-sandbox
+        ref: ${{ steps.ref.outputs.sha }}
+        path: sandbox
+        ssh-key: ${{ inputs.sandbox-key }}
+        persist-credentials: false

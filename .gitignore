@@ -55,6 +55,9 @@ next-env.d.ts
 /docs/public/ui-reference/
 /docs/content/docs/0[1-7]-*.mdx
 
+# Local generated reports and visual analysis exports.
+/reports/
+
 # Local runtime and infrastructure state.
 /backend/bin/
 /ops/local/

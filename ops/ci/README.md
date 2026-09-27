@@ -86,7 +86,7 @@ Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` �
 
 | 所在仓库 | Secret | 权限与用途 |
 | --- | --- | --- |
-| 私有集成 | `SERVER_READ_KEY`、`CLI_READ_KEY`、`CRAWLER_READ_KEY` | 分别只能读取一个私有组件 |
+| 私有集成 | `SERVER_READ_KEY`、`CLI_READ_KEY`、`CRAWLER_READ_KEY`、`SANDBOX_READ_KEY` | 分别只能读取一个私有组件；沙箱镜像验收使用固定 gitlink 的沙箱与 CLI 源码，不推送镜像 |
 | 私有集成 | `GITLAB_SYNC_TOKEN` | 仅比赛项目的源码推送权限 |
 | 私有集成 | `GITLAB_STATUS_TOKEN` | 仅比赛项目的外部 CI 状态回写 |
 | 私有集成 | `GITLAB_RELEASE_TOKEN` | 仅比赛项目的包与 Release API |
@@ -96,6 +96,12 @@ Generic Package Registry 的 `tjuclaw-client/<client SHA>/`。`manifest.json` �
 API 令牌使用项目级账号，不向 Actions 分发个人 GitLab PAT。受保护 release 的推送/状态
 操作需要相应项目角色。令牌和组件密钥保存在 Actions Secrets；本地备份只能在忽略目录。
 公开构建日志不得包含私有研究、审计截图、完整测试输出或临时签名下载 URL。
+
+`sandbox-images` 在根仓库 CI 中按 `cli` 和 `sandbox` gitlink 构建控制器、网关镜像，
+并在无外网的受限容器里检查 Pi、tjucli 和两种预置；不发布镜像。启用该门槛前，
+须给集成仓库配置仅可读取沙箱仓库的 `SANDBOX_READ_KEY`，并把集成 gitlink 更新到包含
+`ops/controller-image-smoke.sh` 的沙箱提交。缺密钥时该任务给出提示并跳过；它不是 API
+部署的前置条件（沙箱在比赛截止前不上线）。本地镜像通过不等于固定提交或生产 digest 通过。
 
 ## 比赛统计与可见性
 
