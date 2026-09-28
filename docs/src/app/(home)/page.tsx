@@ -1,10 +1,52 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
+import {
+  AppWindow,
+  ArrowRight,
+  ArrowUpRight,
+  BookOpen,
+  BookText,
+  Check,
+  Files,
+  Globe,
+  GraduationCap,
+  Laptop,
+  Lightbulb,
+  Loader,
+  Monitor,
+  Network,
+  Newspaper,
+  PenLine,
+  Smartphone,
+  Sparkles,
+  Tablet,
+  Terminal,
+} from 'lucide-react';
 
-const chapters = [
-  ['01', '使用指南', '登录、整理资料、使用智能体与共享知识库。', '/docs/guide'],
-  ['02', '平台架构', '了解 TJUClaw 系统核心设计原则。', '/docs'],
-  ['03', '技术博客', '深入解析多源数据复杂采集、脱敏与向量化。', '/docs/blog/data-pipeline'],
+const chapters: { title: string; description: string; href: string; icon: LucideIcon; tone: string }[] = [
+  { title: '使用指南', description: '登录、整理资料、使用智能体与共享知识库。', href: '/docs/guide', icon: BookOpen, tone: 'blue' },
+  { title: '平台架构', description: '了解 TJUClaw 系统核心设计原则。', href: '/docs', icon: Network, tone: 'purple' },
+  { title: '技术博客', description: '深入解析多源数据复杂采集、脱敏与向量化。', href: '/docs/blog/data-pipeline', icon: PenLine, tone: 'orange' },
+];
+
+const platformIcons: Record<string, LucideIcon> = {
+  'Web 云端版': Globe,
+  'Windows 桌面端': Monitor,
+  'Linux 桌面端': Laptop,
+  'Android 移动端': Smartphone,
+  'iOS 移动端': Tablet,
+  'macOS 桌面端': Laptop,
+  'HarmonyOS 鸿蒙': AppWindow,
+  'CLI 终端工具': Terminal,
+};
+
+const floaters: { icon: LucideIcon; className: string }[] = [
+  { icon: BookOpen, className: 'is-book' },
+  { icon: Check, className: 'is-check' },
+  { icon: Globe, className: 'is-globe' },
+  { icon: Lightbulb, className: 'is-bulb' },
+  { icon: Files, className: 'is-files' },
 ];
 
 const repositories = [
@@ -80,7 +122,7 @@ const platforms = [
     tag: 'x64 · 未签名 NSIS 安装包 (.exe)',
     desc: '基于 Tauri 的 Windows 客户端，与 Web 共享登录、任务与工作空间界面。',
     action: '下载 EXE',
-    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-windows-x64-setup.exe',
+    href: 'https://tjuclaw-release.zaixi.dev/client/latest/TJUClaw-windows-x64-setup.exe',
     external: true,
     available: true,
   },
@@ -89,7 +131,7 @@ const platforms = [
     tag: 'amd64 · Debian 软件包 (.deb)',
     desc: '面向 Linux 的桌面客户端，提供 Debian 软件包，与 Web 共享任务与工作空间界面。',
     action: '下载 DEB',
-    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-linux-amd64.deb',
+    href: 'https://tjuclaw-release.zaixi.dev/client/latest/TJUClaw-linux-amd64.deb',
     external: true,
     available: true,
   },
@@ -98,7 +140,7 @@ const platforms = [
     tag: 'arm64 · 调试版安装包 (.apk)',
     desc: '在 Android 设备上体验登录、任务与工作空间界面；当前提供用于验证的调试版安装包。',
     action: '下载 APK',
-    href: 'https://github.com/yunzaixi-dev/tjuclaw-client/releases/latest/download/TJUClaw-android-arm64-debug.apk',
+    href: 'https://tjuclaw-release.zaixi.dev/client/latest/TJUClaw-android-arm64-debug.apk',
     external: true,
     available: true,
   },
@@ -140,98 +182,197 @@ const platforms = [
   },
 ];
 
+
+function HeroMock() {
+  return (
+    <div className="nx-mock" aria-hidden="true">
+      <div className="nx-mock-bar">
+        <span /><span /><span />
+        <em>app.tjuclaw.cloud</em>
+      </div>
+      <div className="nx-mock-body">
+        <aside className="nx-mock-side">
+          <b><img src="/tjuclaw-icon.webp" alt="" width="18" height="18" />TJUClaw</b>
+          <i className="is-active"><Sparkles size={14} />新任务</i>
+          <i><Files size={14} />工作空间</i>
+          <i><BookText size={14} />资料库</i>
+          <i><Newspaper size={14} />校园动态</i>
+          <small>最近</small>
+          <i><GraduationCap size={14} />数据结构复习</i>
+          <i><GraduationCap size={14} />选课时间整理</i>
+        </aside>
+        <div className="nx-mock-main">
+          <p className="nx-mock-ask">帮我整理本周《数据结构》的课程资料，生成一份复习提纲。</p>
+          <ol className="nx-mock-steps">
+            <li className="is-done"><Check size={14} />检索课程资料库与课程通知</li>
+            <li className="is-done"><Check size={14} />汇总 6 份讲义与 2 次作业要求</li>
+            <li className="is-run"><Loader size={14} />正在生成复习提纲…</li>
+          </ol>
+          <div className="nx-mock-doc">
+            <strong>数据结构 · 第 4 周复习提纲</strong>
+            <span style={{ '--w': '92%' } as CSSProperties} />
+            <span style={{ '--w': '76%' } as CSSProperties} />
+            <span style={{ '--w': '84%' } as CSSProperties} />
+            <div className="nx-mock-src">
+              <em>来源</em><u>第 4 讲 · 树与二叉树.pdf</u><u>课程通知 · 9 月 26 日</u>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
-    <main className="wiki-home">
-      <section className="wiki-hero">
-        <div className="wiki-hero-copy">
-          <p className="wiki-kicker">天津大学 AI 智能体大赛 · 2026</p>
-          <h1><span>面向天津大学校园场景优化的</span><span>通用智能体平台</span></h1>
-          <p className="wiki-lead">让整个校园，成为 Agent 可编程的世界。</p>
-          <div className="wiki-actions">
-            <a className="wiki-primary" href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">进入应用 <span>↗</span></a>
-            <Link className="wiki-secondary" href="/docs">进入工程 Wiki <span>→</span></Link>
-          </div>
+    <main className="nx-home">
+      <section className="nx-hero">
+        <div className="nx-floaters" aria-hidden="true">
+          {floaters.map(({ icon: Icon, className }) => (
+            <span className={`nx-floater ${className}`} key={className}><Icon size={30} strokeWidth={1.6} /></span>
+          ))}
+        </div>
+        <a
+          className="nx-pill"
+          href="https://agent2026.tju.edu.cn/ai-competition/introduction/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span className="nx-pill-dot" />天津大学 AI 智能体大赛 2026 参赛作品<ArrowRight size={14} />
+        </a>
+        <h1>让整个校园，<br />成为 Agent 可编程的世界。</h1>
+        <p className="nx-lead">面向天津大学校园场景优化的通用智能体平台。课程资料、校园信息与日常任务，在同一个工作空间里交给智能体。</p>
+        <div className="nx-actions">
+          <a className="nx-btn is-primary" href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">进入应用</a>
+          <Link className="nx-btn is-secondary" href="/docs">阅读文档</Link>
+        </div>
+        <div className="nx-hero-media">
+          <HeroMock />
+          <p className="nx-caption">界面示意</p>
         </div>
       </section>
 
-      <section className="wiki-platforms" aria-label="支持的平台与客户端">
-        <div className="wiki-platforms-inner">
-          <div className="wiki-platforms-header">
-            <h2>全平台客户端与服务入口</h2>
-            <p>一套代码跨端覆盖，随时随地接入天津大学专属校园智能体平台。</p>
-          </div>
-          <div className="wiki-platforms-grid">
-            {platforms.map((p) => (
-              <div
-                className={`wiki-platform-card ${p.primary ? 'is-primary' : ''} ${!p.available ? 'is-disabled' : ''}`}
-                key={p.name}
-              >
-                <div className="wiki-platform-top">
-                  <span className="wiki-platform-tag">{p.tag}</span>
-                  <h3>{p.name}</h3>
-                  <p>{p.desc}</p>
-                </div>
-                <div className="wiki-platform-bottom">
-                  {p.available ? (
-                    <a
-                      className={`wiki-platform-btn ${p.primary ? 'is-btn-primary' : ''}`}
-                      href={p.href}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {p.action} <span>{p.external ? '↗' : '→'}</span>
-                    </a>
-                  ) : (
-                    <span className="wiki-platform-btn is-btn-disabled" aria-disabled="true">
-                      {p.action} <span className="wiki-platform-btn-lock">🔒</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+      <section className="nx-strip" aria-label="覆盖的平台">
+        <p>一套代码，覆盖浏览器、桌面、移动端与终端</p>
+        <ul>
+          {platforms.map((p) => <li key={p.name}>{p.name.replace(/\s.*$/, '')}</li>)}
+        </ul>
+      </section>
+
+      <section className="nx-section">
+        <header className="nx-head">
+          <h2>为校园场景而生的智能体。</h2>
+          <p>围绕课程资料、校园信息与学生日常任务优化，而不是又一个通用聊天框。</p>
+        </header>
+        <div className="nx-bento">
+          <article className="nx-card is-wide tone-blue">
+            <div className="nx-card-copy">
+              <span className="nx-eyebrow">校园</span>
+              <h3>一个工作空间，整合课程资料与校园信息。</h3>
+              <p>把讲义、通知与校园动态汇聚到同一处，智能体按需检索，不必在十几个网站间来回切换。</p>
+              <Link className="nx-link" href="/docs/guide">了解使用方式<ArrowRight size={16} /></Link>
+            </div>
+            <div className="nx-card-art nx-art-list" aria-hidden="true">
+              <i><BookText size={16} />第 4 讲 · 树与二叉树.pdf</i>
+              <i><Newspaper size={16} />教务通知 · 选课时间调整</i>
+              <i><Files size={16} />作业 3 · 要求与评分标准</i>
+              <i><Globe size={16} />图书馆 · 开放时间</i>
+            </div>
+          </article>
+          <article className="nx-card tone-yellow">
+            <span className="nx-eyebrow">云端</span>
+            <h3>跨端协同，随时接续。</h3>
+            <p>Web、桌面与移动端共享登录、任务与工作空间，换一台设备也能从上次停下的地方继续。</p>
+            <div className="nx-card-art nx-art-devices" aria-hidden="true">
+              <Monitor size={40} strokeWidth={1.4} /><Laptop size={40} strokeWidth={1.4} /><Smartphone size={34} strokeWidth={1.4} />
+            </div>
+          </article>
+          <article className="nx-card tone-purple">
+            <span className="nx-eyebrow">结果</span>
+            <h3>不只是回答，而是留下结果。</h3>
+            <p>每次任务都保留来源、状态和产物，便于回看、核对与分享。</p>
+            <div className="nx-card-art nx-art-status" aria-hidden="true">
+              <i className="is-done"><Check size={14} />来源已引用</i>
+              <i className="is-done"><Check size={14} />产物已保存</i>
+            </div>
+          </article>
         </div>
       </section>
 
-      <section className="wiki-facts" aria-label="项目定位">
-        <div><span>01 / DOMAIN</span><strong>校园</strong><p>围绕课程资料、校园信息与学生日常任务优化。</p></div>
-        <div><span>02 / RUNTIME</span><strong>云端</strong><p>让智能体跨 Web、桌面与移动端协同工作。</p></div>
-        <div><span>03 / OUTPUT</span><strong>结果</strong><p>留下来源、状态和产物，而不是只返回一段回答。</p></div>
+      <section className="nx-section">
+        <header className="nx-head">
+          <h2>从这里开始认识 TJUClaw。</h2>
+          <p>产品定位、核心能力、使用方式与参赛信息，帮助评审和校园用户快速理解这套平台。</p>
+        </header>
+        <div className="nx-tiles is-three">
+          {chapters.map(({ title, description, href, icon: Icon, tone }) => (
+            <Link className="nx-tile" href={href} key={title}>
+              <span className={`nx-icon tone-${tone}`}><Icon size={20} /></span>
+              <strong>{title}</strong>
+              <p>{description}</p>
+              <ArrowRight className="nx-tile-arrow" size={18} />
+            </Link>
+          ))}
+        </div>
       </section>
 
-      <section className="wiki-chapters">
-        <div className="wiki-section-title"><h2>认识 TJUClaw。</h2><p>这里介绍产品定位、核心能力、使用方式与参赛信息，帮助评审和校园用户快速理解这套平台能解决什么问题。</p></div>
-        {chapters.map(([id, title, description, href]) => <Link className="wiki-chapter" href={href} key={id}><span>{id}</span><strong>{title}</strong><p>{description}</p><b>→</b></Link>)}
+      <section className="nx-section" aria-label="支持的平台与客户端">
+        <header className="nx-head">
+          <h2>随时随地，接入校园智能体。</h2>
+          <p>一套代码跨端覆盖，从浏览器到桌面与手机。</p>
+        </header>
+        <div className="nx-tiles is-four">
+          {platforms.map((p) => {
+            const Icon = platformIcons[p.name] ?? AppWindow;
+            const body = (
+              <>
+                <span className={`nx-icon ${p.available ? 'tone-blue' : 'tone-gray'}`}><Icon size={20} /></span>
+                <strong>{p.name}</strong>
+                <span className="nx-tile-tag">{p.tag}</span>
+                <p>{p.desc}</p>
+                {p.available
+                  ? <span className="nx-tile-action">{p.action}<ArrowUpRight size={16} /></span>
+                  : <span className="nx-tile-badge">{p.action}</span>}
+              </>
+            );
+            return p.available ? (
+              <a className={`nx-tile ${p.primary ? 'is-featured' : ''}`} href={p.href} target="_blank" rel="noreferrer" key={p.name}>{body}</a>
+            ) : (
+              <div className="nx-tile is-disabled" key={p.name}>{body}</div>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="wiki-repos" aria-label="代码仓库划分">
-        <div className="wiki-section-title">
+      <section className="nx-section" aria-label="代码仓库划分">
+        <header className="nx-head">
           <h2>代码矩阵与模块划分。</h2>
-          <p>
-            TJUClaw 由开源产品组件与闭源执行基础设施共同组成。完整源码、流水线状态与最新开发动态请通过下方仓库入口查看。
-          </p>
-        </div>
-        <div className="wiki-repos-grid">
+          <p>TJUClaw 由开源产品组件与闭源执行基础设施共同组成。完整源码、流水线状态与开发动态请通过仓库入口查看。</p>
+        </header>
+        <div className="nx-repos">
           {repositories.map((repo) => (
-            <a
-              key={repo.name}
-              className="wiki-repo-card"
-              href={repo.href}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <div className="wiki-repo-top">
-                <span className="wiki-repo-path">{repo.path}</span>
-                <span className="wiki-repo-status">{repo.status}</span>
-                <span className="wiki-repo-arrow">↗</span>
+            <a key={repo.name} className="nx-repo" href={repo.href} target="_blank" rel="noreferrer">
+              <div className="nx-repo-top">
+                <code>{repo.path}</code>
+                <span className={repo.status === '开源' ? 'is-open' : ''}>{repo.status}</span>
+                <ArrowUpRight className="nx-repo-arrow" size={16} />
               </div>
-              <strong className="wiki-repo-name">{repo.name}</strong>
-              <div className="wiki-repo-scope">{repo.scope}</div>
-              <div className="wiki-repo-lang">{repo.lang}</div>
-              <p className="wiki-repo-desc">{repo.desc}</p>
+              <strong>{repo.name}</strong>
+              <em>{repo.scope}</em>
+              <p>{repo.desc}</p>
+              <small>{repo.lang}</small>
             </a>
           ))}
+        </div>
+      </section>
+
+      <section className="nx-cta">
+        <img src="/tjuclaw-icon.webp" alt="" width="72" height="72" />
+        <h2>现在就开始使用 TJUClaw。</h2>
+        <p>浏览器打开即可登录，无需安装。</p>
+        <div className="nx-actions">
+          <a className="nx-btn is-primary" href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">进入应用</a>
+          <Link className="nx-btn is-secondary" href="/docs/guide">查看使用指南</Link>
         </div>
       </section>
     </main>

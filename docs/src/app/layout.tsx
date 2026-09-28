@@ -2,12 +2,12 @@ import { RootProvider } from 'fumadocs-ui/provider/next';
 import { SiteBanner } from '@/components/SiteBanner';
 import './global.css';
 import 'katex/dist/katex.min.css';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter, Geist_Mono } from 'next/font/google';
 import type { Metadata } from 'next';
 
-const geist = Geist({
+const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-geist',
+  variable: '--font-inter',
 });
 
 const geistMono = Geist_Mono({
@@ -31,7 +31,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="zh-CN"
-      className={`${geist.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${geistMono.variable}`}
       suppressHydrationWarning
     >
       <body className="flex flex-col min-h-screen">
