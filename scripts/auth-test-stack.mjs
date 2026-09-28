@@ -89,7 +89,7 @@ async function overlayProductModel(env) {
     if (error.code !== 'ENOENT') throw error;
     return env;
   }
-  const allow = new Set(['NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_DAILY_QUOTA']);
+  const allow = new Set(['NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_MODELS', 'NEWAPI_DAILY_QUOTA']);
   const next = { ...env };
   for (const line of text.split('\n')) {
     const trimmed = line.trim();
@@ -109,7 +109,7 @@ export function isolateTestApiEnv(env) {
   const isolated = { ...env };
   // Test identities may not reach live model, sandbox, or campus services.
   for (const key of [
-    'NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_DAILY_QUOTA',
+    'NEWAPI_BASE_URL', 'NEWAPI_API_KEY', 'NEWAPI_MODEL', 'NEWAPI_MODELS', 'NEWAPI_DAILY_QUOTA',
     'SANDBOX_SESSION_URL', 'SANDBOX_SESSION_TOKEN', 'SANDBOX_GATEWAY_HMAC_SECRET',
     'SANDBOX_GATEWAY_PUBLIC_URL', 'WPY_APP_TICKET',
   ]) delete isolated[key];
