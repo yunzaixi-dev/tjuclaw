@@ -137,10 +137,10 @@ const platforms = [
   },
   {
     name: 'Android 移动端',
-    tag: 'arm64 · 调试版安装包 (.apk)',
-    desc: '在 Android 设备上体验登录、任务与工作空间界面；当前提供用于验证的调试版安装包。',
+    tag: 'arm64 · 正式签名安装包 (.apk)',
+    desc: '在 Android 设备上使用登录、任务与工作空间；固定签名，新版本可直接覆盖安装并保留数据。',
     action: '下载 APK',
-    href: 'https://tjuclaw-release.zaixi.dev/client/latest/TJUClaw-android-arm64-debug.apk',
+    href: 'https://tjuclaw-release.zaixi.dev/client/latest/TJUClaw-android-arm64.apk',
     external: true,
     available: true,
   },
