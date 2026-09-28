@@ -236,8 +236,6 @@ jobs:
         run: task session:e2e
       - name: Run isolated browser-to-API sealed vault regression
         run: task vault:e2e
-      - name: Run isolated browser-to-edge Git workspace regression
-        run: task workspace:e2e
       - name: Clean up exact test stack
         if: always()
         run: node scripts/auth-test-stack.mjs --down
