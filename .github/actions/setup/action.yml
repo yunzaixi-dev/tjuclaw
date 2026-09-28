@@ -45,11 +45,30 @@ runs:
         go-version-file: backend/go.mod
         cache: true
 
-    - name: Install Task 3.49.1
+    # Prefer a Task already baked into the runner image, then a cached build;
+    # compile only on a cold cache.
+    - name: Check for a preinstalled Task 3.49.1
+      id: task-preinstalled
       shell: bash
       run: |
-        go install github.com/go-task/task/v3/cmd/task@v3.49.1
-        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        if command -v task >/dev/null && task --version | grep -q 'v3.49.1'; then
+          echo "found=true" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Restore Task 3.49.1
+      id: task-cache
+      if: steps.task-preinstalled.outputs.found != 'true'
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      with:
+        path: ~/.cache/tjuclaw-task
+        key: task-3.49.1-${{ runner.os }}-${{ runner.arch }}
+    - name: Install Task 3.49.1
+      if: steps.task-preinstalled.outputs.found != 'true'
+      shell: bash
+      run: |
+        if [ "${{ steps.task-cache.outputs.cache-hit }}" != 'true' ]; then
+          GOBIN="$HOME/.cache/tjuclaw-task" go install github.com/go-task/task/v3/cmd/task@v3.49.1
+        fi
+        echo "$HOME/.cache/tjuclaw-task" >> "$GITHUB_PATH"
 
     - name: Set up Rust (minimal stable)
       if: inputs.rust == 'true'

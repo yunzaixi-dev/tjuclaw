@@ -1,0 +1,38 @@
+name: Runner Image
+# Builds the self-hosted runner image with CI toolchains preinstalled.
+# Runs on a GitHub-hosted runner so it never depends on the pool it replaces.
+on:
+  push:
+    branches: [release]
+    paths:
+      - ops/ci/runner.Dockerfile
+      - .github/workflows/runner-image.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: runner-image
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build, smoke-test and push
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/tjuclaw-runner
+        run: |
+          set -euo pipefail
+          docker build -f ops/ci/runner.Dockerfile \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          docker run --rm "$IMAGE:${{ github.sha }}" bash -lc \
+            'task --version && uv --version && ls /opt/hostedtoolcache/node /opt/hostedtoolcache/go && ls /opt/ms-playwright'
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+          digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:${{ github.sha }}")
+          echo "Pushed $digest" | tee -a "$GITHUB_STEP_SUMMARY"

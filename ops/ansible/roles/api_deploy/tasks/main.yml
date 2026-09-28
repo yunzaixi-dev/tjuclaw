@@ -100,23 +100,54 @@
       Refusing to overwrite an existing release directory with different binary contents.
   when: api_target_binary_stat.stat.exists
 
-- name: Copy artifact binary to target release directory (production)
-  ansible.builtin.copy:
-    src: "{{ api_artifact_path }}"
-    dest: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
-    owner: "root"
-    group: "root"
-    mode: "0755"
-  register: api_binary_copy
-  when: not (api_deploy_simulate_systemd | bool)
+# The CI runner reaches the API host over a slow link: ship the binary gzip
+# compressed (a Go binary shrinks to about 40%), unpack beside the target and
+# rename into place. The SHA-256 assertion below still checks the result.
+- name: Transfer the artifact compressed and unpack it atomically
+  when: not api_target_binary_stat.stat.exists
+  block:
+    - name: Create a controller-side temporary file for the compressed artifact
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .api.gz
+      register: api_artifact_gzip
+      delegate_to: localhost
+      become: false
 
-- name: Copy artifact binary to target release directory (simulation mode)
-  ansible.builtin.copy:
-    src: "{{ api_artifact_path }}"
-    dest: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api"
-    mode: "0755"
-  register: api_binary_copy_sim
-  when: api_deploy_simulate_systemd | bool
+    - name: Compress the artifact on the controller
+      ansible.builtin.shell: gzip -n -6 -c "$SRC" > "$DST"
+      environment:
+        SRC: "{{ api_artifact_path }}"
+        DST: "{{ api_artifact_gzip.path }}"
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Copy the compressed artifact next to the release binary
+      ansible.builtin.copy:
+        src: "{{ api_artifact_gzip.path }}"
+        dest: "{{ api_base_dir }}/releases/{{ api_release_sha }}/api.gz.partial"
+        mode: "0600"
+
+    - name: Unpack and rename the binary into place
+      ansible.builtin.shell: |
+        set -eu
+        gunzip -c api.gz.partial > api.partial
+        chmod 0755 api.partial
+        mv -f api.partial api
+        rm -f api.gz.partial
+      args:
+        chdir: "{{ api_base_dir }}/releases/{{ api_release_sha }}"
+      register: api_binary_copy
+      changed_when: true
+  always:
+    - name: Remove the controller-side compressed artifact
+      ansible.builtin.file:
+        path: "{{ api_artifact_gzip.path }}"
+        state: absent
+      delegate_to: localhost
+      become: false
+      when: api_artifact_gzip.path is defined
 
 - name: Verify copied binary matches expected SHA256 on target
   ansible.builtin.stat:
