@@ -13,6 +13,11 @@
   `.env.auth.local`.
   Without them sends fail with `model_unconfigured` unless a user saves a custom
   upstream in Settings → 模型. Auth tests never receive these values.
+  With a model configured and Docker running, `task dev` also starts the
+  sandbox gateway in Docker mode (`scripts/local-sandbox.mjs`): Agent turns run
+  in a hardened `tjuclaw-controller:local` container per session (built on
+  first use), with bare-repository workspaces under `ops/local/sandbox/`. Set
+  `AUTH_DEV_SANDBOX=0` to use the direct model path instead.
 - Kratos is the active identity authority. Never create parallel user/password
   databases, verification codes, JWT issuers, or localStorage login state. The API
   encrypts the Kratos session token in HttpOnly cookies; every protected request

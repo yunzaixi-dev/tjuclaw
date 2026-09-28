@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveAuthDevMailConfig } from './auth-mail-config.mjs';
+import { localSandboxAvailable, startLocalSandbox } from './local-sandbox.mjs';
 import { startSessionTestController } from './session-test-controller.mjs';
 
 // Tests are disposable; --dev keeps identities and credentials across restarts.
@@ -23,7 +24,7 @@ const capPort = development ? 13302 : 13301;
 const apiPort = development ? 8080 : 18089;
 const apiDatabasePort = 15436;
 const publicOrigin = development ? 'http://127.0.0.1:5173' : 'http://127.0.0.1:1423';
-let runtime, api, web, docs, sessionController, stopping = false;
+let runtime, api, web, docs, sessionController, localSandbox, stopping = false;
 
 const secret = () => randomBytes(24).toString('hex');
 const compose = (args, env) => spawnSync('docker', [...composeArgs, ...args], { cwd: root, env: { ...process.env, ...env }, stdio: 'inherit', timeout: 180000 });
@@ -128,6 +129,7 @@ async function cleanup(exitCode = 0) {
   await stopChild(api);
   await stopChild(web);
   await stopChild(docs);
+  await stopChild(localSandbox?.child);
   if (sessionController) await sessionController.close();
 
   if (runtime && !development) {
@@ -252,6 +254,16 @@ try {
   }
 
   if (development) {
+    // Agent turns run in the local Docker sandbox, as production runs them in the cluster.
+    const sandbox = localSandboxAvailable(apiEnv);
+    if (sandbox.ok) {
+      localSandbox = await startLocalSandbox({ root, apiPort, env: apiEnv });
+      apiEnv.SANDBOX_SESSION_URL = localSandbox.url;
+      apiEnv.SANDBOX_GATEWAY_HMAC_SECRET = localSandbox.secret;
+      console.log(`Local Agent sandbox ready at ${localSandbox.url} (Docker).`);
+    } else {
+      console.log(`Local Agent sandbox skipped: ${sandbox.reason}; Agent uses the direct model path.`);
+    }
     api = spawn('go', ['run', 'github.com/air-verse/air@v1.67.4', '-c', '.air.toml'], { cwd: backendDir, stdio: 'inherit', env: apiEnv });
   } else {
     const executable = join(directory, 'tjuclaw-api');
