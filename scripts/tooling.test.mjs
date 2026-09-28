@@ -263,7 +263,7 @@ test('task dev starts the Web client only after the Kratos API is ready', () => 
 test('isolated auth API never inherits live model, sandbox, or campus credentials', () => {
   const inherited = {
     NEWAPI_BASE_URL: 'https://model.invalid', NEWAPI_API_KEY: 'live-model',
-    NEWAPI_MODEL: 'billable-model', NEWAPI_DAILY_QUOTA: '100',
+    NEWAPI_MODEL: 'billable-model', NEWAPI_MODELS: 'billable-model,other', NEWAPI_QUOTA_5H: '100', NEWAPI_QUOTA_7D: '900',
     SANDBOX_SESSION_URL: 'https://sandbox.invalid', SANDBOX_SESSION_TOKEN: 'legacy-token',
     SANDBOX_GATEWAY_HMAC_SECRET: 'live-sandbox-secret',
     SANDBOX_GATEWAY_PUBLIC_URL: 'https://public-sandbox.invalid',

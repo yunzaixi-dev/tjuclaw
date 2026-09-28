@@ -9,7 +9,8 @@
   `task auth:test` still build a one-shot binary.
   The Agent needs a model: `task dev` reads only `NEWAPI_BASE_URL`,
   `NEWAPI_API_KEY`, `NEWAPI_MODEL`, `NEWAPI_MODELS` (comma-separated, enables
-  the model picker) and `NEWAPI_DAILY_QUOTA` from the ignored `.env.auth.local`.
+  the model picker), `NEWAPI_QUOTA_5H` and `NEWAPI_QUOTA_7D` from the ignored
+  `.env.auth.local`.
   Without them sends fail with `model_unconfigured` unless a user saves a custom
   upstream in Settings → 模型. Auth tests never receive these values.
 - Kratos is the active identity authority. Never create parallel user/password

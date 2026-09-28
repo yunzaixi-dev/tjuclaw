@@ -74,7 +74,8 @@ Go API 是产品服务的秘密持有者，但只持有它直接需要的值：
 - `R2_REGION`
 - `R2_FILES_BUCKET`
 - `NEWAPI_MODEL`
-- `NEWAPI_DAILY_QUOTA`
+- `NEWAPI_QUOTA_5H`
+- `NEWAPI_QUOTA_7D`
 
 `AUTH_COOKIE_KEY`、模型 Key、对象存储 Key 和沙箱服务令牌不能写入 PostgreSQL
 业务记录、笔记正文、发布快照、对象 key、Run JSON 或日志。
