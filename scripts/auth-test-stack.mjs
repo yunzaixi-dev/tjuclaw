@@ -117,11 +117,19 @@ export function isolateTestApiEnv(env) {
   return isolated;
 }
 
+// Children started with `detached` lead their own process group; signal the
+// whole group so binaries launched by `go run` or Air do not outlive it.
+function signal(child, name) {
+  try {
+    if (child.spawnargs && child.pid && child.detachedGroup) process.kill(-child.pid, name);
+    else child.kill(name);
+  } catch { /* already gone */ }
+}
 async function stopChild(child) {
-  if (!child || child.exitCode !== null) return;
-  child.kill('SIGTERM');
+  if (!child || (child.exitCode !== null && !child.detachedGroup)) return;
+  signal(child, 'SIGTERM');
   await Promise.race([new Promise(resolveExit => child.once('exit', resolveExit)), new Promise(resolveWait => setTimeout(resolveWait, 5000))]);
-  if (child.exitCode === null) child.kill('SIGKILL');
+  signal(child, 'SIGKILL');
 }
 async function cleanup(exitCode = 0) {
   if (stopping) return;
@@ -264,7 +272,8 @@ try {
     } else {
       console.log(`Local Agent sandbox skipped: ${sandbox.reason}; Agent uses the direct model path.`);
     }
-    api = spawn('go', ['run', 'github.com/air-verse/air@v1.67.4', '-c', '.air.toml'], { cwd: backendDir, stdio: 'inherit', env: apiEnv });
+    api = spawn('go', ['run', 'github.com/air-verse/air@v1.67.4', '-c', '.air.toml'], { cwd: backendDir, stdio: 'inherit', env: apiEnv, detached: true });
+    api.detachedGroup = true;
   } else {
     const executable = join(directory, 'tjuclaw-api');
     const build = spawnSync('go', ['build', '-o', executable, './cmd/api'], { cwd: backendDir, stdio: 'inherit', timeout: 120000 });

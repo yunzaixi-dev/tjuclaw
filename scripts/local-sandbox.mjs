@@ -45,8 +45,10 @@ export async function startLocalSandbox({ root, apiPort, env }) {
   const child = spawn('go', ['run', './cmd/gateway'], {
     cwd: join(root, 'sandbox'),
     stdio: 'inherit',
+    // Own process group, so stopping the stack also stops the built gateway.
+    detached: true,
     env: {
-      PATH: env.PATH, HOME: env.HOME, GOPATH: env.GOPATH ?? '', GOCACHE: env.GOCACHE ?? '', GOFLAGS: env.GOFLAGS ?? '',
+      ...Object.fromEntries(['PATH', 'HOME', 'GOPATH', 'GOCACHE', 'GOMODCACHE', 'GOFLAGS', 'GOPROXY'].filter(key => env[key]).map(key => [key, env[key]])),
       SANDBOX_RUNTIME: 'docker',
       SANDBOX_IMAGE: LOCAL_SANDBOX_IMAGE,
       SANDBOX_GATEWAY_ADDR: `127.0.0.1:${GATEWAY_PORT}`,
@@ -62,11 +64,12 @@ export async function startLocalSandbox({ root, apiPort, env }) {
       BROKER_QUOTA_LIMIT: '10000',
     },
   });
+  child.detachedGroup = true;
   for (let attempt = 0; attempt < 120; attempt++) {
     if (child.exitCode !== null) throw new Error('Local sandbox gateway exited during startup');
     if (await healthy(url)) return { url, secret, child };
     await new Promise(resolveWait => setTimeout(resolveWait, 1000));
   }
-  child.kill('SIGTERM');
+  try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already gone */ }
   throw new Error('Local sandbox gateway did not become ready');
 }
