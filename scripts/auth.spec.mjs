@@ -404,7 +404,7 @@ test('browser-to-edge Git workspace uses owner-scoped v2 access and preserves co
     }
   });
   await page.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-  await page.getByRole('button', { name: '连接 Git 工作区' }).click();
+  await page.getByRole('button', { name: '打开协作笔记' }).click();
   const panel = page.getByRole('region', { name: 'Agent Git 工作区' });
   await expect(panel).toBeVisible();
   const [listed] = await Promise.all([
@@ -412,7 +412,7 @@ test('browser-to-edge Git workspace uses owner-scoped v2 access and preserves co
     panel.getByRole('button', { name: '查看文件' }).click(),
   ]);
   expect(listed.status()).toBe(200);
-  await expect(panel).toContainText('暂无已提交的 Markdown 文件');
+  await expect(panel).toContainText('还没有笔记，新建第一篇吧');
   const notePath = `e2e-${Date.now()}.md`;
   await panel.getByLabel('新文件名').fill(notePath);
   const [created] = await Promise.all([
@@ -422,7 +422,7 @@ test('browser-to-edge Git workspace uses owner-scoped v2 access and preserves co
   expect(created.status()).toBe(201);
   const firstRevision = (await created.json()).revision;
   expect(firstRevision).toMatch(/^[0-9a-f]{40}$/);
-  await panel.getByRole('textbox', { name: '沙箱文件内容' }).fill('Browser created body');
+  await panel.getByRole('textbox', { name: '笔记内容' }).fill('Browser created body');
   const [saved] = await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/sessions/note') && response.request().method() === 'PATCH'),
     panel.getByRole('button', { name: '保存到 Git' }).click(),
@@ -481,14 +481,14 @@ test('browser-to-edge Git workspace uses owner-scoped v2 access and preserves co
   });
   expect(modelRoute.status()).toBe(401);
   await panel.getByRole('button', { name: '编辑文件' }).click();
-  await panel.getByRole('textbox', { name: '沙箱文件内容' }).fill('Do not overwrite remote');
+  await panel.getByRole('textbox', { name: '笔记内容' }).fill('Do not overwrite remote');
   const [conflict] = await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/v1/sessions/note') && response.request().method() === 'PATCH'),
     panel.getByRole('button', { name: '保存到 Git' }).click(),
   ]);
   expect(conflict.status()).toBe(409);
   await expect(panel.getByRole('alert')).toContainText('远端文件已更新');
-  await expect(panel.getByRole('textbox', { name: '沙箱文件内容' })).toHaveValue('Do not overwrite remote');
+  await expect(panel.getByRole('textbox', { name: '笔记内容' })).toHaveValue('Do not overwrite remote');
   expect((await (await page.request.post(edge, {
     headers: { ...headers, Authorization: `Bearer ${grant.token}` }, data: createRequest,
   })).json()).content).toBe('Remote concurrent edit');
@@ -497,7 +497,7 @@ test('browser-to-edge Git workspace uses owner-scoped v2 access and preserves co
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-  await page.getByRole('button', { name: '连接 Git 工作区' }).click();
+  await page.getByRole('button', { name: '打开协作笔记' }).click();
   const reopened = page.getByRole('region', { name: 'Agent Git 工作区' });
   await reopened.getByRole('button', { name: '查看文件' }).click();
   await reopened.getByRole('button', { name: notePath }).click();
@@ -552,7 +552,7 @@ test('browser-to-API vault verifier and private notes survive a fresh browser an
     }
   });
   await page.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-  await page.getByRole('button', { name: '私密笔记 · 浏览器解密' }).click();
+  await page.getByRole('button', { name: /^私密笔记/ }).click();
   const privatePanel = page.getByRole('region', { name: '私密笔记' });
   await privatePanel.getByLabel('再次输入工作区口令以解密私密笔记').fill(passphrase);
   await privatePanel.getByRole('button', { name: '解锁私密笔记' }).click();
@@ -590,7 +590,7 @@ test('browser-to-API vault verifier and private notes survive a fresh browser an
     await fresh.getByRole('button', { name: '解锁进入工作区', exact: true }).click();
     await expect(fresh.locator('.sidebar-library-button')).toBeVisible();
     await fresh.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-    await fresh.getByRole('button', { name: '私密笔记 · 浏览器解密' }).click();
+    await fresh.getByRole('button', { name: /^私密笔记/ }).click();
     const freshPanel = fresh.getByRole('region', { name: '私密笔记' });
     await freshPanel.getByLabel('再次输入工作区口令以解密私密笔记').fill(passphrase);
     await freshPanel.getByRole('button', { name: '解锁私密笔记' }).click();
@@ -632,7 +632,7 @@ test('browser-to-API vault verifier and private notes survive a fresh browser an
     await fresh.getByLabel('工作区口令', { exact: true }).fill(passphrase);
     await fresh.getByRole('button', { name: '解锁进入工作区', exact: true }).click();
     await fresh.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-    await fresh.getByRole('button', { name: '私密笔记 · 浏览器解密' }).click();
+    await fresh.getByRole('button', { name: /^私密笔记/ }).click();
     const retried = fresh.getByRole('region', { name: '私密笔记' });
     await retried.getByLabel('再次输入工作区口令以解密私密笔记').fill(passphrase);
     await retried.getByRole('button', { name: '解锁私密笔记' }).click();
@@ -671,7 +671,7 @@ test('browser-to-API vault verifier and private notes survive a fresh browser an
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Git 笔记', exact: true }).click();
-  await page.getByRole('button', { name: '私密笔记 · 浏览器解密' }).click();
+  await page.getByRole('button', { name: /^私密笔记/ }).click();
   const importedPanel = page.getByRole('region', { name: '私密笔记' });
   await importedPanel.getByLabel('再次输入工作区口令以解密私密笔记').fill(passphrase);
   await importedPanel.getByRole('button', { name: '解锁私密笔记' }).click();
