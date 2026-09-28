@@ -89,6 +89,20 @@ test('API deployment validates before mutation, preserves immutable releases and
     result = await run({ ...vars, api_base_dir: firstBase, api_artifact_sha256: digest('version2') });
     assert.notEqual(result.status, 0); assert.match(result.output, /Rollback completed/);
     assert.ok(!existsSync(join(firstBase, 'current'))); assert.ok(!existsSync(join(firstBase, 'tjuclaw-api.service')));
+    // An unchanged backend under a new integration SHA reuses the running
+    // binary on the host instead of transferring the artifact again.
+    health = 200;
+    writeFileSync(artifact, 'version1');
+    const reuseBase = join(directory, 'reuse');
+    result = await run({ ...vars, api_base_dir: reuseBase });
+    assert.equal(result.status, 0, result.output);
+    const reuseSha = 'c'.repeat(40);
+    result = await run({ ...vars, api_base_dir: reuseBase, api_release_sha: reuseSha });
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.output, /Reuse the running binary when it is this artifact\] \*+\nchanged/);
+    assert.match(result.output, /Copy the compressed artifact next to the release binary\] \*+\nskipping/);
+    assert.equal(readFileSync(join(reuseBase, 'releases', reuseSha, 'api'), 'utf8'), 'version1');
+    assert.equal(readlinkSync(join(reuseBase, 'current')), join(reuseBase, 'releases', reuseSha));
   } finally { server.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

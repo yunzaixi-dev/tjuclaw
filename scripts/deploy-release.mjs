@@ -41,8 +41,9 @@ function main() {
     writeFileSync(join(artifact, 'SHA256SUMS'), `${manifest.sha256}  api\n`);
     return;
   }
-  if (process.env.GITHUB_EVENT_NAME !== 'push' || process.env.GITHUB_REF !== 'refs/heads/release' ||
-      process.env.GITHUB_REPOSITORY !== repository || process.env.GITHUB_SHA !== sha) throw new Error('Deployment requires a trusted release push');
+  // Deploys run from a manual CI dispatch on release (pushes no longer deploy).
+  if (!['push', 'workflow_dispatch'].includes(process.env.GITHUB_EVENT_NAME ?? '') || process.env.GITHUB_REF !== 'refs/heads/release' ||
+      process.env.GITHUB_REPOSITORY !== repository || process.env.GITHUB_SHA !== sha) throw new Error('Deployment requires a trusted release build');
   const manifest = JSON.parse(readFileSync(join(artifact, 'metadata.json'), 'utf8'));
   const digest = verifyManifest(manifest, bytes, sha, backend);
   if (readFileSync(join(artifact, 'SHA256SUMS'), 'utf8') !== `${digest}  api\n`) throw new Error('Checksum manifest mismatch');

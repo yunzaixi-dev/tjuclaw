@@ -103,8 +103,36 @@
 # The CI runner reaches the API host over a slow link: ship the binary gzip
 # compressed (a Go binary shrinks to about 40%), unpack beside the target and
 # rename into place. The SHA-256 assertion below still checks the result.
-- name: Transfer the artifact compressed and unpack it atomically
+# When the backend did not change, the running binary already is this
+# artifact: copy it on the host instead of sending it over the network again.
+- name: Read the checksum of the running binary
+  ansible.builtin.stat:
+    path: "{{ api_base_dir }}/current/api"
+    checksum_algorithm: sha256
+  register: api_running_binary_stat
   when: not api_target_binary_stat.stat.exists
+
+- name: Reuse the running binary when it is this artifact
+  ansible.builtin.shell: |
+    set -eu
+    cp -p "$SRC" api.partial
+    chmod 0755 api.partial
+    mv -f api.partial api
+  args:
+    chdir: "{{ api_base_dir }}/releases/{{ api_release_sha }}"
+  environment:
+    SRC: "{{ api_base_dir }}/current/api"
+  register: api_binary_reused
+  changed_when: true
+  when:
+    - not api_target_binary_stat.stat.exists
+    - api_running_binary_stat.stat.exists | default(false)
+    - api_running_binary_stat.stat.checksum | default('') == (api_artifact_sha256 | lower)
+
+- name: Transfer the artifact compressed and unpack it atomically
+  when:
+    - not api_target_binary_stat.stat.exists
+    - api_binary_reused is skipped
   block:
     - name: Create a controller-side temporary file for the compressed artifact
       ansible.builtin.tempfile:
@@ -229,6 +257,7 @@
             (api_unit_template.changed | default(false)) or
             (api_unit_template_sim.changed | default(false)) or
             (api_binary_copy.changed | default(false)) or
+            (api_binary_reused.changed | default(false)) or
             (api_binary_copy_sim.changed | default(false)) or
             not (api_already_on_target_release | bool)
           }}

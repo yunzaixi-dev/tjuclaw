@@ -2,7 +2,7 @@
 
 `dev` is the default development branch. Pushes run CI. Merge or fast-forward the verified commit into `release` to publish; version tags and feature branches are optional.
 
-The integration CI builds a Linux amd64 API artifact from its pinned backend SHA. After portable checks, real authentication tests and Ansible regressions pass, the reusable deployment workflow downloads that same run's artifact. It verifies the integration SHA, backend SHA and SHA256, rejects stale queued releases, and deploys serially through Ansible. The GitHub `production` environment must permit only the `release` branch.
+The integration CI builds a Linux amd64 API artifact from its pinned backend SHA. Pushes do not deploy: the self-hosted runner's link to the API host is too slow for routine releases, so production deploys run locally with `task ops:api:deploy`, or by running CI manually on `release` with `deploy_api` checked. In that case, after portable checks, real authentication tests and Ansible regressions pass, the reusable deployment workflow downloads that same run's artifact. It verifies the integration SHA, backend SHA and SHA256, rejects stale queued releases, and deploys serially through Ansible. The artifact travels gzip compressed; when the running binary already matches it (an unchanged backend), the host copies it locally instead. The GitHub `production` environment must permit only the `release` branch.
 
 ## Production configuration
 

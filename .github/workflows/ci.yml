@@ -6,7 +6,12 @@ on:
     tags: ['v*']
   pull_request:
     branches: [dev, release]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      deploy_api:
+        description: 'Deploy the API to production after all checks pass'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -181,8 +186,11 @@ jobs:
 
   deploy:
     # Sandbox images are verified but not deployed; they do not gate the API release.
+    # Production deploys are manual: the runner's link to the API host is too
+    # slow for every push (use `task ops:api:deploy` locally, or run CI by hand
+    # with deploy_api). An unchanged backend reuses the running binary.
     needs: [check, integration, ops]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_api && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
 
