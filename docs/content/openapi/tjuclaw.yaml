@@ -686,6 +686,47 @@ paths:
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /library/git:
+    get:
+      tags: [Libraries]
+      summary: 读取知识库 Git 镜像状态
+      description: 返回当前用户笔记镜像到 Git 仓库的同步状态；首次读取会启动该用户的镜像。未启用镜像时返回 enabled=false。
+      operationId: getLibraryGit
+      responses:
+        '200':
+          description: 镜像状态
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LibraryGitResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+
+  /entries/{id}/history:
+    get:
+      tags: [Libraries]
+      summary: 笔记历史版本
+      description: 不带 revision 时返回该笔记最近 30 次提交；带 40 位提交 SHA 时返回该版本的笔记内容。仅笔记条目有历史；未启用镜像返回 404 history_unavailable。
+      operationId: getEntryHistory
+      parameters:
+        - { $ref: '#/components/parameters/ResourceId' }
+        - name: revision
+          in: query
+          required: false
+          description: 40 位小写十六进制提交 SHA。
+          schema: { type: string, pattern: '^[0-9a-f]{40}$' }
+      responses:
+        '200':
+          description: 提交列表或指定版本内容
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: '#/components/schemas/EntryHistoryResponse' }
+                  - { $ref: '#/components/schemas/EntryRevisionResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Error' }
+
   /entries/{id}:
     get:
       tags: [Libraries]
@@ -954,6 +995,143 @@ paths:
         '429': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
+
+  /sessions/{id}/local-turns:
+    post:
+      tags: [Sessions]
+      summary: 开启桌面端本地沙箱回合
+      description: 桌面客户端在本机 Docker 沙箱中运行 Agent 前调用。服务端校验会话归属与产品配额，签发 5 分钟有效的工具授权，本地 Broker 凭该授权回调沙箱工具接口。配额已耗尽返回 429 quota_<window>_exceeded。
+      operationId: beginLocalTurn
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 本地回合授权
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocalTurnResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /sessions/{id}/local-turns/finish:
+    post:
+      tags: [Sessions]
+      summary: 结束本地沙箱回合并保存记录
+      description: 保存本地回合的用户消息、Agent 回复与思考/工具步骤，并计入一次产品用量。授权只能使用一次；已过期或已结束返回 409 local_turn_expired。
+      operationId: finishLocalTurn
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocalTurnFinishRequest' }
+            example:
+              tool_grant: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+              content: 总结这篇笔记
+              reply: 这篇笔记主要讲了……
+              steps: [{ kind: thinking, text: 先读取笔记内容 }]
+      responses:
+        '200':
+          description: 更新后的会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
+
+  /sandbox/local/runtime:
+    post:
+      tags: [Sessions]
+      summary: 签发本地沙箱运行时授权
+      description: 为已登录的桌面用户签发 12 小时有效的运行时授权，供本机 Broker 通过本 API 访问产品模型；产品模型密钥始终只保存在服务端。未配置产品模型返回 503 model_unconfigured。
+      operationId: issueLocalRuntime
+      responses:
+        '200':
+          description: 本地运行时授权
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LocalRuntimeResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /sandbox/local/model/v1/chat/completions:
+    post:
+      tags: [Sessions]
+      summary: 本地沙箱模型代理
+      description: OpenAI 兼容的 Chat Completions 代理，仅供本地 Broker 使用运行时授权调用。请求中的 model 只能是产品模型之一，否则改用用户当前产品模型；请求体上限 4 MiB，响应（含 SSE 流）上限 8 MiB 并原样透传上游状态码。
+      operationId: localSandboxChatCompletions
+      security: [{ localRuntime: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JsonObject' }
+            example: { model: product-model, stream: true, messages: [{ role: user, content: 你好 }] }
+      responses:
+        '200':
+          description: 上游模型响应（JSON 或 text/event-stream）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /agent/sandbox-tools:
+    get:
+      tags: [Sessions]
+      summary: 列出沙箱回合可调用的工具
+      description: 沙箱 Broker 在回合进行中使用工具授权、所有者与会话三个请求头调用；授权过期或不匹配返回 401 tool_grant_invalid。
+      operationId: listSandboxTools
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/ToolGrant' }
+        - { $ref: '#/components/parameters/ToolOwner' }
+        - { $ref: '#/components/parameters/ToolSession' }
+      responses:
+        '200':
+          description: OpenAI function 工具定义
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SandboxToolListResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /agent/sandbox-tools/call:
+    post:
+      tags: [Sessions]
+      summary: 在沙箱回合中调用一个工具
+      description: 工具以该回合用户自己的认证请求执行，而非 Broker 身份。每个回合最多 60 次调用，请求体上限 64 KiB；未知工具返回 404 unknown_tool。
+      operationId: callSandboxTool
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/ToolGrant' }
+        - { $ref: '#/components/parameters/ToolOwner' }
+        - { $ref: '#/components/parameters/ToolSession' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SandboxToolCallRequest' }
+            example: { name: read_note, arguments: { id: 0123456789abcdef0123456789abcdef } }
+      responses:
+        '200':
+          description: 工具执行结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SandboxToolCallResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /campus/session:
     post:
@@ -1747,6 +1925,10 @@ components:
       in: cookie
       name: tjuclaw_session
       description: 服务端设置的 HttpOnly 浏览器会话 Cookie；生产 HTTPS 下使用 Host-only Cookie。
+    localRuntime:
+      type: http
+      scheme: bearer
+      description: POST /sandbox/local/runtime 签发的本地沙箱运行时授权。
   parameters:
     ResourceId:
       name: id
@@ -1805,6 +1987,24 @@ components:
       required: false
       description: 论坛分页页码。
       schema: { type: integer, minimum: 1, default: 1 }
+    ToolGrant:
+      name: X-TJUClaw-Tool-Grant
+      in: header
+      required: true
+      description: 回合进行中服务端签发的 64 位十六进制工具授权。
+      schema: { type: string, pattern: '^[0-9a-f]{64}$' }
+    ToolOwner:
+      name: X-TJUClaw-Owner
+      in: header
+      required: true
+      description: 授权所属用户 ID，必须与授权一致。
+      schema: { type: string }
+    ToolSession:
+      name: X-TJUClaw-Session
+      in: header
+      required: true
+      description: 授权所属会话 ID，必须与授权一致。
+      schema: { type: string, pattern: '^[0-9a-f]{32}$' }
   requestBodies:
     EmptyJson:
       required: true
@@ -2123,6 +2323,10 @@ components:
           type: array
           description: 该条 Agent 回复之前调用过的工具名；只含名称，不含参数与结果
           items: { type: string }
+        steps:
+          type: array
+          description: 该条 Agent 回复的思考与工具步骤，仅会话所有者可见
+          items: { $ref: '#/components/schemas/TurnStep' }
         created_at: { type: string, format: date-time }
     ToolCall:
       type: object
@@ -2154,6 +2358,115 @@ components:
         sessions:
           type: array
           items: { $ref: '#/components/schemas/ChatSession' }
+    TurnStep:
+      type: object
+      required: [kind]
+      description: Agent 回复前的一步思考或工具调用，仅会话所有者可见。
+      properties:
+        kind: { type: string, examples: [thinking, tool] }
+        text: { type: string }
+        name: { type: string }
+        input: { type: string }
+        output: { type: string }
+        failed: { type: boolean }
+    LocalRuntimeResponse:
+      type: object
+      required: [grant, expires_at, model, models]
+      properties:
+        grant: { type: string, pattern: '^[0-9a-f]{64}$' }
+        expires_at: { type: string, format: date-time }
+        model: { type: string, description: 用户当前产品模型 }
+        models:
+          type: array
+          items: { type: string }
+    LocalTurnResponse:
+      type: object
+      required: [tool_grant, turn, owner_id, session_id, entry_id, profile, model]
+      properties:
+        tool_grant: { type: string, pattern: '^[0-9a-f]{64}$' }
+        turn: { type: integer, minimum: 1 }
+        owner_id: { type: string }
+        session_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        entry_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        profile: { type: string, enum: [study-agent, study-guide] }
+        model: { type: string }
+    LocalTurnFinishRequest:
+      type: object
+      required: [tool_grant, content, reply]
+      properties:
+        tool_grant: { type: string, pattern: '^[0-9a-f]{64}$' }
+        client_request_id: { type: string, pattern: '^[0-9a-f]{32}$' }
+        content: { type: string, minLength: 1 }
+        reply: { type: string, minLength: 1, maxLength: 32768 }
+        steps:
+          type: array
+          items: { $ref: '#/components/schemas/TurnStep' }
+    SandboxToolListResponse:
+      type: object
+      required: [tools]
+      properties:
+        tools:
+          type: array
+          items:
+            type: object
+            required: [type, function]
+            properties:
+              type: { type: string, const: function }
+              function:
+                type: object
+                required: [name]
+                properties:
+                  name: { type: string }
+                  description: { type: string }
+                  parameters: { $ref: '#/components/schemas/JsonObject' }
+    SandboxToolCallRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 64 }
+        arguments: { $ref: '#/components/schemas/JsonObject' }
+    SandboxToolCallResponse:
+      type: object
+      required: [name, result]
+      properties:
+        name: { type: string }
+        result: { type: string }
+    LibraryGitResponse:
+      type: object
+      required: [git]
+      properties:
+        git:
+          type: object
+          required: [enabled]
+          properties:
+            enabled: { type: boolean }
+            state: { type: string, enum: [pending, syncing, error, synced] }
+            revision: { type: string }
+            notes: { type: integer, minimum: 0 }
+            synced_at: { type: string, format: date-time }
+    MirrorCommit:
+      type: object
+      required: [sha, message, author, date]
+      properties:
+        sha: { type: string }
+        message: { type: string }
+        author: { type: string }
+        date: { type: string }
+    EntryHistoryResponse:
+      type: object
+      required: [path, commits]
+      properties:
+        path: { type: string }
+        commits:
+          type: array
+          items: { $ref: '#/components/schemas/MirrorCommit' }
+    EntryRevisionResponse:
+      type: object
+      required: [revision, path, content]
+      properties:
+        revision: { type: string, pattern: '^[0-9a-f]{40}$' }
+        path: { type: string }
+        content: { type: string }
     SandboxTokenResponse:
       type: object
       required: [token, expires_at]
