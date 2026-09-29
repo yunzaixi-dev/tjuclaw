@@ -54,6 +54,10 @@ TJUClaw 是面向天津大学校园场景优化的智能体（AI Agent）平台�
 
 ## 核心架构设计
 
+下图是 TJUClaw 的总架构：七个分区自上而下依次是客户端、同源入口、Go API 单体、Agent 执行面、数据与外部服务、公开知识管道和交付链路。实线是已上线的调用关系，虚线是已实现但尚未切换或仍在接入的路径。
+
+![TJUClaw 总架构](docs/content/docs/blog/images/system-overview.webp)
+
 TJUClaw 把产品拆成几条互相配合、但不互相越权的路径：
 
 - **知识工作区**：用户在同一棵条目树里管理 Markdown 笔记、智能体、工作环境说明和文件入口。

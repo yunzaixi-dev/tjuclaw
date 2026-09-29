@@ -25,7 +25,10 @@ const readmeHeader = `<!-- AUTO-GENERATED from docs/content/docs/index.md. DO NO
 `;
 
 export function renderDocuments(raw) {
-  const body = raw.replace(/^---[\s\S]*?---\n*/, '').trimStart();
+  // Images beside the homepage resolve from docs/content/docs on the site but
+  // from the repository root in README.md and DESIGN.md.
+  const body = raw.replace(/^---[\s\S]*?---\n*/, '').trimStart()
+    .replace(/(!\[[^\]]*\]\()\.\//g, '$1docs/content/docs/');
   return {
     design: designHeader + body,
     readme: readmeHeader + body,

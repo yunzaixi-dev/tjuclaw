@@ -200,7 +200,7 @@ function initialState() {
 }
 
 const model = {
-  configured: true, source: 'product', name: 'deepseek-v3.2', choices: ['deepseek-v3.2', 'qwen3-max'],
+  configured: true, source: 'product', name: 'deepseek-flash', choices: ['deepseek-flash', 'gpt-6-sol-lite'],
   agent: { sandbox: true, tools: ['list_tree', 'read_entry', 'create_entry', 'update_entry', 'search_course_materials', 'campus_timetable', 'campus_exams', 'campus_study_rooms', 'bash'] },
   quota: { limit: 200, used: 37, remaining: 163 },
   windows: [

@@ -156,7 +156,13 @@ test('native product version comes from root and default capability is minimal',
   assert.equal(config.build.frontendDist, '../dist');
   assert.match(config.app.security.csp, /default-src 'self'/);
   const capability = JSON.parse(read('frontend/src-tauri/capabilities/default.json'));
-  assert.deepEqual(capability.permissions, ['core:app:allow-version']);
+  assert.deepEqual(capability.permissions, [
+    'core:app:allow-version',
+    'allow-store-get',
+    'allow-store-set',
+    'allow-store-delete',
+    'allow-store-list',
+  ]);
   assert.deepEqual(parse(read('Taskfile.yml')).dotenv, ['.env.toolchain.local']);
 });
 
