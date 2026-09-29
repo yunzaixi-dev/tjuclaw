@@ -1,0 +1,706 @@
+{
+  "title": "TJUClaw 总架构：知识工作区、Go API、Agent 执行面、公开知识管道与交付链路",
+  "titleX": 560,
+  "titleY": -70,
+  "zones": [
+    {
+      "label": "① 客户端：一套 React 19 + Vite 代码，Tauri v2 打包到桌面与移动端",
+      "x": 0,
+      "y": 0,
+      "w": 2600,
+      "h": 240
+    },
+    {
+      "label": "② 入口：浏览器只访问同源 /api/*",
+      "x": 0,
+      "y": 280,
+      "w": 2600,
+      "h": 150
+    },
+    {
+      "label": "③ Go API 单体（标准库 net/http）：归属只来自已登录身份，跨身份私有资源与不存在一样返回 404",
+      "x": 0,
+      "y": 470,
+      "w": 2600,
+      "h": 330
+    },
+    {
+      "label": "④ Agent 执行面（云端沙箱：已实现、待切换）",
+      "x": 0,
+      "y": 840,
+      "w": 1310,
+      "h": 300
+    },
+    {
+      "label": "⑤ 数据与外部服务：各自独立的数据库，不共享",
+      "x": 1330,
+      "y": 840,
+      "w": 1270,
+      "h": 300
+    },
+    {
+      "label": "⑥ 公开知识管道：只处理校园公开资料，与用户私有知识库隔离",
+      "x": 0,
+      "y": 1180,
+      "w": 2600,
+      "h": 210
+    },
+    {
+      "label": "⑦ 交付与运维：GitHub Actions 为准，GitLab 单向镜像",
+      "x": 0,
+      "y": 1430,
+      "w": 2600,
+      "h": 390
+    }
+  ],
+  "boxes": [
+    {
+      "id": "web",
+      "x": 20,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "blue",
+      "text": "Web 端\napp.tjuclaw.cloud\nEdgeOne 静态托管",
+      "fontSize": 17
+    },
+    {
+      "id": "desktop",
+      "x": 390,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "blue",
+      "text": "Tauri v2 桌面端\nLinux · Windows\n可切换本机 Docker 沙箱",
+      "fontSize": 17
+    },
+    {
+      "id": "android",
+      "x": 760,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "blue",
+      "text": "Android 客户端\nTauri v2 · 发布签名 APK\nAgent 在云端运行",
+      "fontSize": 17
+    },
+    {
+      "id": "store",
+      "x": 1130,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "slate",
+      "text": "LocalStore 本地存储\n浏览器 sqlite-wasm + OPFS\n桌面 rusqlite · 兜底 localStorage",
+      "fontSize": 17
+    },
+    {
+      "id": "cli",
+      "x": 1500,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "amber",
+      "text": "tjucli（GPL）\n公开课 CLI · 稳定 JSON 信封\n授权工具服务器 tjucli-server",
+      "fontSize": 17
+    },
+    {
+      "id": "docs",
+      "x": 1870,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "violet",
+      "text": "文档站 tjuclaw.cloud\nNext.js 16 + Fumadocs\nOpenAPI 同步 · Draw 画板",
+      "fontSize": 17
+    },
+    {
+      "id": "updater",
+      "x": 2240,
+      "y": 60,
+      "w": 340,
+      "h": 140,
+      "color": "slate",
+      "text": "客户端更新\nR2 安装包 · 签名清单\nTauri updater 校验",
+      "fontSize": 17
+    },
+    {
+      "id": "edge",
+      "x": 930,
+      "y": 320,
+      "w": 740,
+      "h": 90,
+      "color": "blue",
+      "text": "EdgeOne CDN · 静态资源与同源 /api 回源\n代理层只剥离一次 /api 前缀，Go 路由不注册 /api",
+      "fontSize": 17
+    },
+    {
+      "id": "core",
+      "x": 880,
+      "y": 520,
+      "w": 840,
+      "h": 90,
+      "color": "slate",
+      "text": "Go API 路由与中间件\n同源校验 · 有界 JSON · {\"error\":{\"id\"}} 稳定错误码 · 不缓存鉴权",
+      "fontSize": 17
+    },
+    {
+      "id": "tools",
+      "x": 20,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "green",
+      "text": "沙箱工具回调\n回合级工具授权\n每回合 ≤60 次调用",
+      "fontSize": 15
+    },
+    {
+      "id": "agent",
+      "x": 278,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "green",
+      "text": "Agent 会话\n模型网关 · 工具循环\n≤8 轮 · 150 秒 · 配额",
+      "fontSize": 15
+    },
+    {
+      "id": "library",
+      "x": 536,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "green",
+      "text": "知识库与条目树\n笔记 · 文件 · Agent\n发布 · 接入 · 市场",
+      "fontSize": 15
+    },
+    {
+      "id": "mirror",
+      "x": 794,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "green",
+      "text": "Git 镜像与版本历史\n笔记同步到仓库\n逐篇历史 · 一键恢复",
+      "fontSize": 15
+    },
+    {
+      "id": "vault",
+      "x": 1052,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "slate",
+      "text": "密文对象\n私人笔记本\n服务端只存不解密",
+      "fontSize": 15
+    },
+    {
+      "id": "anki",
+      "x": 1310,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "slate",
+      "text": "记忆闪卡\n牌组 · 卡片\n复习记录",
+      "fontSize": 15
+    },
+    {
+      "id": "auth",
+      "x": 1568,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "rose",
+      "text": "认证网关\nKratos 验证码 · 密码\nCap 人机校验 · HttpOnly",
+      "fontSize": 15
+    },
+    {
+      "id": "knowledge",
+      "x": 1826,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "violet",
+      "text": "公开知识检索\nsearch_course_materials\n摘录清洗 · 带出处",
+      "fontSize": 15
+    },
+    {
+      "id": "campus",
+      "x": 2084,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "amber",
+      "text": "校园服务\n课表 · 考试 · GPA\n自习室 · 论坛",
+      "fontSize": 15
+    },
+    {
+      "id": "media",
+      "x": 2342,
+      "y": 660,
+      "w": 238,
+      "h": 110,
+      "color": "violet",
+      "text": "原图代理与看图\n图床白名单\nread_image",
+      "fontSize": 15
+    },
+    {
+      "id": "local",
+      "x": 20,
+      "y": 905,
+      "w": 310,
+      "h": 210,
+      "color": "blue",
+      "text": "本机沙箱（桌面端）\nDocker 容器\n与互联网隔离\n12 小时运行时授权\n模型经 API 代理\n回合由 API 开启与结束",
+      "fontSize": 15
+    },
+    {
+      "id": "model",
+      "x": 350,
+      "y": 935,
+      "w": 240,
+      "h": 130,
+      "color": "blue",
+      "text": "产品模型 NewAPI\n或用户自定义 API\n仅公网 HTTPS",
+      "fontSize": 15
+    },
+    {
+      "id": "gateway",
+      "x": 620,
+      "y": 935,
+      "w": 220,
+      "h": 130,
+      "color": "slate",
+      "text": "沙箱网关\nsession.v1 · HMAC\n不暴露 Pod 地址",
+      "fontSize": 15
+    },
+    {
+      "id": "pod",
+      "x": 870,
+      "y": 935,
+      "w": 210,
+      "h": 130,
+      "color": "slate",
+      "text": "每会话一个 Sandbox\nPi · /workspace/repo\n默认拒绝出入网",
+      "fontSize": 15
+    },
+    {
+      "id": "broker",
+      "x": 1100,
+      "y": 935,
+      "w": 190,
+      "h": 130,
+      "color": "slate",
+      "text": "Broker\n模型与 Git 凭据\n不进入沙箱",
+      "fontSize": 15
+    },
+    {
+      "id": "forgejo",
+      "x": 1350,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "slate",
+      "text": "Forgejo\n笔记镜像 · 密文对象\nraw / Markdown 仓库",
+      "fontSize": 14
+    },
+    {
+      "id": "pg",
+      "x": 1558,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "green",
+      "text": "PostgreSQL（产品）\n按身份归属",
+      "fontSize": 14
+    },
+    {
+      "id": "kratos",
+      "x": 1766,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "rose",
+      "text": "Kratos · Cap\nSMTP 邮件验证码",
+      "fontSize": 14
+    },
+    {
+      "id": "weknora",
+      "x": 1974,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "violet",
+      "text": "WeKnora\n向量 + 关键词混合检索\n只是派生索引，不是正文",
+      "fontSize": 14
+    },
+    {
+      "id": "campusapi",
+      "x": 2182,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "amber",
+      "text": "教务 · 微北洋\n用户自己的会话",
+      "fontSize": 14
+    },
+    {
+      "id": "img",
+      "x": 2390,
+      "y": 895,
+      "w": 190,
+      "h": 110,
+      "color": "violet",
+      "text": "校园图床\n仅 HTTPS 白名单",
+      "fontSize": 14
+    },
+    {
+      "id": "r2",
+      "x": 1350,
+      "y": 1025,
+      "w": 300,
+      "h": 95,
+      "color": "slate",
+      "text": "Cloudflare R2\nLFS 原件 · 附件归档\n客户端安装包",
+      "fontSize": 14
+    },
+    {
+      "id": "src",
+      "x": 20,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "amber",
+      "text": "校园公开来源\n学院官网 · Wiki · 论坛\n公开课程",
+      "fontSize": 15
+    },
+    {
+      "id": "crawler",
+      "x": 390,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "amber",
+      "text": "crawler（Bun）\nCN / SG 双区独立 PostgreSQL\n有界发现 · 规则脱敏",
+      "fontSize": 15
+    },
+    {
+      "id": "raw",
+      "x": 760,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "slate",
+      "text": "raw Forgejo 仓库\n规范化 JSON\nGit LFS 原件 → R2",
+      "fontSize": 15
+    },
+    {
+      "id": "ocr",
+      "x": 1130,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "violet",
+      "text": "维护者工作站 OCR\nPaddleOCR-VL v1.6\n隔离 LibreOffice 转换",
+      "fontSize": 15
+    },
+    {
+      "id": "pii",
+      "x": 1500,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "rose",
+      "text": "PII 复检\n命中即隔离\n原文不进索引",
+      "fontSize": 15
+    },
+    {
+      "id": "md",
+      "x": 1870,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "slate",
+      "text": "Markdown 仓库\n模板化派生正文\n按 cursor 增量提交",
+      "fontSize": 15
+    },
+    {
+      "id": "inject",
+      "x": 2240,
+      "y": 1240,
+      "w": 330,
+      "h": 120,
+      "color": "violet",
+      "text": "离线导入器\n来源与哈希绑定\n分片 · 旧版本替换",
+      "fontSize": 15
+    },
+    {
+      "id": "root",
+      "x": 20,
+      "y": 1485,
+      "w": 330,
+      "h": 120,
+      "color": "slate",
+      "text": "tjuclaw 集成仓库\n按 SHA 钉住子模块\nfrontend · backend · cli · crawler",
+      "fontSize": 15
+    },
+    {
+      "id": "hook",
+      "x": 390,
+      "y": 1485,
+      "w": 330,
+      "h": 120,
+      "color": "rose",
+      "text": "提交策略钩子\nEMOJI [vX.Y.Z] type(scope)\n首页 ↔ README / DESIGN 同步",
+      "fontSize": 15
+    },
+    {
+      "id": "ci",
+      "x": 760,
+      "y": 1485,
+      "w": 330,
+      "h": 120,
+      "color": "blue",
+      "text": "GitHub Actions\n自托管 runner\ncheck · 真实认证链路",
+      "fontSize": 15
+    },
+    {
+      "id": "edgedeploy",
+      "x": 1000,
+      "y": 1680,
+      "w": 350,
+      "h": 110,
+      "color": "blue",
+      "text": "EdgeOne 发布\nWeb · Docs · Draw\n静态产物",
+      "fontSize": 15
+    },
+    {
+      "id": "ansible",
+      "x": 1390,
+      "y": 1680,
+      "w": 350,
+      "h": 110,
+      "color": "green",
+      "text": "API 核心主机\nSHA-256 校验制品\nAnsible 发布 · 失败回滚",
+      "fontSize": 15
+    },
+    {
+      "id": "gitops",
+      "x": 1780,
+      "y": 1680,
+      "w": 350,
+      "h": 110,
+      "color": "green",
+      "text": "集群工作负载\nFlux GitOps · Harbor 镜像\ncrawler · WeKnora",
+      "fontSize": 15
+    },
+    {
+      "id": "gitlab",
+      "x": 2170,
+      "y": 1680,
+      "w": 350,
+      "h": 110,
+      "color": "slate",
+      "text": "GitLab 比赛仓库\n单向镜像 · Release",
+      "fontSize": 15
+    }
+  ],
+  "edges": [
+    {
+      "from": "web",
+      "to": "edge"
+    },
+    {
+      "from": "desktop",
+      "to": "edge"
+    },
+    {
+      "from": "android",
+      "to": "edge"
+    },
+    {
+      "from": "edge",
+      "to": "core",
+      "label": "剥离一次 /api"
+    },
+    {
+      "from": "core",
+      "to": "tools",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "agent",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "library",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "mirror",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "vault",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "anki",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "auth",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "knowledge",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "campus",
+      "muted": true
+    },
+    {
+      "from": "core",
+      "to": "media",
+      "muted": true
+    },
+    {
+      "from": "tools",
+      "to": "local"
+    },
+    {
+      "from": "local",
+      "to": "agent"
+    },
+    {
+      "from": "agent",
+      "to": "model"
+    },
+    {
+      "from": "agent",
+      "to": "gateway",
+      "label": "切换后",
+      "dashed": true
+    },
+    {
+      "from": "gateway",
+      "to": "pod",
+      "dashed": true
+    },
+    {
+      "from": "pod",
+      "to": "broker",
+      "dashed": true
+    },
+    {
+      "from": "broker",
+      "to": "forgejo",
+      "label": "接入中",
+      "dashed": true
+    },
+    {
+      "from": "mirror",
+      "to": "forgejo"
+    },
+    {
+      "from": "vault",
+      "to": "forgejo",
+      "muted": true
+    },
+    {
+      "from": "library",
+      "to": "pg"
+    },
+    {
+      "from": "anki",
+      "to": "pg",
+      "muted": true
+    },
+    {
+      "from": "auth",
+      "to": "kratos"
+    },
+    {
+      "from": "knowledge",
+      "to": "weknora"
+    },
+    {
+      "from": "campus",
+      "to": "campusapi"
+    },
+    {
+      "from": "media",
+      "to": "img"
+    },
+    {
+      "from": "src",
+      "to": "crawler"
+    },
+    {
+      "from": "crawler",
+      "to": "raw"
+    },
+    {
+      "from": "raw",
+      "to": "ocr"
+    },
+    {
+      "from": "ocr",
+      "to": "pii"
+    },
+    {
+      "from": "pii",
+      "to": "md"
+    },
+    {
+      "from": "md",
+      "to": "inject"
+    },
+    {
+      "from": "raw",
+      "to": "r2",
+      "label": "LFS",
+      "muted": true
+    },
+    {
+      "from": "inject",
+      "to": "weknora",
+      "label": "注入公开语料"
+    },
+    {
+      "from": "root",
+      "to": "hook",
+      "label": "提交"
+    },
+    {
+      "from": "hook",
+      "to": "ci",
+      "label": "push"
+    },
+    {
+      "from": "ci",
+      "to": "edgedeploy"
+    },
+    {
+      "from": "ci",
+      "to": "ansible"
+    },
+    {
+      "from": "ci",
+      "to": "gitops"
+    },
+    {
+      "from": "ci",
+      "to": "gitlab"
+    }
+  ]
+}
