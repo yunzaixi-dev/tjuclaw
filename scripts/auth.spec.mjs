@@ -157,7 +157,7 @@ test('real file upload previews and downloads persisted bytes only for its owner
   const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLytQAAAABJRU5ErkJggg==', 'base64');
   const [uploaded] = await Promise.all([
     page.waitForResponse(response => response.url().endsWith(`/api/libraries/${libraryId}/files`) && response.request().method() === 'POST'),
-    page.getByLabel('上传课程资料').setInputFiles({ name, mimeType: 'image/png', buffer: bytes }),
+    page.locator('input[type="file"][aria-label="上传课程资料"]').setInputFiles({ name, mimeType: 'image/png', buffer: bytes }),
   ]);
   expect(uploaded.status()).toBe(201);
   const { entry } = await uploaded.json();
@@ -223,7 +223,7 @@ test('real file upload previews and downloads persisted bytes only for its owner
   expect(await (await page.request.get(path)).body()).toEqual(bytes);
 });
 
-test('real Agent request preserves its identity across an unavailable model and reload', async ({ page, request }) => {
+test('real Agent refusal for an unavailable model keeps the draft and stores nothing', async ({ page, request }) => {
   test.setTimeout(120000);
   const email = `chat-retry-${Date.now()}@tju.edu.cn`;
   await begin(page, email);
@@ -246,34 +246,33 @@ test('real Agent request preserves its identity across an unavailable model and 
     page.waitForResponse(res => res.url().endsWith('/messages') && res.request().method() === 'POST'),
     page.getByRole('button', { name: '发送', exact: true }).click(),
   ]);
+  // model_unconfigured is refused before the turn is stored, so the outcome
+  // is known: explain it, give the draft back and forget the request id.
   expect(failed.status()).toBe(503);
-  await expect(page.getByRole('alert')).toContainText('草稿已保留');
+  await expect(page.getByRole('alert')).toContainText('还没有可用的模型');
+  await expect(composer).toHaveValue('请解释主动回忆');
   expect(sent).toHaveLength(1);
-  const requestId = sent[0].client_request_id;
-  expect(requestId).toMatch(/^[0-9a-f]{32}$/);
+  expect(sent[0].client_request_id).toMatch(/^[0-9a-f]{32}$/);
   const sessionID = failed.url().match(/\/sessions\/([0-9a-f]{32})\/messages$/)?.[1];
   expect(sessionID).toBeTruthy();
   const pendingKey = `tjuclaw.chat.pending.v1.${(await (await page.request.get('/api/auth/session')).json()).id}.${sessionID}`;
-  expect(await page.evaluate(key => JSON.parse(sessionStorage.getItem(key)), pendingKey))
-    .toMatchObject({ sessionId: sessionID, id: requestId, digest: expect.stringMatching(/^[0-9a-f]{64}$/) });
+  expect(await page.evaluate(key => sessionStorage.getItem(key), pendingKey)).toBeNull();
   expect((await (await page.request.get(`/api/sessions/${sessionID}`)).json()).session.messages ?? []).toEqual([]);
 
+  // After a reload the same identity can send again; a refused turn is never stored.
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await page.getByRole('button', { name: '新手向导', exact: true }).click();
   await composer.fill('换一个问题');
-  await page.getByRole('button', { name: '发送', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('不能用新内容覆盖');
-  expect(sent).toHaveLength(1);
-  await composer.fill('请解释主动回忆');
-  const [retried] = await Promise.all([
+  const [again] = await Promise.all([
     page.waitForResponse(res => res.url().endsWith(`/sessions/${sessionID}/messages`) && res.request().method() === 'POST'),
     page.getByRole('button', { name: '发送', exact: true }).click(),
   ]);
-  expect(retried.status()).toBe(503);
+  expect(again.status()).toBe(503);
   expect(sent).toHaveLength(2);
-  expect(sent[1]).toEqual(sent[0]);
+  expect(sent[1].client_request_id).not.toBe(sent[0].client_request_id);
+  expect((await (await page.request.get(`/api/sessions/${sessionID}`)).json()).session.messages ?? []).toEqual([]);
 });
 
 test('browser-to-API Agent reply persists across reload and deduplicates retries', async ({ page, request }) => {
