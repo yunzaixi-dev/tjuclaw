@@ -1087,6 +1087,36 @@ paths:
         '502': { $ref: '#/components/responses/Error' }
         '503': { $ref: '#/components/responses/Error' }
 
+  /agent/sandbox-model/chat/completions:
+    post:
+      tags: [Sessions]
+      summary: 沙箱回合使用用户自己的模型
+      description: 用户配置了自定义 OpenAI 兼容模型时，云端沙箱的 Broker 用本轮的工具授权调用此接口，API 通过防 SSRF 的客户端转发到用户上游并流式返回。用户的 API Key 不离开 API。请求体上限 4 MiB、响应上限 8 MiB；不计入产品额度。未配置自定义模型返回 409 custom_model_unavailable。
+      operationId: sandboxCustomModel
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/ToolGrant' }
+        - { $ref: '#/components/parameters/ToolOwner' }
+        - { $ref: '#/components/parameters/ToolSession' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JsonObject' }
+      responses:
+        '200':
+          description: 用户上游的响应（JSON 或 text/event-stream）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JsonObject' }
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+
   /agent/sandbox-tools:
     get:
       tags: [Sessions]
