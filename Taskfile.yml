@@ -161,6 +161,13 @@ tasks:
   docs:check-sync:
     desc: Verify README.md and DESIGN.md match the docs homepage
     cmds: [node scripts/generate-design-doc.mjs --check]
+  screenshots:
+    desc: Capture 16:9 desktop and mobile demo screenshots of the Web client against a mocked API, then convert to WebP
+    cmds:
+      - task: web:build
+      - pnpm exec playwright test --config scripts/screenshots.playwright.config.mjs {{.CLI_ARGS}}
+      - task: docs:webp
+      - mkdir -p docs/content/docs/images/screenshots && cp screenshots/*.webp docs/content/docs/images/screenshots/
   docs:webp:
     desc: Automatically convert images in docs and screenshots to WebP format and update markdown references
     cmds: [node scripts/convert-docs-webp.mjs]

@@ -1,0 +1,78 @@
+---
+title: 界面截图
+description: Web 客户端的知识工作区、Agent 会话与思维链、本机与云端沙箱运行状态的桌面端（16:9）与移动端截图。
+---
+
+# 界面截图
+
+以下截图来自 Web 客户端的生产构建，由 `task screenshots` 通过 Playwright 自动生成：桌面端为 1920×1080（16:9），移动端为 390×844 @3x。为保证每次截图一致，接口返回的是固定的演示数据（知识库、会话、Git 历史与沙箱状态均为模拟），截图不代表线上部署、真实检索或 Agent 实际执行的结果。
+
+## 知识工作区
+
+按课程组织的文件夹与 Markdown 笔记，编辑时即时预览，状态栏显示保存与 Git 同步状态。
+
+![知识工作区 · 即时预览](./images/screenshots/desktop-light-01-workspace-edit.webp)
+
+![知识工作区 · 阅读模式](./images/screenshots/desktop-light-02-workspace-read.webp)
+
+笔记之间的 `[[双向链接]]` 汇成知识图谱；每篇笔记都镜像到 Git 仓库，可以查看并恢复任意历史版本。
+
+![知识图谱](./images/screenshots/desktop-light-03-knowledge-graph.webp)
+
+![笔记版本历史](./images/screenshots/desktop-light-04-note-history.webp)
+
+## Agent 会话与思维链
+
+Agent 回复上方的“已思考 · 调用了 N 次工具”可以展开：每一步思考、读笔记、检索课程资料和沙箱命令都单独成行，点开可查看参数与结果。
+
+![Agent 思维链展开](./images/screenshots/desktop-light-05-agent-thinking.webp)
+
+## 沙箱运行状态
+
+桌面客户端可以在“设置 → 模型”里选择 Agent 的运行位置：默认在 TJUClaw 云端的隔离沙箱里运行；检测到 Docker 后，也可以切到本机沙箱。模型、笔记工具和额度仍由服务端提供。
+
+![云端沙箱](./images/screenshots/desktop-light-06-sandbox-cloud.webp)
+
+![本机沙箱正在运行](./images/screenshots/desktop-light-07-sandbox-local-running.webp)
+
+切到本机后，对话照常发送：回合由服务端开启和结束，命令在本机容器里执行，完成后的思考与工具步骤同样写回会话。
+
+![本机沙箱回合进行中](./images/screenshots/desktop-light-08-local-turn-running.webp)
+
+![本机沙箱回合完成](./images/screenshots/desktop-light-09-local-turn-done.webp)
+
+![本机沙箱中执行的命令与输出](./images/screenshots/desktop-light-10-local-turn-command.webp)
+
+## 深色模式
+
+![深色 · 知识工作区](./images/screenshots/desktop-dark-01-workspace-edit.webp)
+
+![深色 · 阅读模式](./images/screenshots/desktop-dark-02-workspace-read.webp)
+
+![深色 · Agent 思维链](./images/screenshots/desktop-dark-05-agent-thinking.webp)
+
+![深色 · 云端沙箱](./images/screenshots/desktop-dark-06-sandbox-cloud.webp)
+
+![深色 · 本机沙箱正在运行](./images/screenshots/desktop-dark-07-sandbox-local-running.webp)
+
+![深色 · 本机沙箱回合进行中](./images/screenshots/desktop-dark-08-local-turn-running.webp)
+
+![深色 · 本机沙箱回合完成](./images/screenshots/desktop-dark-09-local-turn-done.webp)
+
+![深色 · 本机沙箱命令](./images/screenshots/desktop-dark-10-local-turn-command.webp)
+
+## 移动端
+
+手机上侧栏收进抽屉，Agent 思维链同样可以逐步展开。本机沙箱只在桌面客户端提供，手机端的 Agent 在云端沙箱运行。
+
+![移动端 · 侧栏](./images/screenshots/mobile-01-drawer.webp)
+
+![移动端 · 笔记](./images/screenshots/mobile-02-note.webp)
+
+![移动端 · Agent 回复](./images/screenshots/mobile-03-agent-reply.webp)
+
+![移动端 · 思维链展开](./images/screenshots/mobile-04-agent-thinking.webp)
+
+![移动端深色 · 思维链与沙箱命令](./images/screenshots/mobile-05-dark-agent-thinking.webp)
+
+![移动端深色 · 模型与额度设置](./images/screenshots/mobile-06-dark-model-quota.webp)
