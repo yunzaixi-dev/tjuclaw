@@ -348,15 +348,16 @@ async function openNote(page, folderTitle, title) {
 }
 
 async function openTutor(page) {
+  // Conversations are listed by their first question.
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByText('电路课助教').first().click();
+  await page.locator('.conversation-row').filter({ hasText: '帮我梳理一下基尔霍夫定律' }).click();
   await expect(page.getByRole('log', { name: '会话记录' })).toContainText('基尔霍夫');
 }
 
 async function expandSteps(reply, stepPattern) {
-  await reply.getByRole('button', { name: /已思考/ }).click();
+  // Thinking and each tool call are rows of their own; open the thinking.
   const steps = reply.getByRole('list', { name: '思考与工具调用' });
-  await steps.getByRole('button', { name: /思考/ }).first().click();
+  await steps.getByRole('button', { name: /思考过程/ }).first().click();
   if (stepPattern) await steps.getByRole('button', { name: stepPattern }).click();
   return steps;
 }
@@ -422,7 +423,7 @@ for (const scheme of ['light', 'dark']) {
       state.localHold = new Promise(resolve => { release = resolve; });
       await page.getByRole('textbox', { name: '发送给 Agent 的消息' }).fill(localTurn.content);
       await page.getByRole('button', { name: '发送', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: '正在思考' })).toBeVisible();
+      await expect(page.getByRole('status', { name: /正在处理/ })).toBeVisible();
       await shot(page, `desktop-${scheme}-08-local-turn-running`);
       release();
       const reply = page.locator('.chat-message.assistant').last();

@@ -189,58 +189,18 @@ const platforms = [
 ];
 
 
-/** A few Game of Life cells (a glider and some still lifes) behind the thread. */
-const LIFE_CELLS: [number, number][] = [
-  [4, 8], [6, 8], [5, 10], [6, 10], [4, 12], [92, 14], [94, 14], [92, 16], [94, 16], [88, 70], [90, 72], [86, 74], [88, 74], [90, 74],
-  [8, 62], [10, 62], [8, 64], [3, 84], [5, 84], [7, 84], [95, 44], [95, 46], [95, 48], [14, 30], [80, 88], [82, 88], [82, 90],
-];
-
-/** A still of the real workspace: Notion-style sidebar, an Agent thread with
- *  its thinking and tool calls, and the composer. */
-function HeroMock() {
+/** The real notes page (a screenshot of the Web client), light or dark to match the reader. */
+function HeroShot() {
   return (
-    <div className="nx-mock" aria-hidden="true">
-      <div className="nx-mock-bar">
+    <div className="nx-mock nx-shot">
+      <div className="nx-mock-bar" aria-hidden="true">
         <span /><span /><span />
         <em>app.tjuclaw.cloud</em>
       </div>
-      <div className="nx-mock-body">
-        <aside className="nx-mock-side">
-          <b><LibraryBig size={15} />我的知识库</b>
-          <small>会话</small>
-          <i className="is-active"><MessageCircle size={14} />整理数据结构复习提纲</i>
-          <i><MessageCircle size={14} />明天下午什么时候有空</i>
-          <i><MessageCircle size={14} />高数第三章的例题</i>
-          <i><MessageCircle size={14} />四六级报名时间</i>
-          <small>应用</small>
-          <i><Wrench size={14} />小工具</i>
-          <i><Network size={14} />知识图谱</i>
-        </aside>
-        <div className="nx-mock-main">
-          <div className="nx-mock-life">{LIFE_CELLS.map(([x, y], index) => <i key={index} style={{ left: `${x}%`, top: `${y}%` } as CSSProperties} />)}</div>
-          <p className="nx-mock-ask">帮我整理本周《数据结构》的课程资料，生成一份复习提纲。</p>
-          <div className="nx-mock-reply">
-            <div>
-              <p className="nx-mock-name">TJUClaw <em>14:02</em></p>
-              <ol className="nx-mock-steps">
-                <li className="is-thought"><Brain size={14} />思考过程<span>先查课表确定本周进度，再检索讲义…</span></li>
-                <li><CalendarDays size={14} />读取课表<Check className="nx-mock-done" size={13} /></li>
-                <li><FileSearch size={14} />检索课程资料「数据结构 树」<span>6 条结果</span><Check className="nx-mock-done" size={13} /></li>
-                <li><FilePlus2 size={14} />新建《数据结构 · 第 4 周复习提纲》<Check className="nx-mock-done" size={13} /></li>
-              </ol>
-              <div className="nx-mock-doc">
-                <span style={{ '--w': '92%' } as CSSProperties} />
-                <span style={{ '--w': '76%' } as CSSProperties} />
-                <span style={{ '--w': '58%' } as CSSProperties} />
-              </div>
-            </div>
-          </div>
-          <div className="nx-mock-composer">
-            <em>提问、搜索或创建任何内容…</em>
-            <div><u><Sparkles size={11} />蓝色大肥鱼</u><u><Brain size={11} />思考</u><b><ArrowUp size={12} /></b></div>
-          </div>
-        </div>
-      </div>
+      <picture>
+        <source srcSet="/images/home-notes-dark.webp" media="(prefers-color-scheme: dark)" />
+        <img src="/images/home-notes-light.webp" width={1920} height={1080} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
+      </picture>
     </div>
   );
 }
@@ -269,8 +229,8 @@ export default function HomePage() {
           <Link className="nx-btn is-secondary" href="/docs">阅读文档</Link>
         </div>
         <div className="nx-hero-media">
-          <HeroMock />
-          <p className="nx-caption">界面示意</p>
+          <HeroShot />
+          <p className="nx-caption">真实界面 · 笔记页面</p>
         </div>
       </section>
 
