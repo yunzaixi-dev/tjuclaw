@@ -207,7 +207,8 @@ function HeroMock() {
           <small>私人</small>
           <i><Files size={14} />数据结构 · 第 4 周</i>
           <i><Files size={14} />选课时间整理</i>
-          <i><Layers size={14} />记忆闪卡</i>
+          <small>记忆闪卡</small>
+          <i><Layers size={14} />高数</i>
           <small>应用</small>
           <i><Wrench size={14} />小工具</i>
           <i><Network size={14} />知识图谱</i>
