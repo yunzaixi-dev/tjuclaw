@@ -1009,3 +1009,9 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
     padding-top: 2.5rem;
   }
 }
+.nx-mock-side b svg { flex: none; }
+.nx-mock-main { position: relative; }
+.nx-mock-main > :not(.nx-mock-life) { position: relative; }
+.nx-mock-life { position: absolute; inset: 0; pointer-events: none; -webkit-mask-image: radial-gradient(ellipse 50% 55% at 50% 45%, transparent 40%, #000 100%); mask-image: radial-gradient(ellipse 50% 55% at 50% 45%, transparent 40%, #000 100%); }
+.nx-mock-life i { position: absolute; width: 9px; height: 9px; border-radius: 2px; background: color-mix(in oklch, var(--nx-ink) 9%, transparent); }
+.nx-mock-steps li .nx-mock-done { margin-left: auto; color: oklch(58% .13 150); }
