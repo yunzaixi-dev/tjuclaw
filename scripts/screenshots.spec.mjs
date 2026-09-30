@@ -290,7 +290,7 @@ async function openApp(page, state, { tauri = false, runtime = 'cloud' } = {}) {
     localStorage.setItem(`tjuclaw.workspace.vault.v1.${identityId}.${libraryId}`, JSON.stringify({ version: 1, salt: 'ZGVtby1zYWx0', verifier: 'demo-verifier', created_at: '2026-09-01T00:00:00.000Z' }));
     sessionStorage.setItem(`tjuclaw.workspace.unlock.v1.${identityId}.${libraryId}`, 'unlocked');
     localStorage.setItem('tjuclaw.agent.runtime.v1', runtime);
-    localStorage.setItem('tjuclaw.contest-banner.v1', '1');
+    localStorage.setItem('tjuclaw.notice-banner.v2', '1');
     if (!tauri) return;
     // Minimal Tauri bridge: only the local-sandbox commands answer; everything
     // else rejects so the app takes its browser fallbacks.

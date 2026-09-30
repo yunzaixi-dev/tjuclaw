@@ -760,7 +760,7 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
 
 /* ---------- Contest banner ---------- */
 
-#tjuclaw-contest-2026 {
+#tjuclaw-iterating-2026 {
   background-image: repeating-linear-gradient(
     35deg,
     #f4ddff 0px,
@@ -774,11 +774,11 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
 
 /* 横幅高度保持 2.25rem；窄屏只调整可用宽度与折行方式，文案稳定排成两行。 */
 @media (max-width: 767px) {
-  #tjuclaw-contest-2026 {
+  #tjuclaw-iterating-2026 {
     padding-inline: 2.5rem !important;
   }
 
-  #tjuclaw-contest-2026 a {
+  #tjuclaw-iterating-2026 a {
     display: block;
     max-width: 100%;
     font-size: 12px;

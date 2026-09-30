@@ -502,7 +502,7 @@ test('real Cap under production CSP, enrollment, wrong code, resend, reload, log
   expect(await session.json()).toMatchObject({ email, email_verified: true });
   expect(await page.evaluate(() => Object.keys(localStorage).every(key =>
     key === 'tjuclaw.appearance.v1'
-    || key === 'tjuclaw.contest-banner.v1'
+    || key === 'tjuclaw.notice-banner.v2'
     || key.startsWith('tjuclaw.workspace.vault.v1.')
   ))).toBe(true);
   await page.goto('/auth/complete');

@@ -3,9 +3,9 @@
 import { useSyncExternalStore } from 'react';
 import { Banner } from 'fumadocs-ui/components/banner';
 
-const CONTEST_BANNER_ID = 'tjuclaw-contest-2026';
+const CONTEST_BANNER_ID = 'tjuclaw-iterating-2026';
 // Fumadocs stores dismiss as nd-banner-<base32(id)>
-const CONTEST_BANNER_STORAGE_KEY = 'nd-banner-orvhky3mmf3s2y3pnz2gk43ufuzdamrw';
+const CONTEST_BANNER_STORAGE_KEY = 'nd-banner-orvhky3mmf3s22lumvzgc5djnzts2mrqgi3a';
 
 export function SiteBanner() {
   return (
@@ -16,12 +16,10 @@ export function SiteBanner() {
     >
       <div className="flex w-full items-center justify-center">
         <a
-          href="https://agent2026.tju.edu.cn/ai-competition/introduction/"
-          target="_blank"
-          rel="noreferrer"
+          href="/docs"
           className="font-mono text-[15px] font-black tracking-wide text-black underline decoration-2 underline-offset-2"
         >
-          <span className="tjuclaw-banner-copy">🎉 此作品正在参加天津大学智能体大赛 2026，希望大家能投我们一票，感谢 🥳</span>
+          <span className="tjuclaw-banner-copy">🚧 TJUClaw 仍处于快速迭代期，未来将引入大量功能与优化，敬请期待 ✨</span>
         </a>
       </div>
     </Banner>
