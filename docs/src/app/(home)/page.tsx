@@ -222,7 +222,7 @@ export default function HomePage() {
           <span className="nx-pill-dot" />天津大学 AI 智能体大赛 2026 参赛作品<ArrowRight size={14} />
         </a>
         <h1>让整个校园，<br />成为 Agent 可编程的世界。</h1>
-        <p className="nx-lead">面向天津大学校园场景优化的通用智能体平台。课程资料、校园信息与日常任务，在同一个工作空间里交给智能体。</p>
+        <p className="nx-lead">面向高校学习与生活场景的通用智能体平台。课程资料、校园信息与日常任务，在同一个工作空间里交给智能体。</p>
         <div className="nx-actions">
           <a className="nx-btn is-primary" href="https://app.tjuclaw.cloud" target="_blank" rel="noreferrer">进入应用</a>
           <Link className="nx-btn is-secondary" href="/docs">阅读文档</Link>
