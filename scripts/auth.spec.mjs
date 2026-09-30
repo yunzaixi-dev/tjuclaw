@@ -234,6 +234,8 @@ test('real Agent refusal for an unavailable model keeps the draft and stores not
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
   await expect(composer).toBeEnabled();
+  // Opening the view starts a conversation; wait for the previous thread to fade out.
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toHaveCount(1);
   const sent = [];
   page.on('request', req => {
     if (req.url().includes('/api/sessions/') && req.url().endsWith('/messages') && req.method() === 'POST') {
@@ -285,6 +287,8 @@ test('browser-to-API Agent reply persists across reload and deduplicates retries
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
   await expect(composer).toBeEnabled();
+  // Opening the view starts a conversation; wait for the previous thread to fade out.
+  await expect(page.getByRole('button', { name: '发送', exact: true })).toHaveCount(1);
   const sent = [];
   page.on('request', req => {
     if (req.url().includes('/api/sessions/') && req.url().endsWith('/messages') && req.method() === 'POST') {
@@ -768,6 +772,7 @@ test('real flashcard API persists reviews, reconciles requests and isolates acco
   }).toBe(true);
   await page.reload();
   await page.getByRole('button', { name: '记忆闪卡', exact: true }).click();
+  await page.getByRole('button', { name: '浏览卡片' }).click();
   await expect(page.locator('.anki-browser-front strong')).toContainText('真实题目');
   await page.locator('.anki-sidebar-deck').click();
   await page.locator('.anki-review-card').click();
@@ -793,6 +798,7 @@ test('real flashcard API persists reviews, reconciles requests and isolates acco
   expect((await found.json()).review.id).toBe(firstResult.review.id);
   await page.reload();
   await page.getByRole('button', { name: '记忆闪卡', exact: true }).click();
+  await page.getByRole('button', { name: '浏览卡片' }).click();
   await expect(page.locator('.anki-browser-front strong')).toContainText('真实题目');
   const cardsResponse = await page.request.get(`/api/cards?deck_id=${decks[0].id}`);
   expect(cardsResponse.status()).toBe(200);
@@ -844,6 +850,7 @@ test('real Anki TSV import and export round-trip through the browser and Postgre
   const { deck, cards } = await imported.json();
   expect(deck.name).toBe('考前复习');
   expect(cards).toMatchObject([{ deck_id: deck.id, front: '周期复习', back: '将回忆分散到多天', tags: ['心理学', '重点'] }]);
+  await page.getByRole('button', { name: '浏览卡片' }).click();
   await expect(page.locator('.anki-browser-front strong')).toHaveText('周期复习');
   const [exported, download] = await Promise.all([
     page.waitForResponse(response => response.url().endsWith(`/api/decks/${deck.id}/export`)),
