@@ -82,7 +82,7 @@ async function finish(page, code, email) {
   await expect(libraryButton).toBeVisible();
   await expect(libraryButton).toContainText('个文件');
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '发送给 Agent 的消息' })).toBeVisible();
   await page.getByRole('button', { name: '主页', exact: true }).click();
   await expect(libraryButton).toBeVisible();
 }
@@ -232,7 +232,6 @@ test('real Agent refusal for an unavailable model keeps the draft and stores not
   expect(model.status()).toBe(200);
   expect((await model.json()).model.source).toBe('none');
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('button', { name: '新手向导', exact: true }).click();
   const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
   await expect(composer).toBeEnabled();
   const sent = [];
@@ -263,7 +262,6 @@ test('real Agent refusal for an unavailable model keeps the draft and stores not
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('button', { name: '新手向导', exact: true }).click();
   await composer.fill('换一个问题');
   const [again] = await Promise.all([
     page.waitForResponse(res => res.url().endsWith(`/sessions/${sessionID}/messages`) && res.request().method() === 'POST'),
@@ -285,7 +283,6 @@ test('browser-to-API Agent reply persists across reload and deduplicates retries
   expect(model.status()).toBe(200);
   expect((await model.json()).model).toMatchObject({ source: 'product', configured: false });
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('button', { name: '新手向导', exact: true }).click();
   const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
   await expect(composer).toBeEnabled();
   const sent = [];
@@ -316,7 +313,7 @@ test('browser-to-API Agent reply persists across reload and deduplicates retries
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('button', { name: '新手向导', exact: true }).click();
+  await page.locator('.conversation-row').filter({ hasText: '请解释主动回忆' }).click();
   await expect(page.locator('.chat-message.assistant')).toContainText('隔离测试回复：请解释主动回忆');
   await composer.fill('继续复习');
   const [second] = await Promise.all([
@@ -347,7 +344,7 @@ test('browser-to-API Agent reply persists across reload and deduplicates retries
   await page.reload();
   await unlockIfNeeded(page, email);
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('button', { name: '新手向导', exact: true }).click();
+  await page.locator('.conversation-row').filter({ hasText: '请解释主动回忆' }).click();
   await expect(page.locator('.chat-message.assistant')).toHaveCount(3);
   await expect(composer).toHaveValue('');
 
@@ -583,7 +580,7 @@ test('real library persistence and cross-identity isolation', async ({ page, req
   expect(libraries.map(item => item.id)).not.toContain(note.libraryId);
   await expect(page.getByRole('treeitem', { name: title })).toHaveCount(0);
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新手向导', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '发送给 Agent 的消息' })).toBeVisible();
 });
 
 test('real note save reconciles a committed PATCH whose browser response was lost', async ({ page, request }) => {
