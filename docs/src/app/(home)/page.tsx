@@ -199,7 +199,7 @@ function HeroShot() {
       </div>
       <picture>
         <source srcSet="/images/home-notes-dark.webp" media="(prefers-color-scheme: dark)" />
-        <img src="/images/home-notes-light.webp" width={1920} height={1080} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
+        <img src="/images/home-notes-light.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
       </picture>
     </div>
   );

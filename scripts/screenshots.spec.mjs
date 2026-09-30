@@ -13,7 +13,8 @@ const ORIGIN = 'https://app.tjuclaw.cloud';
 const PREVIEW = 'http://127.0.0.1:1425';
 fs.mkdirSync(outDir, { recursive: true });
 
-const DESKTOP = { viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 };
+// 1280×720 at 2×: 16:9, sharp, and the interface keeps a natural size when scaled down.
+const DESKTOP = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 };
 const MOBILE = {
   viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
