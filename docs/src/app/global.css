@@ -1018,3 +1018,24 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
 .nx-shot img { display: block; width: 100%; height: auto; }
 .nx-shot .nx-shot-dark, .dark .nx-shot .nx-shot-light { display: none; }
 .dark .nx-shot .nx-shot-dark { display: block; }
+
+/* The drawn campus line art returns behind the hero (light and dark
+   versions), full width and fading out before the screenshot. */
+.nx-hero { isolation: isolate; }
+.nx-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: -1;
+  width: 100vw;
+  height: min(100%, 760px);
+  transform: translateX(-50%);
+  background: url('/home-bg-light.webp') center top / cover no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent);
+  pointer-events: none;
+}
+.dark .nx-hero::before { background-image: url('/home-bg-dark-flat.webp'); }
+/* The line art carries the decoration; the floating icons would collide with it. */
+.nx-hero .nx-floaters { display: none; }
