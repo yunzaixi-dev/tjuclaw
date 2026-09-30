@@ -1015,5 +1015,6 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
 .nx-mock-life { position: absolute; inset: 0; pointer-events: none; -webkit-mask-image: radial-gradient(ellipse 50% 55% at 50% 45%, transparent 40%, #000 100%); mask-image: radial-gradient(ellipse 50% 55% at 50% 45%, transparent 40%, #000 100%); }
 .nx-mock-life i { position: absolute; width: 9px; height: 9px; border-radius: 2px; background: color-mix(in oklch, var(--nx-ink) 9%, transparent); }
 .nx-mock-steps li .nx-mock-done { margin-left: auto; color: oklch(58% .13 150); }
-.nx-shot picture, .nx-shot img { display: block; width: 100%; height: auto; }
-.dark .nx-shot img[src$="light.webp"] { content: url('/images/home-notes-dark.webp'); }
+.nx-shot img { display: block; width: 100%; height: auto; }
+.nx-shot .nx-shot-dark, .dark .nx-shot .nx-shot-light { display: none; }
+.dark .nx-shot .nx-shot-dark { display: block; }

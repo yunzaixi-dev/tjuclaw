@@ -189,7 +189,7 @@ const platforms = [
 ];
 
 
-/** The real notes page (a screenshot of the Web client), light or dark to match the reader. */
+/** The real notes page (a screenshot of the Web client), light or dark with the site theme. */
 function HeroShot() {
   return (
     <div className="nx-mock nx-shot">
@@ -197,10 +197,9 @@ function HeroShot() {
         <span /><span /><span />
         <em>app.tjuclaw.cloud</em>
       </div>
-      <picture>
-        <source srcSet="/images/home-notes-dark.webp" media="(prefers-color-scheme: dark)" />
-        <img src="/images/home-notes-light.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
-      </picture>
+      {/* Both themes ship; the site's own light/dark switch picks one. */}
+      <img className="nx-shot-light" src="/images/home-notes-light.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
+      <img className="nx-shot-dark" src="/images/home-notes-dark.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面（深色）：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
     </div>
   );
 }
