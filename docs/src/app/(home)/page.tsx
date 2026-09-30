@@ -18,8 +18,8 @@ import {
   Laptop,
   Layers,
   Lightbulb,
+  MessageCircle,
   Monitor,
-  MousePointer2,
   Network,
   Newspaper,
   PenLine,
@@ -201,9 +201,9 @@ function HeroMock() {
       <div className="nx-mock-body">
         <aside className="nx-mock-side">
           <b><span className="nx-mock-lib">我</span>我的知识库</b>
-          <small>Agent</small>
-          <i className="is-active"><MousePointer2 size={14} />复习助手</i>
-          <i><MousePointer2 size={14} />新手向导</i>
+          <small>会话</small>
+          <i className="is-active"><MessageCircle size={14} />整理数据结构复习提纲</i>
+          <i><MessageCircle size={14} />明天下午什么时候有空</i>
           <small>私人</small>
           <i><Files size={14} />数据结构 · 第 4 周</i>
           <i><Files size={14} />选课时间整理</i>
@@ -217,7 +217,7 @@ function HeroMock() {
           <p className="nx-mock-ask">帮我整理本周《数据结构》的课程资料，生成一份复习提纲。</p>
           <div className="nx-mock-reply">
             <div>
-              <p className="nx-mock-name">复习助手 <em>14:02</em></p>
+              <p className="nx-mock-name">TJUClaw <em>14:02</em></p>
               <ol className="nx-mock-steps">
                 <li className="is-thought"><Brain size={14} />思考过程<span>先查课表确定本周进度，再检索讲义…</span></li>
                 <li><CalendarDays size={14} />读取课表</li>
