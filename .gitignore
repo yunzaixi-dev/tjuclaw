@@ -105,3 +105,7 @@ local.properties
 .codegraph/
 __pycache__/
 *.py[cod]
+
+# Star snapshots contain real names and student IDs; never commit them.
+/tjustars/
+/tju-star-*.md
