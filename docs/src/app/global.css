@@ -406,6 +406,29 @@ html > body[data-scroll-locked] {
   text-decoration: none;
 }
 
+/* Mock parts that mirror the real workspace */
+.nx-mock-lib { display: inline-grid; width: 18px; height: 18px; place-items: center; border-radius: 4px; background: var(--nx-ink); color: var(--nx-bg, #fff); font-size: 0.6875rem; font-weight: 600; }
+.nx-mock-side small { margin-top: 0.75rem; }
+.nx-mock-reply { display: block; }
+.nx-mock-reply > div { display: flex; flex-direction: column; gap: 0.625rem; min-width: 0; }
+.nx-mock-name { margin: 0; color: var(--nx-ink); font-size: 0.875rem; font-weight: 600; }
+.nx-mock-name em { margin-left: 0.375rem; color: var(--nx-faint); font-size: 0.75rem; font-style: normal; font-weight: 400; }
+.nx-mock-steps { gap: 0.375rem; margin: 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.nx-mock-steps li { min-width: 0; color: var(--nx-ink); font-weight: 500; }
+.nx-mock-steps li svg { flex: none; color: var(--nx-muted); }
+.nx-mock-steps li span { min-width: 0; overflow: hidden; color: var(--nx-faint); font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.nx-mock-steps li.is-thought { color: var(--nx-muted); font-weight: 400; }
+.nx-mock-steps li.is-thought span { font-style: italic; }
+.nx-mock-reply .nx-mock-doc { padding: 0.25rem 0; border: 0; }
+.nx-mock-composer {
+  display: flex; flex-direction: column; gap: 0.625rem; margin-top: auto; padding: 0.75rem 0.75rem 0.625rem 1rem;
+  border: 1px solid var(--nx-line); border-radius: 14px; box-shadow: 0 6px 20px -12px rgba(15, 15, 15, 0.2);
+}
+.nx-mock-composer em { color: var(--nx-faint); font-size: 0.875rem; font-style: normal; }
+.nx-mock-composer div { display: flex; align-items: center; gap: 0.75rem; }
+.nx-mock-composer u { display: inline-flex; align-items: center; gap: 0.25rem; color: var(--nx-muted); font-size: 0.75rem; text-decoration: none; }
+.nx-mock-composer b { display: grid; width: 1.625rem; height: 1.625rem; margin-left: auto; place-items: center; border-radius: 50%; background: var(--nx-ink); color: var(--nx-bg, #fff); }
+
 /* 平台带：对应 Notion 的客户 Logo 墙 */
 .nx-strip {
   max-width: var(--nx-max);

@@ -4,17 +4,22 @@ import type { LucideIcon } from 'lucide-react';
 import {
   AppWindow,
   ArrowRight,
+  ArrowUp,
   ArrowUpRight,
   BookOpen,
   BookText,
+  Brain,
+  CalendarDays,
   Check,
+  FilePlus2,
+  FileSearch,
   Files,
   Globe,
-  GraduationCap,
   Laptop,
+  Layers,
   Lightbulb,
-  Loader,
   Monitor,
+  MousePointer2,
   Network,
   Newspaper,
   PenLine,
@@ -22,6 +27,7 @@ import {
   Sparkles,
   Tablet,
   Terminal,
+  Wrench,
 } from 'lucide-react';
 
 const chapters: { title: string; description: string; href: string; icon: LucideIcon; tone: string }[] = [
@@ -183,6 +189,8 @@ const platforms = [
 ];
 
 
+/** A still of the real workspace: Notion-style sidebar, an Agent thread with
+ *  its thinking and tool calls, and the composer. */
 function HeroMock() {
   return (
     <div className="nx-mock" aria-hidden="true">
@@ -192,30 +200,39 @@ function HeroMock() {
       </div>
       <div className="nx-mock-body">
         <aside className="nx-mock-side">
-          <b><img src="/tjuclaw-icon.webp" alt="" width="18" height="18" />TJUClaw</b>
-          <i className="is-active"><Sparkles size={14} />新任务</i>
-          <i><Files size={14} />工作空间</i>
-          <i><BookText size={14} />资料库</i>
-          <i><Newspaper size={14} />校园动态</i>
-          <small>最近</small>
-          <i><GraduationCap size={14} />数据结构复习</i>
-          <i><GraduationCap size={14} />选课时间整理</i>
+          <b><span className="nx-mock-lib">我</span>我的知识库</b>
+          <small>Agent</small>
+          <i className="is-active"><MousePointer2 size={14} />复习助手</i>
+          <i><MousePointer2 size={14} />新手向导</i>
+          <small>私人</small>
+          <i><Files size={14} />数据结构 · 第 4 周</i>
+          <i><Files size={14} />选课时间整理</i>
+          <i><Layers size={14} />记忆闪卡</i>
+          <small>应用</small>
+          <i><Wrench size={14} />小工具</i>
+          <i><Network size={14} />知识图谱</i>
         </aside>
         <div className="nx-mock-main">
           <p className="nx-mock-ask">帮我整理本周《数据结构》的课程资料，生成一份复习提纲。</p>
-          <ol className="nx-mock-steps">
-            <li className="is-done"><Check size={14} />检索课程资料库与课程通知</li>
-            <li className="is-done"><Check size={14} />汇总 6 份讲义与 2 次作业要求</li>
-            <li className="is-run"><Loader size={14} />正在生成复习提纲…</li>
-          </ol>
-          <div className="nx-mock-doc">
-            <strong>数据结构 · 第 4 周复习提纲</strong>
-            <span style={{ '--w': '92%' } as CSSProperties} />
-            <span style={{ '--w': '76%' } as CSSProperties} />
-            <span style={{ '--w': '84%' } as CSSProperties} />
-            <div className="nx-mock-src">
-              <em>来源</em><u>第 4 讲 · 树与二叉树.pdf</u><u>课程通知 · 9 月 26 日</u>
+          <div className="nx-mock-reply">
+            <div>
+              <p className="nx-mock-name">复习助手 <em>14:02</em></p>
+              <ol className="nx-mock-steps">
+                <li className="is-thought"><Brain size={14} />思考过程<span>先查课表确定本周进度，再检索讲义…</span></li>
+                <li><CalendarDays size={14} />读取课表</li>
+                <li><FileSearch size={14} />检索课程资料「数据结构 树」<span>6 条结果</span></li>
+                <li><FilePlus2 size={14} />新建《数据结构 · 第 4 周复习提纲》</li>
+              </ol>
+              <div className="nx-mock-doc">
+                <span style={{ '--w': '92%' } as CSSProperties} />
+                <span style={{ '--w': '76%' } as CSSProperties} />
+                <span style={{ '--w': '58%' } as CSSProperties} />
+              </div>
             </div>
+          </div>
+          <div className="nx-mock-composer">
+            <em>提问、搜索或创建任何内容…</em>
+            <div><u><Sparkles size={11} />蓝色大肥鱼</u><u><BookOpen size={11} />当前知识库</u><b><ArrowUp size={12} /></b></div>
           </div>
         </div>
       </div>
