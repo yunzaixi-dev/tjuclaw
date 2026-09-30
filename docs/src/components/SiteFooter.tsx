@@ -9,8 +9,8 @@ interface FooterProps {
 
 export function SiteFooter({
   icpNumber = process.env.NEXT_PUBLIC_ICP_NUMBER || '津ICP备2026013377号',
-  policeNumber = process.env.NEXT_PUBLIC_POLICE_BEIAN,
-  policeUrl = process.env.NEXT_PUBLIC_POLICE_URL,
+  policeNumber = process.env.NEXT_PUBLIC_POLICE_BEIAN || '津公网安备12011202001229号',
+  policeUrl = process.env.NEXT_PUBLIC_POLICE_URL || 'https://beian.mps.gov.cn/#/query/webSearch?code=12011202001229',
 }: FooterProps) {
   const currentYear = 2026;
 
