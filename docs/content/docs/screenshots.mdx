@@ -5,7 +5,7 @@ description: Web 客户端的知识工作区、Agent 会话与思维链、本机
 
 # 界面截图
 
-以下截图来自 Web 客户端的生产构建，由 `task screenshots` 通过 Playwright 自动生成：桌面端为 1920×1080（16:9），移动端为 390×844 @3x。为保证每次截图一致，接口返回的是固定的演示数据（知识库、会话、Git 历史与沙箱状态均为模拟），截图不代表线上部署、真实检索或 Agent 实际执行的结果。
+以下截图来自 Web 客户端的生产构建，由 `task screenshots` 通过 Playwright 自动生成：桌面端为 1280×720 @2x（16:9），移动端为 390×844 @3x。为保证每次截图一致，接口返回的是固定的演示数据（知识库、会话、Git 历史与沙箱状态均为模拟），截图不代表线上部署、真实检索或 Agent 实际执行的结果。
 
 ## 知识工作区
 
@@ -23,7 +23,14 @@ description: Web 客户端的知识工作区、Agent 会话与思维链、本机
 
 ## Agent 会话与思维链
 
-Agent 回复上方的“已思考 · 调用了 N 次工具”可以展开：每一步思考、读笔记、检索课程资料和沙箱命令都单独成行，点开可查看参数与结果。
+一段完整的会话：新会话以终端风格的标题开场，背景是缓慢演化的康威生命游戏；发送后，每一次工具调用在进行时就单独成行出现，转圈的图标在完成时画成对勾，最后给出回复。
+
+<video controls muted loop playsInline preload="metadata" poster="/videos/conversation-live-poster.webp" style={{ width: '100%', borderRadius: 8 }}>
+  <source src="/videos/conversation-live.webm" type="video/webm" />
+  <source src="/videos/conversation-live.mp4" type="video/mp4" />
+</video>
+
+回复中的思考过程与每一次工具调用都单独成行，点开可查看参数与结果。
 
 ![Agent 思维链展开](./images/screenshots/desktop-light-05-agent-thinking.webp)
 

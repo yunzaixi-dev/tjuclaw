@@ -255,7 +255,8 @@ async function mockApi(route, state) {
   if ((m = p.match(/^\/entries\/([0-9a-f]{32})\/sessions$/))) {
     const list = Object.values(state.sessions).filter(s => s.entry_id === m[1]);
     if (method === 'POST') {
-      const created = list[0] ?? { id: hex(0xd2), entry_id: m[1], messages: [], created_at: at(700), updated_at: at(700) };
+      // Like the API: a new conversation every time.
+      const created = { id: hex(0xd2 + Object.keys(state.sessions).length), entry_id: m[1], messages: [], created_at: at(700), updated_at: at(700) };
       state.sessions[created.id] = created;
       return json(route, 201, { session: created });
     }
@@ -481,5 +482,69 @@ test.describe('mobile', () => {
     await expect(page.getByRole('dialog')).toContainText('TJUClaw');
     await page.locator('.settings-sections [aria-current="page"]').evaluate(el => el.scrollIntoView({ inline: 'center', block: 'nearest' }));
     await shot(page, 'mobile-06-dark-model-quota');
+  });
+});
+
+// A short video of a live conversation: the Game of Life background, then a
+// turn whose tool calls appear one by one and settle before the reply.
+test.describe('video', () => {
+  test.use({ reducedMotion: 'no-preference', colorScheme: 'light' });
+
+  test('conversation with live tool calls', async ({ browser }) => {
+    test.setTimeout(120000);
+    const videoDir = path.join(root, 'test-results', 'screenshots', 'video');
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, locale: 'zh-CN', timezoneId: 'Asia/Shanghai',
+      reducedMotion: 'no-preference', recordVideo: { dir: videoDir, size: { width: 1280, height: 720 } },
+    });
+    const page = await context.newPage();
+    const state = initialState();
+    await openApp(page, state);
+
+    const question = '帮我查一下这周的课表和电路考试安排，整理成一份复习计划存到笔记里。';
+    const timeline = [
+      { name: 'campus_semester', at: 0.6, done: 1.8 },
+      { name: 'campus_timetable', at: 1.9, done: 3.4 },
+      { name: 'campus_exams', at: 3.5, done: 5.0 },
+      { name: 'search_course_materials', input: '{"query":"电路 复习"}', at: 5.1, done: 6.9 },
+      { name: 'create_entry', input: '{"kind":"note","title":"电路期末复习计划"}', at: 7.0, done: 8.4 },
+    ];
+    let sentAt = 0;
+    await page.route('**/api/sessions/*/live', route => {
+      const elapsed = sentAt ? (Date.now() - sentAt) / 1000 : 0;
+      const steps = timeline.filter(step => elapsed >= step.at).map(step => ({ name: step.name, input: step.input, status: elapsed >= step.done ? 'done' : 'running' }));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ steps }) });
+    });
+    await page.route('**/api/sessions/*/messages', async route => {
+      const id = new URL(route.request().url()).pathname.split('/')[3];
+      const body = route.request().postDataJSON();
+      await new Promise(resolve => setTimeout(resolve, 9500));
+      const session = state.sessions[id];
+      session.messages = [...(session.messages ?? []),
+        { role: 'user', content: body.content, client_request_id: body.client_request_id, created_at: at(730) },
+        { role: 'assistant', created_at: at(731), content: '已经整理好了，保存在《电路期末复习计划》：\n\n| 时间 | 安排 |\n|---|---|\n| 周三 14:00–17:00 | 电路：KCL/KVL 与节点电压法 |\n| 周四 19:00–21:00 | 电路：戴维南等效，做 1.12–1.18 |\n| 周五 09:00 | **电路期末考试** · 31 楼 204 |\n\n考前一晚建议把易错点再过一遍。',
+          steps: [
+            { kind: 'thinking', text: '先确认教学周和课表空档，再查考试时间，最后按空档安排复习并保存成笔记。' },
+            ...timeline.map(step => ({ kind: 'tool', name: step.name, input: step.input ?? '{}', output: '{"ok":true}' })),
+          ] }];
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ session }) });
+    });
+
+    await page.getByRole('button', { name: 'Agent', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /今天想让/ })).toBeVisible();
+    await page.waitForTimeout(3500);
+    const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
+    await composer.click();
+    await page.keyboard.type(question, { delay: 45 });
+    await page.waitForTimeout(500);
+    sentAt = Date.now();
+    await page.getByRole('button', { name: '发送', exact: true }).click();
+    await expect(page.locator('.chat-message.assistant table')).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1500);
+    await page.locator('.chat-message.assistant').last().getByRole('button', { name: /思考过程/ }).click();
+    await page.waitForTimeout(2500);
+    const video = page.video();
+    await context.close();
+    fs.copyFileSync(await video.path(), path.join(outDir, 'conversation-live.webm'));
   });
 });
