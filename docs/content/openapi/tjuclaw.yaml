@@ -835,6 +835,38 @@ paths:
               schema: { $ref: '#/components/schemas/SessionResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /sessions/{id}/live:
+    get:
+      tags: [Sessions]
+      summary: 获取当前回合的实时工具调用
+      description: |
+        需要登录。仅返回当前用户在本 API 进程内记录的工具调用，不返回工具结果。
+        空闲、缺失或其他用户的合法会话 ID 均返回空列表；无效 ID 返回 404。
+        回合结束后清除列表，不替代已保存的会话记录。
+      operationId: getSessionLiveSteps
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: 当前回合的工具调用列表
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [steps]
+                properties:
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, status]
+                      properties:
+                        name: { type: string }
+                        input: { type: string }
+                        status: { type: string, enum: [running, done, failed] }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /vault/status:
     get:
       tags: [Vault]

@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import { Banner } from 'fumadocs-ui/components/banner';
 
 const CONTEST_BANNER_ID = 'tjuclaw-iterating-2026';
@@ -15,12 +16,12 @@ export function SiteBanner() {
       className="relative h-9 border-none px-12 text-black [&_button]:text-zinc-500 [&_button:hover]:text-black"
     >
       <div className="flex w-full items-center justify-center">
-        <a
+        <Link
           href="/docs"
           className="font-mono text-[15px] font-black tracking-wide text-black underline decoration-2 underline-offset-2"
         >
           <span className="tjuclaw-banner-copy">🚧 TJUClaw 仍处于快速迭代期，未来将引入大量功能与优化，敬请期待 ✨</span>
-        </a>
+        </Link>
       </div>
     </Banner>
   );
