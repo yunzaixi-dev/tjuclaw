@@ -45,7 +45,8 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.equal(workflow.jobs.ops['runs-on'], 'tjuclaw-ops');
   assert.equal(workflow.jobs.mirror['runs-on'], 'tjuclaw-ops');
   assert.equal(parse(read('.github/workflows/gitlab-status.yml')).jobs.report['runs-on'], 'tjuclaw-ops');
-  assert.ok(rootJobs.filter(job => job['runs-on'] !== 'tjuclaw-ops').every(job => job['runs-on'] === 'tjuclaw'));
+  assert.equal(workflow.jobs.integration['runs-on'], 'tjuclaw-browser');
+  assert.ok(rootJobs.filter(job => !['tjuclaw-ops', 'tjuclaw-browser'].includes(job['runs-on'])).every(job => job['runs-on'] === 'tjuclaw'));
   assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
   for (const [path, label] of [

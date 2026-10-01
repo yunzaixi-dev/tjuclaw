@@ -272,7 +272,9 @@ jobs:
     name: Real Kratos authentication, Cap and task ownership
     needs: plan
     if: needs.plan.outputs.integration == 'true'
-    runs-on: tjuclaw
+    # CPU-bound: three browsers, the API and the nested identity stack. This
+    # pool owns the runner-only infra node instead of a bounded shared runner.
+    runs-on: tjuclaw-browser
     timeout-minutes: 45
     env:
       AUTH_TEST_IMAGES: oryd/kratos:v26.2.0 postgres:16.14-alpine axllent/mailpit:v1.27.8 tiago2/cap:3.1.11 valkey/valkey:9-alpine
