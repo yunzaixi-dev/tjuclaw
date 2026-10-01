@@ -24,6 +24,10 @@ concurrency:
 env:
   CI: 'true'
   NEXT_TELEMETRY_DISABLED: '1'
+  # Several jobs share a six-core ARC node. Bound Go build/test fan-out rather
+  # than letting every job consume all host CPUs on a cold toolchain cache.
+  GOMAXPROCS: '2'
+  GOFLAGS: '-p=2'
 
 jobs:
   mirror:
@@ -52,7 +56,7 @@ jobs:
   check:
     name: Pinned component checks and portable integration build
     runs-on: tjuclaw
-    timeout-minutes: 30
+    timeout-minutes: 60
     services:
       crawler-postgres:
         image: postgres:17-alpine
@@ -114,7 +118,7 @@ jobs:
   ops:
     name: Ansible deployment checks
     runs-on: tjuclaw
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -136,7 +140,7 @@ jobs:
           for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel deploy-weknora; do
             uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
           done
-          node --test ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
+          node --test --test-concurrency=1 ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
 
   sandbox-images:
     name: Pinned sandbox gateway and controller images
