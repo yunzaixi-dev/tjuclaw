@@ -272,11 +272,15 @@ jobs:
     name: Real Kratos authentication, Cap and task ownership
     needs: plan
     if: needs.plan.outputs.integration == 'true'
-    # CPU-bound: three browsers, the API and the nested identity stack. This
-    # pool owns the runner-only infra node instead of a bounded shared runner.
-    runs-on: tjuclaw-browser
+    # CPU-bound: three browsers, the API and the nested identity stack. The
+    # repository is public, so a GitHub-hosted runner gives it four dedicated
+    # cores for free instead of a share of the cluster.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
+      # The fan-out bounds above protect the shared cluster node, not this machine.
+      GOMAXPROCS: ''
+      GOFLAGS: ''
       AUTH_TEST_IMAGES: oryd/kratos:v26.2.0 postgres:16.14-alpine axllent/mailpit:v1.27.8 tiago2/cap:3.1.11 valkey/valkey:9-alpine
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
