@@ -41,7 +41,8 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const rootJobs = expandJobs(workflow.jobs);
   const publicClientJobs = expandJobs(clientJobs, 'frontend/');
   const windowsJobs = expandJobs(windowsWorkflow.jobs, 'frontend/');
-  assert.ok(rootJobs.every(job => job['runs-on'] === 'tjuclaw'));
+  assert.equal(workflow.jobs.ops['runs-on'], 'tjuclaw-ops');
+  assert.ok(rootJobs.filter(job => job !== workflow.jobs.ops).every(job => job['runs-on'] === 'tjuclaw'));
   assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
   for (const [path, label] of [

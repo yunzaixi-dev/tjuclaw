@@ -117,7 +117,8 @@ jobs:
 
   ops:
     name: Ansible deployment checks
-    runs-on: tjuclaw
+    # Separate lightweight pool on infra; do not queue behind browser/build jobs.
+    runs-on: tjuclaw-ops
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
