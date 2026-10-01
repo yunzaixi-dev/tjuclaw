@@ -36,27 +36,15 @@ tasks:
     desc: Build Web client
     cmds: [pnpm --dir frontend build]
   icons:replace:
-    desc: Replace Web, Docs, and native icons from one transparent source image
+    desc: Replace Web, Docs, and native icons from a rounded app icon
     requires:
       vars: [SOURCE]
     preconditions:
       - sh: test -f "{{.SOURCE}}"
         msg: 'Icon source does not exist: {{.SOURCE}}'
     cmds:
-      - >-
-        ffmpeg -hide_banner -loglevel error -i "{{.SOURCE}}"
-        -vf "scale=480:480:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba"
-        -c:v libwebp -q:v 90 -compression_level 6 -y frontend/src/assets/brand-icon.webp
-      - >-
-        ffmpeg -hide_banner -loglevel error -i "{{.SOURCE}}"
-        -filter_complex "color=white:s=1024x1024[bg];[0:v]scale=900:900:force_original_aspect_ratio=decrease:flags=lanczos,format=rgba[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto,format=rgb24"
-        -frames:v 1 -y frontend/app-icon.png
-      - >-
-        ffmpeg -hide_banner -loglevel error -i frontend/app-icon.png
-        -vf "scale=64:64:flags=lanczos" -frames:v 1 -y frontend/favicon.png
+      - python3 scripts/replace-app-icon.py "{{.SOURCE}}"
       - task --dir frontend native:icons
-      - cp frontend/src/assets/brand-icon.webp docs/public/tjuclaw-icon.webp
-      - cp frontend/favicon.png docs/public/favicon.png
   image:generate:
     desc: Generate an image with the configured OpenAI-compatible image API
     dir: '{{.ROOT_DIR}}'
@@ -495,7 +483,7 @@ tasks:
     desc: Inspect Tauri and native SDK requirements
     cmds: [pnpm --dir frontend tauri info]
   native:icons:
-    desc: Regenerate platform icons from the white-background app icon
+    desc: Regenerate platform icons from the rounded app icon
     cmds: [task --dir frontend native:icons]
   native:check:
     desc: Check native Rust code on the current host
