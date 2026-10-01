@@ -42,18 +42,22 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const rootJobs = expandJobs(workflow.jobs);
   const publicClientJobs = expandJobs(clientJobs, 'frontend/');
   const windowsJobs = expandJobs(windowsWorkflow.jobs, 'frontend/');
-  assert.equal(workflow.jobs.ops['runs-on'], 'tjuclaw-ops');
-  assert.equal(workflow.jobs.mirror['runs-on'], 'tjuclaw-ops');
-  assert.equal(parse(read('.github/workflows/gitlab-status.yml')).jobs.report['runs-on'], 'tjuclaw-ops');
-  assert.equal(workflow.jobs.integration['runs-on'], 'ubuntu-24.04');
-  assert.ok(rootJobs.filter(job => !['tjuclaw-ops', 'ubuntu-24.04'].includes(job['runs-on'])).every(job => job['runs-on'] === 'tjuclaw'));
+  // Public repositories run on free GitHub-hosted runners; only the private components keep cluster pools.
+  const rootWorkflows = ['ci', 'deploy', 'deploy-crawler', 'deploy-docs', 'deploy-draw', 'gitlab-status', 'release'];
+  for (const name of rootWorkflows) {
+    const hosted = Object.values(parse(read(`.github/workflows/${name}.yml`)).jobs).filter(job => !job.uses);
+    assert.ok(hosted.length > 0 && hosted.every(job => job['runs-on'] === 'ubuntu-24.04'), `${name}.yml uses hosted runners`);
+  }
+  assert.ok(rootJobs.every(job => job['runs-on'] === 'ubuntu-24.04'));
+  assert.equal(workflow.env.GOMAXPROCS, undefined);
+  assert.equal(workflow.env.GOFLAGS, undefined);
   assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
   for (const [path, label] of [
     ['backend/.github/workflows/ci.yml', 'tjuclaw-server'],
     ['crawler/.github/workflows/ci.yml', 'tjuclaw-crawler'],
     ['crawler/.github/workflows/image.yml', 'tjuclaw-crawler'],
-    ['cli/.github/workflows/ci.yml', 'tjucli'],
+    ['cli/.github/workflows/ci.yml', 'ubuntu-24.04'],
   ]) {
     assert.ok(Object.values(parse(read(path)).jobs).every(job => job['runs-on'] === label), `${path} uses ${label}`);
   }
@@ -73,7 +77,6 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   // CI runs the groups of `task check` one by one, each gated on the plan.
   assert.deepEqual(tasks.check.cmds.map(command => command.task), checkGroups);
   const planJob = workflow.jobs.plan;
-  assert.equal(planJob['runs-on'], 'tjuclaw-ops');
   assert.equal(planJob.steps.find(step => step.id === 'plan').run, 'node scripts/ci-plan.mjs');
   assert.deepEqual(Object.keys(planJob.outputs), planGroups);
   for (const group of planGroups) assert.equal(planJob.outputs[group], `\${{ steps.plan.outputs.${group} }}`);
@@ -96,7 +99,7 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.deepEqual(setup.with['cache-dependency-path'].trim().split('\n'), ['backend/go.sum', 'cli/go.sum']);
   const opsRun = workflow.jobs.ops.steps.map(step => step.run ?? '').join('\n');
   assert.equal(opsRun.match(/uv run /g).length, 1);
-  assert.match(opsRun, /node --test --test-concurrency=2 ops\/ansible\/tests\/\*\.test\.mjs scripts\/deploy-release\.test\.mjs/);
+  assert.match(opsRun, /node --test ops\/ansible\/tests\/\*\.test\.mjs scripts\/deploy-release\.test\.mjs/);
   const integration = workflow.jobs.integration.steps;
   const authRun = integration.findIndex(step => step.name === 'Run real auth regression');
   assert.equal(integration[authRun].run, 'pnpm exec playwright test --config scripts/auth.playwright.config.mjs');
@@ -136,7 +139,7 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
 test('sandbox image check builds pinned private sources without gating the API release', () => {
   const workflow = parse(read('.github/workflows/ci.yml'));
   const job = workflow.jobs['sandbox-images'];
-  assert.equal(job['runs-on'], 'tjuclaw');
+  assert.equal(job['runs-on'], 'ubuntu-24.04');
   // Job-level conditions cannot read secrets; the access step gates the build instead.
   assert.doesNotMatch(job.if, /secrets\./);
   assert.match(job.if, /needs\.plan\.outputs\.sandbox == 'true'/);

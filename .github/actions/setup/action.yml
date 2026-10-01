@@ -60,8 +60,7 @@ runs:
           backend/go.sum
           cli/go.sum
 
-    # Prefer a Task already baked into the runner image, then a cached build;
-    # compile only on a cold cache.
+    # Prefer a Task already on the runner, then a cached build; compile only on a cold cache.
     - name: Check for a preinstalled Task 3.49.1
       id: task-preinstalled
       shell: bash

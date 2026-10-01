@@ -18,8 +18,7 @@ concurrency:
 jobs:
   report:
     name: Report status to GitLab
-    # Status reporting is a short Node script; do not take a heavy runner.
-    runs-on: tjuclaw-ops
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: >-
       vars.GITLAB_STATUS_ENABLED == 'true' &&
