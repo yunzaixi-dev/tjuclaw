@@ -838,24 +838,32 @@ paths:
   /sessions/{id}/live:
     get:
       tags: [Sessions]
-      summary: 获取当前回合的实时工具调用
+      summary: 获取当前回合的实时工具调用与模型输出
       description: |
-        需要登录。仅返回当前用户在本 API 进程内记录的工具调用，不返回工具结果。
-        空闲、缺失或其他用户的合法会话 ID 均返回空列表；无效 ID 返回 404。
-        回合结束后清除列表，不替代已保存的会话记录。
+        需要登录。返回当前用户在本 API 进程内记录的工具调用（不含工具结果），以及当前这次模型调用
+        正在产生的思考与正文。带 `version` 时最长等待 15 秒，直到回合状态与该版本不同才返回，
+        客户端由此无需定时轮询。带 `call`、`thinking`、`text` 时只返回客户端尚未拿到的部分；
+        偏移不属于当前调用时从头返回。空闲、缺失或其他用户的合法会话 ID 均返回空回合；无效 ID 返回 404。
+        回合结束后清除，不替代已保存的会话记录。
       operationId: getSessionLiveSteps
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - { $ref: '#/components/parameters/ResourceId' }
+        - { name: version, in: query, schema: { type: integer, minimum: 0 }, description: 客户端已有的版本；提供时等待变化 }
+        - { name: call, in: query, schema: { type: string }, description: 客户端已有输出所属的模型调用 }
+        - { name: thinking, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 thinking_next }
+        - { name: text, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 text_next }
       responses:
         '200':
-          description: 当前回合的工具调用列表
+          description: 当前回合的工具调用与模型输出
           headers:
             Cache-Control: { schema: { type: string, const: no-store } }
           content:
             application/json:
               schema:
                 type: object
-                required: [steps]
+                required: [version, steps, stream]
                 properties:
+                  version: { type: integer, description: 回合状态版本；空闲为 0 }
                   steps:
                     type: array
                     items:
@@ -865,6 +873,34 @@ paths:
                         name: { type: string }
                         input: { type: string }
                         status: { type: string, enum: [running, done, failed] }
+                  stream:
+                    type: object
+                    required: [call, thinking, thinking_from, thinking_next, text, text_from, text_next]
+                    properties:
+                      call: { type: string, description: 当前模型调用的序号；新的调用会重置思考与正文 }
+                      thinking: { type: string }
+                      thinking_from: { type: integer }
+                      thinking_next: { type: integer }
+                      text: { type: string }
+                      text_from: { type: integer }
+                      text_next: { type: integer }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /sessions/{id}/prepare:
+    post:
+      tags: [Sessions]
+      summary: 预热会话的沙箱
+      description: |
+        需要登录。用户开始输入时调用：在后台创建或校验该会话的沙箱与检出，使第一条消息不必等待沙箱启动。
+        立即返回；每个会话每 5 分钟最多预热一次。未启用沙箱时返回 204。其他用户的或不存在的会话返回 404。
+      operationId: prepareSession
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '202':
+          description: 已接受，预热在后台进行或刚进行过
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+        '204': { description: 未启用沙箱，无需预热 }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
   /vault/status:
@@ -1195,6 +1231,39 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /agent/sandbox-tools/stream:
+    post:
+      tags: [Sessions]
+      summary: 接收沙箱回合中模型正在产生的思考与正文
+      description: 由沙箱 Broker 以该回合的工具授权调用。`call` 为该回合内模型调用的序号：更大的序号重置内容，更小的被丢弃。请求体上限 64 KiB；每次调用的思考与正文各保留至多 64 KiB。
+      operationId: streamSandboxTurn
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/ToolGrant' }
+        - { $ref: '#/components/parameters/ToolOwner' }
+        - { $ref: '#/components/parameters/ToolSession' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [call]
+              properties:
+                call: { type: integer, minimum: 1 }
+                seq: { type: integer, minimum: 0 }
+                events:
+                  type: array
+                  items:
+                    type: object
+                    required: [kind, text]
+                    properties:
+                      kind: { type: string, enum: [thinking, text] }
+                      text: { type: string }
+      responses:
+        '204': { description: 已记录 }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
   /campus/session:
     post:
       tags: [Campus]
