@@ -41,7 +41,6 @@ export async function startSessionTestController(directory, secret) {
   ], { stdio: 'pipe', timeout: 15000 });
   if (generated.status !== 0) throw new Error('Could not generate isolated session test certificate');
   const turns = new Map();
-  const sessions = new Set();
   const vaultObjects = new Map();
   const workspaces = new Map();
   const server = https.createServer({
@@ -211,10 +210,11 @@ export async function startSessionTestController(directory, secret) {
       }
       const key = `${claims.owner_id}:${claims.session_id}`;
       if (req.url.endsWith('/ensure')) {
-        sessions.add(key);
         return send(res, 200, { version: 'session.v1', ready: true });
       }
-      if (!sessions.has(key) || !Number.isInteger(input.turn) || input.turn < 1 || input.turn > 100
+      // The signed Gateway prepares cold sessions within the message request.
+      // Requiring a separate ensure here would enforce the old controller flow.
+      if (!Number.isInteger(input.turn) || input.turn < 1 || input.turn > 100
         || typeof input.content !== 'string' || !input.content.trim()) {
         return send(res, 400, { error: { id: 'invalid_request' } });
       }
