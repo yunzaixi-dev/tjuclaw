@@ -16,6 +16,8 @@ export default defineConfig({
     viewport: { width: 1440, height: 900 },
     colorScheme: 'light',
     reducedMotion: 'reduce',
+    // The suite injects response headers and reads real network traffic; a service worker would answer from its cache instead.
+    serviceWorkers: 'block',
     ignoreHTTPSErrors: process.env.TJUCLAW_SESSION_E2E === '1',
     screenshot: 'only-on-failure',
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
