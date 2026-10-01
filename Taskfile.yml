@@ -399,7 +399,8 @@ tasks:
   api:test:
     desc: Run Go tests
     dir: backend
-    cmds: [go test ./...]
+    cmds:
+      - go test {{.GO_TEST_FLAGS}} ./...
   api:lint:
     desc: Run Go static checks
     dir: backend
@@ -437,15 +438,52 @@ tasks:
       - task: cli:test
       - task: crawler:test
       - go test ops/auth/mail_test.go
-  check:
-    desc: Run portable checks (no native SDK needed)
+  # CI runs only the groups a change touches (scripts/ci-plan.mjs); `check` runs them all.
+  check:tooling:
+    desc: Check repository tooling, generated documents and staged paths
     cmds:
-      - task: lint
-      - task: types
-      - task: test
+      - pnpm exec eslint scripts
+      - pnpm test:git
+      - pnpm test:tooling
+      - task: audit:test
       - task: docs:check-sync
       - task: api:docs:check
       - task: git:check
+  check:web:
+    desc: Lint and type-check the pinned Web client
+    cmds:
+      - pnpm --dir frontend lint
+      - pnpm --dir frontend types:check
+  check:docs:
+    desc: Lint and type-check the documentation site
+    cmds:
+      - pnpm -r lint
+      - pnpm -r types:check
+  check:api:
+    desc: Vet and test the Go API and its mail policy
+    cmds:
+      - task: api:lint
+      - task: api:test
+      - go test ops/auth/mail_test.go
+  check:cli:
+    desc: Vet and test the campus CLI
+    cmds:
+      - task: cli:lint
+      - task: cli:test
+  check:crawler:
+    desc: Check and test the crawler
+    cmds:
+      - task: crawler:check
+      - task: crawler:test
+  check:
+    desc: Run portable checks (no native SDK needed)
+    cmds:
+      - task: check:tooling
+      - task: check:web
+      - task: check:docs
+      - task: check:api
+      - task: check:cli
+      - task: check:crawler
   build:
     desc: Build Web, docs and API (native builds have separate targets)
     cmds:

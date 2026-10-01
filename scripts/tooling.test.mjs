@@ -6,6 +6,7 @@ import test from 'node:test';
 import { parse } from 'yaml';
 import { prependToolPath } from '../frontend/scripts/native-env.mjs';
 import { isReusableKratosDevState, isolateTestApiEnv } from './auth-test-stack.mjs';
+import { groups as planGroups } from './ci-plan.mjs';
 
 import { renderDocuments } from './generate-design-doc.mjs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -42,7 +43,9 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const publicClientJobs = expandJobs(clientJobs, 'frontend/');
   const windowsJobs = expandJobs(windowsWorkflow.jobs, 'frontend/');
   assert.equal(workflow.jobs.ops['runs-on'], 'tjuclaw-ops');
-  assert.ok(rootJobs.filter(job => job !== workflow.jobs.ops).every(job => job['runs-on'] === 'tjuclaw'));
+  assert.equal(workflow.jobs.mirror['runs-on'], 'tjuclaw-ops');
+  assert.equal(parse(read('.github/workflows/gitlab-status.yml')).jobs.report['runs-on'], 'tjuclaw-ops');
+  assert.ok(rootJobs.filter(job => job['runs-on'] !== 'tjuclaw-ops').every(job => job['runs-on'] === 'tjuclaw'));
   assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
   for (const [path, label] of [
@@ -56,12 +59,53 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const allJobs = [...rootJobs, ...publicClientJobs, ...windowsJobs];
   const commands = allJobs.flatMap(job => (job.steps ?? []).flatMap(step =>
     [...(step.run ?? '').matchAll(/\btask ([\w:-]+)/g)].map(match => match[1])));
-  for (const command of ['check', 'auth:test', 'compose:config',
-    'compose:context', 'web:build', 'docs:build', 'api:build', 'cli:build',
+  for (const command of ['api:build', 'cli:build', 'auth:test']) {
+    assert.ok(tasks[command], `Task ${command} is defined`);
+  }
+  const checkGroups = ['check:tooling', 'check:web', 'check:docs', 'check:api', 'check:cli', 'check:crawler'];
+  for (const command of [...checkGroups, 'compose:config',
+    'compose:context', 'web:build', 'docs:build',
     'linux:build', 'android:build', 'windows:build']) {
     assert.ok(tasks[command], `Task ${command} is defined`);
     assert.ok(commands.includes(command), `CI runs ${command}`);
   }
+  // CI runs the groups of `task check` one by one, each gated on the plan.
+  assert.deepEqual(tasks.check.cmds.map(command => command.task), checkGroups);
+  const planJob = workflow.jobs.plan;
+  assert.equal(planJob['runs-on'], 'tjuclaw-ops');
+  assert.equal(planJob.steps.find(step => step.id === 'plan').run, 'node scripts/ci-plan.mjs');
+  assert.deepEqual(Object.keys(planJob.outputs), planGroups);
+  for (const group of planGroups) assert.equal(planJob.outputs[group], `\${{ steps.plan.outputs.${group} }}`);
+  for (const name of ['check', 'ops', 'integration', 'sandbox-images']) assert.equal(workflow.jobs[name].needs, 'plan');
+  assert.equal(workflow.jobs.check.if, undefined);
+  assert.equal(workflow.jobs.ops.if, "needs.plan.outputs.ops == 'true'");
+  assert.equal(workflow.jobs.integration.if, "needs.plan.outputs.integration == 'true'");
+  const checkSteps = workflow.jobs.check.steps;
+  const checkStep = group => checkSteps.find(step => step.run === `task check:${group}`);
+  assert.equal(checkStep('tooling').if, undefined);
+  for (const group of ['web', 'docs', 'api', 'cli', 'crawler']) {
+    assert.equal(checkStep(group).if, `needs.plan.outputs.${group} == 'true'`);
+  }
+  assert.equal(checkStep('api').env.GO_TEST_FLAGS, '-race');
+  assert.ok(!checkSteps.some(step => step.run?.includes('task api:build') || step.run?.includes('task cli:build')));
+  const artifact = checkSteps.find(step => step.name === 'Build immutable API deployment artifact');
+  assert.match(artifact.run, /CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build/);
+  assert.equal(artifact.if, "needs.plan.outputs.api == 'true'");
+  const setup = parse(read('.github/actions/setup/action.yml')).runs.steps.find(step => step.uses?.startsWith('actions/setup-go@'));
+  assert.deepEqual(setup.with['cache-dependency-path'].trim().split('\n'), ['backend/go.sum', 'cli/go.sum']);
+  const opsRun = workflow.jobs.ops.steps.map(step => step.run ?? '').join('\n');
+  assert.equal(opsRun.match(/uv run /g).length, 1);
+  assert.match(opsRun, /node --test --test-concurrency=2 ops\/ansible\/tests\/\*\.test\.mjs scripts\/deploy-release\.test\.mjs/);
+  const integration = workflow.jobs.integration.steps;
+  const authRun = integration.findIndex(step => step.name === 'Run real auth regression');
+  assert.equal(integration[authRun].run, 'pnpm exec playwright test --config scripts/auth.playwright.config.mjs');
+  assert.equal(integration[authRun].env.AUTH_TEST_EVIDENCE, '0');
+  assert.equal(integration[authRun].env.TJUCLAW_SESSION_E2E, undefined);
+  assert.equal(integration[authRun - 1].run, 'pnpm --dir frontend exec vite build');
+  const protocol = integration[authRun + 1];
+  assert.equal(protocol.env.TJUCLAW_SESSION_E2E, '1');
+  assert.match(protocol.run, /browser-to-API \(Agent reply\|vault\)/);
+  assert.match(read('scripts/auth.playwright.config.mjs'), /fullyParallel: true/);
   const browserRun = jobs.browser.steps.find(step => step.run?.includes('playwright test'))?.run ?? '';
   assert.match(browserRun, /scripts\/playwright\.config\.mjs/);
   assert.match(browserRun, /scripts\/workspace\.playwright\.config\.mjs/);
@@ -73,10 +117,13 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
     }
   }
   const integrationSteps = jobs.integration.steps;
-  const pullIndex = integrationSteps.findIndex(step => step.run?.includes('docker pull oryd/kratos:v26.2.0'));
-  assert.ok(pullIndex >= 0 && pullIndex < integrationSteps.findIndex(step => step.run === 'task auth:test'));
+  assert.match(workflow.jobs.integration.env.AUTH_TEST_IMAGES, /oryd\/kratos:v26\.2\.0/);
+  const pullStart = integrationSteps.findIndex(step => step.name === 'Start pulling pinned identity and CAPTCHA test images');
+  const pullWait = integrationSteps.findIndex(step => step.name === 'Wait for the pinned identity and CAPTCHA test images');
+  assert.match(integrationSteps[pullWait].run, /docker image inspect "\$image" >\/dev\/null 2>&1 \|\| docker pull "\$image"/);
+  assert.ok(pullStart >= 0 && pullStart < pullWait && pullWait < authRun);
   assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run === 'node scripts/auth-test-stack.mjs --down'));
-  assert.match(read('scripts/auth-test-stack.mjs'), /\['down', '--volumes', '--remove-orphans'\]/);
+  assert.match(read('scripts/auth-test-stack.mjs'), /\['down', '--volumes', '--remove-orphans', '--timeout', '0'\]/);
   assert.deepEqual(parse(read('.gitlab-ci.yml')).workflow.rules, [{ when: 'never' }]);
   assert.ok(windowsWorkflow.on.push);
   assert.ok(windowsWorkflow.on.pull_request);
@@ -89,6 +136,9 @@ test('sandbox image check builds pinned private sources without gating the API r
   const workflow = parse(read('.github/workflows/ci.yml'));
   const job = workflow.jobs['sandbox-images'];
   assert.equal(job['runs-on'], 'tjuclaw');
+  // Job-level conditions cannot read secrets; the access step gates the build instead.
+  assert.doesNotMatch(job.if, /secrets\./);
+  assert.match(job.if, /needs\.plan\.outputs\.sandbox == 'true'/);
   assert.ok(!workflow.jobs.deploy.needs.includes('sandbox-images'));
   const steps = job.steps;
   const cliRef = steps.find(step => step.id === 'cli');

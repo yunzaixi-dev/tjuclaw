@@ -60,21 +60,21 @@ TJUClaw 的做法是：**一个集成仓库做主干，Git 子模块按 SHA 钉�
 ```text
 push（release / dev / tag）
   │
-  ├─ mirror        只把选定的 ref 以非强制方式推送到 GitLab 比赛仓库
+  ├─ mirror          轻量 runner。只把选定的 ref 以非强制方式推到 GitLab
   │
-  ├─ check         检出钉住的子模块
-  │                Go vet 与 race 测试、TypeScript 严格检查、ESLint
-  │                采集器 Bun 测试（隔离的临时 PostgreSQL）
-  │                构建 Web、Docs、API、CLI，并产出带 SHA 的 API 制品
-  │
-  ├─ ops           Ansible playbook 语法检查与回滚回归
-  │
-  ├─ sandbox-images 构建并冒烟测试网关与控制器镜像（非阻塞）
-  │
-  └─ integration   真实 Kratos + Cap + 邮件捕获的认证回归
-                   浏览器到 API 的会话回归
-                   密文对象（私人笔记本）回归
-                   浏览器到网关的 Git 工作区回归
+  └─ plan            轻量 runner。与上一次成功的运行比较，选出这次改动需要的任务
+       │             标签、手动触发、公共构建输入或认不出的路径：全部运行
+       │
+       ├─ check           检出钉住的子模块；仓库工具检查每次都跑
+       │                  Web、Docs、API、CLI、采集器各自只在被改动时检查
+       │                  后端 race 只编译一遍；后端有改动才产出带 SHA 的 Linux API 制品
+       │
+       ├─ ops             部署材料有改动时：playbook 语法检查与回滚模拟
+       │
+       ├─ sandbox-images  CLI 或沙箱有改动时：构建并冒烟网关与控制器镜像
+       │
+       └─ integration     客户端、后端或认证材料有改动时：真实 Kratos + Cap + 邮件捕获
+                          认证回归并行跑在同一个栈上；会话和密文对象共用下一次栈
 ```
 
 ### 为什么坚持真实的集成测试

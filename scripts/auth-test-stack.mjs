@@ -141,7 +141,8 @@ async function cleanup(exitCode = 0) {
   if (sessionController) await sessionController.close();
 
   if (runtime && !development) {
-    const result = compose(['down', '--volumes', '--remove-orphans'], runtime.env);
+    // Disposable data: do not wait out the stop grace period (Cap ignores SIGTERM for the full ten seconds).
+    const result = compose(['down', '--volumes', '--remove-orphans', '--timeout', '0'], runtime.env);
     if (result.status !== 0) exitCode = 1;
     else {
       await rm(runtime.directory, { recursive: true, force: true });
@@ -251,6 +252,8 @@ try {
     APP_PUBLIC_URL: publicOrigin, KRATOS_PUBLIC_URL: identityBase,
     AUTH_COOKIE_KEY: runtime.cookieKey,
     CAP_URL: capBase, CAP_SITE_KEY: site.siteKey, CAP_SECRET_KEY: site.secretKey,
+    // Disposable runs keep the resend cooldown real but short; development and production keep one minute.
+    ...(development ? {} : { AUTH_RESEND_COOLDOWN: '3s' }),
   });
   if (sessionE2E) {
     const secret = randomBytes(32).toString('hex');

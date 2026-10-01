@@ -36,7 +36,8 @@ jobs:
       github.repository == 'yunzaixi-dev/tjuclaw' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: tjuclaw
+    # Node-only mirror. Keep it off the heavy pool so it cannot queue browser or Go jobs.
+    runs-on: tjuclaw-ops
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -53,8 +54,38 @@ jobs:
           GITLAB_SYNC_TOKEN: ${{ secrets.GITLAB_SYNC_TOKEN }}
         run: node scripts/gitlab-sync.mjs
 
+  plan:
+    name: Select the jobs this change needs
+    # A short Node script; the heavy pool stays free for the jobs it selects.
+    runs-on: tjuclaw-ops
+    timeout-minutes: 5
+    outputs:
+      web: ${{ steps.plan.outputs.web }}
+      docs: ${{ steps.plan.outputs.docs }}
+      api: ${{ steps.plan.outputs.api }}
+      cli: ${{ steps.plan.outputs.cli }}
+      crawler: ${{ steps.plan.outputs.crawler }}
+      ops: ${{ steps.plan.outputs.ops }}
+      integration: ${{ steps.plan.outputs.integration }}
+      sandbox: ${{ steps.plan.outputs.sandbox }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Compare with the last successful run
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/ci-plan.mjs
+
   check:
     name: Pinned component checks and portable integration build
+    needs: plan
     runs-on: tjuclaw
     timeout-minutes: 60
     services:
@@ -82,33 +113,57 @@ jobs:
           crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
       - name: Install system test dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends docker-compose-v2 ffmpeg gcc iproute2 libc6-dev poppler-utils webp python3 python3-pil
+          if command -v ffmpeg >/dev/null && command -v gcc >/dev/null && docker compose version >/dev/null 2>&1 \
+            && dpkg -s poppler-utils webp python3-pil >/dev/null 2>&1; then
+            echo 'Runner image already has system test dependencies'
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends docker-compose-v2 ffmpeg gcc iproute2 libc6-dev poppler-utils webp python3 python3-pil
+          fi
       - uses: ./.github/actions/setup
         with:
           profile: portable
+          bun: ${{ needs.plan.outputs.crawler }}
+          go-cache: ${{ needs.plan.outputs.api == 'true' || needs.plan.outputs.cli == 'true' }}
           pnpm-cache-dependency-path: |
             pnpm-lock.yaml
             frontend/pnpm-lock.yaml
-      - name: Check all pinned components
+      # Each group below runs only when the plan saw a change it reads;
+      # together they are `task check`.
+      - name: Check repository tooling
+        run: task check:tooling
+      - name: Check Web client
+        if: needs.plan.outputs.web == 'true'
+        run: task check:web
+      - name: Check documentation site
+        if: needs.plan.outputs.docs == 'true'
+        run: task check:docs
+      - name: Check Go API
+        if: needs.plan.outputs.api == 'true'
+        env:
+          # cli:test already races. Race the API here instead of a second full compile.
+          GO_TEST_FLAGS: -race
+        run: task check:api
+      - name: Check campus CLI
+        if: needs.plan.outputs.cli == 'true'
+        run: task check:cli
+      - name: Check crawler
+        if: needs.plan.outputs.crawler == 'true'
         env:
           CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports['5432'] }}/crawler_test
-        run: task check
-      - name: Go race regressions
-        run: |
-          (cd backend && go test -race ./...)
-          (cd cli && go test -race ./...)
-      - name: Build integration deliverables
-        run: |
-          task docs:build
-          task api:build
-          task cli:build
+        run: task check:crawler
+      - name: Build documentation site
+        # A release push that touches Docs is built and published by deploy-docs.yml.
+        if: needs.plan.outputs.docs == 'true' && !(github.event_name == 'push' && github.ref == 'refs/heads/release')
+        run: task docs:build
       - name: Build immutable API deployment artifact
+        if: needs.plan.outputs.api == 'true'
         run: |
           mkdir -p backend/bin/deploy
           (cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/deploy/api ./cmd/api)
           node scripts/deploy-release.mjs --manifest
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: needs.plan.outputs.api == 'true'
         with:
           name: api-${{ github.sha }}
           path: backend/bin/deploy/
@@ -117,6 +172,8 @@ jobs:
 
   ops:
     name: Ansible deployment checks
+    needs: plan
+    if: needs.plan.outputs.ops == 'true'
     # Separate lightweight pool on infra; do not queue behind browser/build jobs.
     runs-on: tjuclaw-ops
     timeout-minutes: 30
@@ -132,19 +189,31 @@ jobs:
           python-version: '3.13'
       - name: Install Docker Compose CLI plugin
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends docker-compose-v2
-      - name: Check playbooks and rollback regressions
+          if docker compose version >/dev/null 2>&1; then
+            echo 'Runner image already has Docker Compose'
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends docker-compose-v2
+          fi
+      - name: Syntax-check playbooks once
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ops/ansible/ansible.cfg
         run: |
-          for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel deploy-weknora; do
-            uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
-          done
-          node --test --test-concurrency=1 ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
+          uv run --no-project --with-requirements ops/ansible/requirements.txt \
+            bash -euo pipefail -c '
+              for play in discover render-origin prepare-services deploy-identity deploy-newapi deploy-newapi-origin deploy-api deploy-crawler deploy-cap deploy-zitadel deploy-weknora; do
+                ansible-playbook -i ops/ansible/inventory.example.yml "ops/ansible/playbooks/$play.yml" --syntax-check
+              done
+            '
+      - name: Rollback simulations
+        # Each file works in its own temporary directory on ephemeral ports.
+        run: node --test --test-concurrency=2 ops/ansible/tests/*.test.mjs scripts/deploy-release.test.mjs
 
   sandbox-images:
     name: Pinned sandbox gateway and controller images
+    needs: plan
+    # Job conditions cannot read secrets; the access step below skips the build when the key is absent.
+    if: github.repository == 'yunzaixi-dev/tjuclaw' && needs.plan.outputs.sandbox == 'true'
     runs-on: tjuclaw
     timeout-minutes: 30
     steps:
@@ -201,12 +270,22 @@ jobs:
 
   integration:
     name: Real Kratos authentication, Cap and task ownership
+    needs: plan
+    if: needs.plan.outputs.integration == 'true'
     runs-on: tjuclaw
     timeout-minutes: 45
+    env:
+      AUTH_TEST_IMAGES: oryd/kratos:v26.2.0 postgres:16.14-alpine axllent/mailpit:v1.27.8 tiago2/cap:3.1.11 valkey/valkey:9-alpine
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Start pulling pinned identity and CAPTCHA test images
+        # Runs behind the toolchain setup; the wait step below pulls whatever is still missing.
+        run: |
+          nohup bash -c 'printf "%s\n" $AUTH_TEST_IMAGES | xargs -P 5 -I {} sh -c "docker image inspect {} >/dev/null 2>&1 || docker pull -q {}"' \
+            > "$RUNNER_TEMP/auth-image-pull.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/auth-image-pull.pid"
       - uses: ./.github/actions/checkout-components
         with:
           server-key: ${{ secrets.SERVER_READ_KEY }}
@@ -214,11 +293,16 @@ jobs:
           crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
       - name: Install Docker Compose CLI plugin
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends docker-compose-v2
+          if docker compose version >/dev/null 2>&1; then
+            echo 'Runner image already has Docker Compose'
+          else
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends docker-compose-v2
+          fi
       - uses: ./.github/actions/setup
         with:
           profile: integration
+          bun: 'false'
           pnpm-cache-dependency-path: |
             pnpm-lock.yaml
             frontend/pnpm-lock.yaml
@@ -227,20 +311,33 @@ jobs:
           task compose:config
           task compose:context
       - name: Install Chromium with system dependencies
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Pre-pull pinned identity and CAPTCHA test images
         run: |
-          docker pull oryd/kratos:v26.2.0
-          docker pull postgres:16.14-alpine
-          docker pull axllent/mailpit:v1.27.8
-          docker pull tiago2/cap:3.1.11
-          docker pull valkey/valkey:9-alpine
+          browser_root="${PLAYWRIGHT_BROWSERS_PATH:-/opt/ms-playwright}"
+          if compgen -G "$browser_root/chromium-*" > /dev/null; then
+            # A no-op when the image already holds the pinned revision; downloads it after a Playwright bump.
+            pnpm exec playwright install chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+      - name: Wait for the pinned identity and CAPTCHA test images
+        run: |
+          tail --pid="$(cat "$RUNNER_TEMP/auth-image-pull.pid")" -f /dev/null
+          cat "$RUNNER_TEMP/auth-image-pull.log"
+          for image in $AUTH_TEST_IMAGES; do
+            docker image inspect "$image" >/dev/null 2>&1 || docker pull "$image"
+          done
+      - name: Build Web client
+        # The check job type-checks the client; do not compile it twice.
+        run: pnpm --dir frontend exec vite build
       - name: Run real auth regression
-        run: task auth:test
-      - name: Run isolated browser-to-API session regression
-        run: task session:e2e
-      - name: Run isolated browser-to-API sealed vault regression
-        run: task vault:e2e
+        env:
+          AUTH_TEST_EVIDENCE: '0'
+        run: pnpm exec playwright test --config scripts/auth.playwright.config.mjs
+      - name: Run isolated browser session and vault regressions
+        env:
+          AUTH_TEST_EVIDENCE: '0'
+          TJUCLAW_SESSION_E2E: '1'
+        run: pnpm exec playwright test --config scripts/auth.playwright.config.mjs --grep 'browser-to-API (Agent reply|vault)'
       - name: Clean up exact test stack
         if: always()
         run: node scripts/auth-test-stack.mjs --down

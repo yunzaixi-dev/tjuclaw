@@ -7,6 +7,8 @@ const headers = { Origin: origin };
 const nginx = await readFile(new URL('../ops/images/nginx.conf', import.meta.url), 'utf8');
 const csp = nginx.match(/add_header Content-Security-Policy "([^"]+)"/)?.[1];
 if (!csp) throw new Error('Missing production CSP');
+// CI keeps the responsive overflow assertions but skips the screenshot files only the local audit import reads.
+const evidenceFiles = process.env.AUTH_TEST_EVIDENCE !== '0';
 
 async function captureState(page, info, state, evidence = 'real-kratos-cap') {
   const original = page.viewportSize();
@@ -15,6 +17,7 @@ async function captureState(page, info, state, evidence = 'real-kratos-cap') {
       await page.setViewportSize({ width, height });
       await page.emulateMedia({ colorScheme: theme });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (!evidenceFiles) continue;
       const name = `audit-${state}-${viewport}-${theme}`;
       await page.screenshot({ path: info.outputPath(`${name}.png`), animations: 'disabled', mask: [page.getByLabel('邮箱验证码', { exact: true })] });
       await writeFile(info.outputPath(`${name}.json`), JSON.stringify({ state, viewport, theme, width, height, evidence, capturedAt: new Date().toISOString() }));
@@ -473,6 +476,8 @@ test('real Cap under production CSP, enrollment, wrong code, resend, reload, log
   let usedCap;
   page.on('request', req => { if (req.url().endsWith('/api/auth/start')) usedCap = req.postDataJSON()?.captcha_token; });
   await begin(page, email, '/auth/registration');
+  // The server refuses a resend inside the cooldown before it looks at the captcha.
+  expect((await page.request.post('/api/auth/resend', { headers, data: { captcha_token: '' } })).status()).toBe(429);
   expect(await page.evaluate(() => window.__cspViolations)).toEqual([]);
   const token = usedCap;
   expect(Boolean(token)).toBe(true);

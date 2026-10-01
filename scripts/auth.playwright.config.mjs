@@ -4,7 +4,9 @@ export default defineConfig({
   testDir: '.',
   testMatch: 'auth.spec.mjs',
   outputDir: '../test-results/auth',
-  workers: 1,
+  // Every test signs up its own identity, so they share one stack safely.
+  fullyParallel: true,
+  workers: Number(process.env.AUTH_TEST_WORKERS) || 3,
   timeout: 45000,
   expect: { timeout: 10000 },
   reporter: [['list'], ['json', { outputFile: '../test-results/auth/report.json' }]],
