@@ -40,8 +40,9 @@ For release notes, `task ops:changelog:deploy` with ignored
 loopback port 6001 and publishes the Markdown files of the repository's
 `changelog/` directory, removing published files that are no longer there. Name
 files `YYYY-MM-DD-NN.slug.md` so the newest sorts first, with `title`,
-`description`, `publishedAt` and `tags` front matter. Run the task again after
-adding a note.
+`description`, `publishedAt` and `tags` front matter. Do not use Markdown
+tables: Openchangelog 0.8.2 renders their cells in black on its dark theme. Run
+the task again after adding a note.
 
 Both listeners stay on loopback. To publish them, list them as
 `newapi_origin_sites` in ignored `ops/local/newapi-origin.yml` and run
