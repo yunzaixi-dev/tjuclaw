@@ -838,12 +838,17 @@ paths:
   /sessions/{id}/live:
     get:
       tags: [Sessions]
-      summary: 获取当前回合的实时工具调用与模型输出
+      summary: 获取当前回合的实时时间线
       description: |
-        需要登录。返回当前用户在本 API 进程内记录的工具调用（不含工具结果），以及当前这次模型调用
-        正在产生的思考与正文。带 `version` 时最长等待 15 秒，直到回合状态与该版本不同才返回，
-        客户端由此无需定时轮询。带 `call`、`thinking`、`text` 时只返回客户端尚未拿到的部分；
-        偏移不属于当前调用时从头返回。空闲、缺失或其他用户的合法会话 ID 均返回空回合；无效 ID 返回 404。
+        需要登录。返回当前用户在本 API 进程内记录的回合时间线 `items`：按发生顺序排列的思考、
+        模型说的话和工具调用。工具调用从参数开始写入（`writing`）到执行（`running`）再到结束
+        （`done` 或 `failed`）都在同一条目上更新；写文件时 `lines` 是已写入的行数，
+        结束后 `added`、`removed` 是改动的行数。带 `version` 时最长等待 15 秒，直到回合状态与该版本
+        不同才返回，客户端由此无需定时轮询。同时带 `tail` 与 `at` 时只返回该版本之后变化的条目，
+        且 `tail` 指向的条目只返回 `at` 字节之后的文本；偏移无效时该条目从头返回。
+        `steps` 与 `stream` 是时间线之前的形状（工具调用列表，以及当前这次模型调用的思考与正文），
+        为尚未更新的客户端保留；带 `call`、`thinking`、`text` 时 `stream` 只返回尚未拿到的部分。
+        空闲、缺失或其他用户的合法会话 ID 均返回空回合；无效 ID 返回 404。
         回合结束后清除，不替代已保存的会话记录。
       operationId: getSessionLiveSteps
       parameters:
@@ -852,18 +857,47 @@ paths:
         - { name: call, in: query, schema: { type: string }, description: 客户端已有输出所属的模型调用 }
         - { name: thinking, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 thinking_next }
         - { name: text, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 text_next }
+        - { name: tail, in: query, schema: { type: integer, minimum: 0 }, description: 客户端仍在接收文本的时间线条目序号；提供时只返回 version 之后变化的条目 }
+        - { name: at, in: query, schema: { type: integer, minimum: 0 }, description: 该条目上次响应的 next }
       responses:
         '200':
-          description: 当前回合的工具调用与模型输出
+          description: 当前回合的时间线
           headers:
             Cache-Control: { schema: { type: string, const: no-store } }
           content:
             application/json:
               schema:
                 type: object
-                required: [version, steps, stream]
+                required: [version, steps, stream, items, count, rate]
                 properties:
                   version: { type: integer, description: 回合状态版本；空闲为 0 }
+                  count: { type: integer, description: 时间线的条目总数 }
+                  items:
+                    type: array
+                    description: 时间线条目；首次读取返回全部，之后只返回变化的条目
+                    items:
+                      type: object
+                      required: [i, kind]
+                      properties:
+                        i: { type: integer, description: 条目在时间线中的序号 }
+                        kind: { type: string, enum: [thinking, text, tool] }
+                        text: { type: string, description: 思考或正文，自 from 字节起 }
+                        from: { type: integer }
+                        next: { type: integer, description: 文本的字节长度，作为下次请求的 at }
+                        name: { type: string }
+                        input: { type: string }
+                        status: { type: string, enum: [writing, running, done, failed] }
+                        lines: { type: integer, description: 文件写入过程中已写入的行数 }
+                        added: { type: integer }
+                        removed: { type: integer }
+                        output: { type: string, description: 工具结果的摘录 }
+                  rate:
+                    type: object
+                    required: [tokens, ms]
+                    description: 当前这次模型调用已输出的估算 token 数及其用时，用于显示输出速度
+                    properties:
+                      tokens: { type: integer }
+                      ms: { type: integer }
                   steps:
                     type: array
                     items:
@@ -2521,14 +2555,17 @@ components:
     TurnStep:
       type: object
       required: [kind]
-      description: Agent 回复前的一步思考或工具调用，仅会话所有者可见。
+      description: Agent 回复前的一步思考、调用工具前说的话或工具调用，仅会话所有者可见。
       properties:
         kind: { type: string, examples: [thinking, tool] }
+        said: { type: boolean, description: 为 true 时，这条 thinking 步骤是模型在调用工具前对用户说的话而不是思考 }
         text: { type: string }
         name: { type: string }
         input: { type: string }
         output: { type: string }
         failed: { type: boolean }
+        added: { type: integer, description: 文件写入或编辑新增的行数 }
+        removed: { type: integer, description: 文件编辑删除的行数 }
     LocalRuntimeResponse:
       type: object
       required: [grant, expires_at, model, models]
