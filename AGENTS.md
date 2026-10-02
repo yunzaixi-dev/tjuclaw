@@ -97,7 +97,8 @@ and cli use Go 1.27.0. Do not merge them into one workspace.
   in the same piece of work, whichever component the change is in: submodule
   changes are recorded here too. Name it `YYYY-MM-DD-NN.slug.md` (NN orders the
   notes of one day) with `title`, `description`, `publishedAt` and `tags` front
-  matter. Write in Chinese for users: what changed for them, why, and any known
+  matter. Set `publishedAt` to the time the change actually went live: a note
+  dated in the future stays hidden until then. Write in Chinese for users: what changed for them, why, and any known
   limit; no internal hostnames, credentials or private deployment detail. Do not
   use Markdown tables, which are unreadable on the changelog's dark theme. A
   change users cannot notice (a refactor, a test, CI) gets one line in that
