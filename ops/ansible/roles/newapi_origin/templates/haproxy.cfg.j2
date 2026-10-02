@@ -62,6 +62,9 @@ frontend newapi_tls_in
     acl site_{{ site.name }}_root path -m str /
     http-request redirect location {{ site.root_redirect }} code 302 if is_site_{{ site.name }} site_{{ site.name }}_root
 {% endif %}
+{% for item in site.static_texts | default([]) %}
+    http-request return status 200 content-type "text/plain" string "{{ item.text }}" if is_site_{{ site.name }} { path -m str {{ item.path }} }
+{% endfor %}
 {% if site.root_aliases | default([]) %}
     acl site_{{ site.name }}_alias path -m str {{ site.root_aliases | join(' ') }}
     http-request redirect location / code 302 if is_site_{{ site.name }} site_{{ site.name }}_alias
