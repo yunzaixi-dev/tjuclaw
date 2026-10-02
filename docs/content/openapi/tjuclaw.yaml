@@ -890,6 +890,7 @@ paths:
                         lines: { type: integer, description: 文件写入过程中已写入的行数 }
                         added: { type: integer }
                         removed: { type: integer }
+                        unit: { type: string, enum: [char], description: 缺省为行数；char 表示 added、removed 为字符数 }
                         output: { type: string, description: 工具结果的摘录 }
                   rate:
                     type: object
@@ -2564,8 +2565,9 @@ components:
         input: { type: string }
         output: { type: string }
         failed: { type: boolean }
-        added: { type: integer, description: 文件写入或编辑新增的行数 }
-        removed: { type: integer, description: 文件编辑删除的行数 }
+        added: { type: integer, description: 新增的数量：文件写入或编辑为行数；unit 为 char 时为笔记的字符数 }
+        removed: { type: integer, description: 删除的数量，单位同 added }
+        unit: { type: string, enum: [char], description: 缺省时 added、removed 为行数；char 表示字符数（经知识库工具写入的笔记） }
     LocalRuntimeResponse:
       type: object
       required: [grant, expires_at, model, models]
