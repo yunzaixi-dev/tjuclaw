@@ -17,6 +17,8 @@ a { color: inherit; }
 a:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
 .lead, .foot { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .overall { margin: 18px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; }
+.notice { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--bad); border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notice b { display: block; }
 .state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .state::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--wait); }
 .state.up::before { background: var(--good); }
@@ -42,8 +44,9 @@ a:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
   <h1 id="title">服务状态</h1>
   <p class="lead" id="lead"></p>
   <p class="overall" id="overall" role="status">正在读取…</p>
+  <div id="notices"></div>
   <div id="groups"></div>
-  <p class="foot">延迟曲线是每个组件最近若干次探测的响应时间；竖线标出失败的探测。<a id="history" href="#">查看可用性历史</a> · <span id="stamp"></span></p>
+  <p class="foot">延迟曲线是每个组件最近若干次探测的响应时间；竖线标出失败的探测。<span id="stamp"></span></p>
 </main>
 <script>
 const slug = document.body.dataset.slug, base = '/api/status-page/';
@@ -97,7 +100,6 @@ async function load() {
     document.title = page.config.title;
     document.getElementById('title').textContent = page.config.title;
     document.getElementById('lead').textContent = page.config.description || '';
-    document.getElementById('history').href = '/status/' + slug;
     const groups = document.createDocumentFragment();
     let total = 0, down = 0;
     for (const group of page.publicGroupList) {
@@ -109,6 +111,13 @@ async function load() {
       }
     }
     document.getElementById('groups').replaceChildren(groups);
+    // Incidents and maintenance announced in the monitor's dashboard.
+    const notices = [...(page.incidents || (page.incident ? [page.incident] : [])), ...(page.maintenanceList || [])].map(item => {
+      const box = el('div', 'notice');
+      box.append(el('b', '', item.title || '公告'), document.createTextNode(item.content || item.description || ''));
+      return box;
+    });
+    document.getElementById('notices').replaceChildren(...notices);
     const overall = document.getElementById('overall');
     overall.replaceChildren(el('span', 'state ' + (down ? 'down' : 'up'), down ? `${down} 个组件故障，共 ${total} 个` : `全部 ${total} 个组件正常`));
     document.getElementById('stamp').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');

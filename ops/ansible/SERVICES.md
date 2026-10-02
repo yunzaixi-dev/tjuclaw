@@ -50,7 +50,8 @@ site hostname to its port. A site may name `allowed_prefixes` and
 `allowed_paths`; every other path of that host answers 404. A site may also
 name a `root_page`, an HTML template under 15 kB that the origin itself returns
 for `/`; `ops/uptime/status-page.html` is one, showing each component's state
-and recent response times from the status page data of the same host. Publish Uptime Kuma
+and recent response times from the status page data of the same host. List
+Uptime Kuma's own status page path under `root_aliases` so it redirects there. Publish Uptime Kuma
 this way, with only its status page, its `/api/status-page/` data and static
 assets allowed, so the dashboard, login and socket are never reachable from
 outside. The role requires `newapi_origin_sites_tls_pem`, a certificate naming

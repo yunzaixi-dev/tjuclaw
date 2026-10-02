@@ -62,6 +62,10 @@ frontend newapi_tls_in
     acl site_{{ site.name }}_root path -m str /
     http-request redirect location {{ site.root_redirect }} code 302 if is_site_{{ site.name }} site_{{ site.name }}_root
 {% endif %}
+{% if site.root_aliases | default([]) %}
+    acl site_{{ site.name }}_alias path -m str {{ site.root_aliases | join(' ') }}
+    http-request redirect location / code 302 if is_site_{{ site.name }} site_{{ site.name }}_alias
+{% endif %}
 {% if site.allowed_prefixes is defined or site.allowed_paths is defined %}
 {% if site.allowed_prefixes | default([]) %}
     acl site_{{ site.name }}_allowed path -m beg {{ site.allowed_prefixes | join(' ') }}

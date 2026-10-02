@@ -27,7 +27,8 @@ newapi_origin_auth_redirect_target: "https://app.tjuclaw.cloud/auth/login"
 # Each item: name ([a-z0-9_]+), hostname, backend_port, and optionally
 # backend_address, root_redirect (a path that / redirects to) or root_page (a
 # local HTML template this origin answers / with itself; it must stay under
-# 15 kB and may use the site item, e.g. site.root_page_slug), and
+# 15 kB and may use the site item, e.g. site.root_page_slug), root_aliases
+# (paths that redirect to /), and
 # allowed_prefixes / allowed_paths. When either list is given, every other
 # path of that host answers 404, so a site can publish part of a service only.
 newapi_origin_sites: []
