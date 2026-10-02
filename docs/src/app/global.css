@@ -126,7 +126,7 @@ html > body[data-scroll-locked] {
 }
 
 .docs-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 650; }
-.docs-brand img { width: 34px; height: 34px; border-radius: 10px; background: transparent; padding: 0; object-fit: contain; transform: scale(1.22); }
+.docs-brand img { width: 34px; height: 34px; background: transparent; padding: 0; object-fit: contain; }
 
 /* ---------- Home ---------- */
 
@@ -729,7 +729,7 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
   text-align: center;
 }
 
-.nx-cta img { margin: 0 auto 1.5rem; border-radius: 16px; }
+.nx-cta img { margin: 0 auto 1.5rem; }
 
 @media (max-width: 1080px) {
   .nx-tiles.is-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -838,7 +838,6 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
   letter-spacing: -0.01em;
 }
 
-.wiki-footer-logo img { border-radius: 6px; }
 
 .wiki-footer-tagline {
   max-width: 340px;
