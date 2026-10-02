@@ -137,6 +137,38 @@ test('newapi_origin role configuration template and preflight assertions', () =>
     assert.ok(silentIndex < denyIndex, 'silent log level must be evaluated before host deny rule');
     assert.ok(silentIndex < redirectIndex, 'silent log level must be evaluated before redirect rule');
 
+    // 6b. Extra read-only sites: fail closed without a certificate naming them, then route with path limits
+    const sites = [
+      { name: 'status', hostname: 'status.tjuclaw.cloud', backend_port: 3001, root_redirect: '/status/main',
+        allowed_prefixes: ['/status/main', '/assets/'], allowed_paths: ['/icon.svg'] },
+      { name: 'changelog', hostname: 'changelog.tjuclaw.cloud', backend_port: 6001 },
+    ];
+    const sitesBase = { ...variables, newapi_origin_tls_pem: multiCertPath, newapi_origin_auth_enabled: true, newapi_origin_sites: sites };
+    const sitesWrongCert = run({ ...sitesBase, newapi_origin_sites_tls_pem: multiCertPath });
+    assert.notEqual(sitesWrongCert.status, 0);
+    assert.match(sitesWrongCert.stdout + sitesWrongCert.stderr, /does not name site hostname/);
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${directory}/sites-key.pem" -out "${directory}/sites-cert.pem" -days 1 -nodes -subj "/CN=status.tjuclaw.cloud" -addext "subjectAltName=DNS:status.tjuclaw.cloud,DNS:changelog.tjuclaw.cloud" 2>/dev/null`);
+    const sitesCertPath = join(directory, 'sites-tls.pem');
+    writeFileSync(sitesCertPath, readFileSync(join(directory, 'sites-cert.pem'), 'utf8') + '\n' + readFileSync(join(directory, 'sites-key.pem'), 'utf8'), { mode: 0o600 });
+    const sitesRes = run({ ...sitesBase, newapi_origin_sites_tls_pem: sitesCertPath });
+    assert.equal(sitesRes.status, 0, sitesRes.stdout + sitesRes.stderr);
+    const sitesCfg = readFileSync(configFile, 'utf8');
+    assert.match(sitesCfg, /bind :8443 ssl crt \S+multi-tls\.pem crt \S+sites-tls\.pem ssl-min-ver TLSv1\.2/);
+    assert.match(sitesCfg, /http-request deny deny_status 404 unless is_newapi_host or is_auth_host or is_site_status or is_site_changelog\n/);
+    assert.match(sitesCfg, /http-request redirect location \/status\/main code 302 if is_site_status site_status_root/);
+    assert.match(sitesCfg, /acl site_status_allowed path -m beg \/status\/main \/assets\//);
+    assert.match(sitesCfg, /acl site_status_allowed path -m str \/icon\.svg/);
+    assert.match(sitesCfg, /http-request deny deny_status 404 if is_site_status !site_status_allowed/);
+    assert.doesNotMatch(sitesCfg, /site_changelog_allowed/);
+    assert.match(sitesCfg, /use_backend site_status_backend if is_site_status/);
+    assert.match(sitesCfg, /server site_status 127\.0\.0\.1:3001 check/);
+    assert.match(sitesCfg, /server site_changelog 127\.0\.0\.1:6001 check/);
+    assert.ok(sitesCfg.indexOf('use_backend auth_backend if is_auth_host') < sitesCfg.indexOf('default_backend newapi_backend'));
+    const badSite = run({ ...sitesBase, newapi_origin_sites_tls_pem: sitesCertPath,
+      newapi_origin_sites: [{ name: 'status', hostname: 'status.tjuclaw.cloud', backend_port: 3001, allowed_prefixes: ['/ok', 'no slash; acl'] }] });
+    assert.notEqual(badSite.status, 0);
+    assert.match(badSite.stdout + badSite.stderr, /Invalid site entry/);
+
     // 7. Suffix attack resistance: cert with suffix attack domain fails checkhost preflight
     execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${directory}/evil-key.pem" -out "${directory}/evil-cert.pem" -days 1 -nodes -subj "/CN=newapi.tjuclaw.cloud" -addext "subjectAltName=DNS:newapi.tjuclaw.cloud,DNS:auth.tjuclaw.cloud.evil" 2>/dev/null`);
     const evilCertData = readFileSync(join(directory, 'evil-cert.pem'), 'utf8');

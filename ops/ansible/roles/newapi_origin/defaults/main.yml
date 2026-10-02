@@ -23,6 +23,15 @@ newapi_origin_auth_backend_address: "127.0.0.1"
 newapi_origin_auth_backend_port: 18080
 newapi_origin_auth_redirect_target: "https://app.tjuclaw.cloud/auth/login"
 
+# Optional additional read-only sites behind the same listener (none by default).
+# Each item: name ([a-z0-9_]+), hostname, backend_port, and optionally
+# backend_address, root_redirect (a path that / redirects to), and
+# allowed_prefixes / allowed_paths. When either list is given, every other
+# path of that host answers 404, so a site can publish part of a service only.
+newapi_origin_sites: []
+# TLS bundle whose certificate names every site hostname. Required with sites.
+newapi_origin_sites_tls_pem: ""
+
 # Memory limit for systemd unit
 newapi_origin_memory_limit: "96M"
 

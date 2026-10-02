@@ -34,7 +34,6 @@ It adds monitors that are missing by name and saves the status page; it never
 edits or deletes a monitor. A monitor on the same host as the services it
 watches cannot report that host being down, and container limits (320 MiB) do
 not prove the 2 GiB host has room: check `free -m` before adding monitors.
-Publishing the status page needs a separately reviewed HTTPS origin.
 
 For release notes, `task ops:changelog:deploy` with ignored
 `ops/local/changelog.yml` (from `changelog.example.yml`) runs Openchangelog on
@@ -42,7 +41,19 @@ loopback port 6001 and publishes the Markdown files of the repository's
 `changelog/` directory, removing published files that are no longer there. Name
 files `YYYY-MM-DD-NN.slug.md` so the newest sorts first, with `title`,
 `description`, `publishedAt` and `tags` front matter. Run the task again after
-adding a note. The listener is not public until an HTTPS origin routes to it.
+adding a note.
+
+Both listeners stay on loopback. To publish them, list them as
+`newapi_origin_sites` in ignored `ops/local/newapi-origin.yml` and run
+`task ops:newapi:origin:deploy`: the dedicated HTTPS origin then routes each
+site hostname to its port. A site may name `allowed_prefixes` and
+`allowed_paths`; every other path of that host answers 404. Publish Uptime Kuma
+this way, with only its status page, its `/api/status-page/` data and static
+assets allowed, so the dashboard, login and socket are never reachable from
+outside. The role requires `newapi_origin_sites_tls_pem`, a certificate naming
+every site hostname, and that vars file: deploying the origin without it would
+drop the auth host and all sites. DNS and the edge domain are configured
+separately; a healthy origin does not prove either.
 
 `ops:services:prepare` installs the Compose plugin and creates
 `/etc/tjuclaw-api.env` only when absent. Review existing configuration separately;

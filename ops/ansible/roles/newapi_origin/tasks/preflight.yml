@@ -39,6 +39,51 @@
     fail_msg: "Invalid auth configuration variables for newapi_origin role."
   when: newapi_origin_auth_enabled | bool
 
+- name: Validate optional site configuration
+  ansible.builtin.assert:
+    that:
+      - (site.name | string) is match('^[a-z0-9_]+$')
+      - (site.hostname | string) is match('^[a-zA-Z0-9.-]+$')
+      - (site.backend_port | int) > 0
+      - (site.backend_port | int) < 65536
+      - (site.backend_address | default('127.0.0.1') | string) is match('^[a-zA-Z0-9.:-]+$')
+      - (site.root_redirect | default('/x') | string) is match('^/[A-Za-z0-9._/-]*$')
+      - (site.allowed_prefixes | default([]) + site.allowed_paths | default([])) | reject('match', '^/[A-Za-z0-9._/-]*$') | list | length == 0
+    fail_msg: "Invalid site entry in newapi_origin_sites: {{ site.name | default('unnamed') }}."
+  loop: "{{ newapi_origin_sites }}"
+  loop_control:
+    loop_var: site
+    label: "{{ site.name | default('unnamed') }}"
+
+- name: Check the sites TLS PEM file
+  ansible.builtin.stat:
+    path: "{{ newapi_origin_sites_tls_pem }}"
+  register: newapi_origin_sites_tls_stat
+  when: newapi_origin_sites | length > 0
+
+- name: Read the names of the sites TLS certificate
+  ansible.builtin.command:
+    argv: [openssl, x509, -in, "{{ newapi_origin_sites_tls_pem }}", -noout, -ext, subjectAltName]
+  register: newapi_origin_sites_tls_names
+  changed_when: false
+  failed_when: false
+  when: newapi_origin_sites | length > 0
+
+- name: Require a sites TLS certificate that names every site hostname
+  ansible.builtin.assert:
+    that:
+      - newapi_origin_sites_tls_stat.stat.exists
+      - newapi_origin_sites_tls_stat.stat.isreg
+      - newapi_origin_sites_tls_names.rc == 0
+      - ('DNS:' ~ site.hostname) in (newapi_origin_sites_tls_names.stdout | replace(',', ' ')).split()
+    fail_msg: >-
+      newapi_origin_sites_tls_pem ({{ newapi_origin_sites_tls_pem }}) is missing or its
+      certificate does not name site hostname {{ site.hostname }}.
+  loop: "{{ newapi_origin_sites }}"
+  loop_control:
+    loop_var: site
+    label: "{{ site.hostname }}"
+
 - name: Check target TLS PEM file existence
   ansible.builtin.stat:
     path: "{{ newapi_origin_tls_pem }}"

@@ -276,8 +276,10 @@ tasks:
       ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
     preconditions:
       - test -f ops/local/ansible-inventory.yml
+      - sh: test -f ops/local/newapi-origin.yml
+        msg: Describe the origin in ops/local/newapi-origin.yml first. Deploying without it would drop the auth host and every extra site.
     cmds:
-      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi-origin.yml
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-newapi-origin.yml -e @ops/local/newapi-origin.yml
   ops:discover:
     desc: Read-only inventory of the explicitly configured origin host
     env:

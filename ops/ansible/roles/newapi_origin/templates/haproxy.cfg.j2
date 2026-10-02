@@ -14,7 +14,7 @@ defaults
     timeout tunnel {{ newapi_origin_timeout_tunnel }}
 
 frontend newapi_tls_in
-    bind :{{ newapi_origin_port }} ssl crt {{ newapi_origin_tls_pem }} ssl-min-ver TLSv1.2
+    bind :{{ newapi_origin_port }} ssl crt {{ newapi_origin_tls_pem }}{% if newapi_origin_sites %} crt {{ newapi_origin_sites_tls_pem }}{% endif %} ssl-min-ver TLSv1.2
     mode http
 
     # Host verification and routing
@@ -25,7 +25,12 @@ frontend newapi_tls_in
     # Privacy & security: do not log query parameters or auth credentials on auth endpoints before any routing/deny
     http-request set-log-level silent if is_auth_host
 
-    http-request deny deny_status 404 unless is_newapi_host or is_auth_host
+{% for site in newapi_origin_sites %}
+    acl is_site_{{ site.name }} hdr(host) -i {{ site.hostname }} {{ site.hostname }}:443 {{ site.hostname }}:{{ newapi_origin_port }}
+{% endfor %}
+
+    http-request deny deny_status 404 unless is_newapi_host or is_auth_host{% for site in newapi_origin_sites %} or is_site_{{ site.name }}{% endfor %}
+
 
     # auth.tjuclaw.cloud root redirect
     acl is_root path -m str /
@@ -41,8 +46,29 @@ frontend newapi_tls_in
 {% else %}
     # Only accept newapi.tjuclaw.cloud host header (with optional standard/custom ports)
     acl valid_host hdr(host) -i {{ newapi_origin_hostname }} {{ newapi_origin_hostname }}:443 {{ newapi_origin_hostname }}:{{ newapi_origin_port }}
-    http-request deny deny_status 404 unless valid_host
+{% for site in newapi_origin_sites %}
+    acl is_site_{{ site.name }} hdr(host) -i {{ site.hostname }} {{ site.hostname }}:443 {{ site.hostname }}:{{ newapi_origin_port }}
+{% endfor %}
+    http-request deny deny_status 404 unless valid_host{% for site in newapi_origin_sites %} or is_site_{{ site.name }}{% endfor %}
+
 {% endif %}
+{% for site in newapi_origin_sites %}
+
+    # {{ site.hostname }}: a read-only site
+{% if site.root_redirect is defined %}
+    acl site_{{ site.name }}_root path -m str /
+    http-request redirect location {{ site.root_redirect }} code 302 if is_site_{{ site.name }} site_{{ site.name }}_root
+{% endif %}
+{% if site.allowed_prefixes is defined or site.allowed_paths is defined %}
+{% if site.allowed_prefixes | default([]) %}
+    acl site_{{ site.name }}_allowed path -m beg {{ site.allowed_prefixes | join(' ') }}
+{% endif %}
+{% if site.allowed_paths | default([]) %}
+    acl site_{{ site.name }}_allowed path -m str {{ site.allowed_paths | join(' ') }}
+{% endif %}
+    http-request deny deny_status 404 if is_site_{{ site.name }} !site_{{ site.name }}_allowed
+{% endif %}
+{% endfor %}
 
     # Security: strip any client-supplied/forged X-Forwarded-For before setting client IP
     http-request del-header X-Forwarded-For
@@ -58,6 +84,9 @@ frontend newapi_tls_in
 {% if newapi_origin_auth_enabled | bool %}
     use_backend auth_backend if is_auth_host
 {% endif %}
+{% for site in newapi_origin_sites %}
+    use_backend site_{{ site.name }}_backend if is_site_{{ site.name }}
+{% endfor %}
     default_backend newapi_backend
 
 backend newapi_backend
@@ -69,3 +98,9 @@ backend auth_backend
     mode http
     server auth_app {{ newapi_origin_auth_backend_address }}:{{ newapi_origin_auth_backend_port }} check
 {% endif %}
+{% for site in newapi_origin_sites %}
+
+backend site_{{ site.name }}_backend
+    mode http
+    server site_{{ site.name }} {{ site.backend_address | default('127.0.0.1') }}:{{ site.backend_port }} check
+{% endfor %}
