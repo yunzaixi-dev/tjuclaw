@@ -20,6 +20,8 @@ TJUClaw 是一个从天津大学校园场景出发、正在走向通用的智能
   - **Windows**: 64 位安装程序（`.exe`）
   - **Linux**: Debian / Ubuntu 软件包（`.deb`）
   - **Android**: 安装包（`.apk`）
+- **服务状态**：[https://status.tjuclaw.cloud/](https://status.tjuclaw.cloud/) 实时显示各组件的可用性与响应延迟；
+- **更新日志**：[https://changelog.tjuclaw.cloud/](https://changelog.tjuclaw.cloud/) 记录每一次发布改了什么。
 
 > 第一次使用请先阅读[产品使用指南](/docs/guide)；本地源码调试与完整开发环境搭建步骤见[开发环境与本地验证](/docs/quickstart)。
 

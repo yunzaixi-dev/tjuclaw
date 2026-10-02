@@ -17,6 +17,16 @@ export function baseOptions(): BaseLayoutProps {
         url: '/docs',
         active: 'nested-url',
       },
+      {
+        text: '服务状态',
+        url: 'https://status.tjuclaw.cloud/',
+        external: true,
+      },
+      {
+        text: '更新日志',
+        url: 'https://changelog.tjuclaw.cloud/',
+        external: true,
+      },
     ],
   };
 }
