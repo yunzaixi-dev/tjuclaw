@@ -22,6 +22,28 @@ For the independent Cap CAPTCHA service, use `task ops:cap:deploy` with ignored
 through an SSH tunnel; Valkey has no published port. See [CAP.md](CAP.md) for
 persistent secrets, backup, rollback and the separate product integration boundary.
 
+For status and latency monitoring, copy `uptime.example.yml` to ignored
+`ops/local/uptime.yml` and use `task ops:uptime:deploy`. Uptime Kuma runs with
+host networking so its monitors reach this host's loopback services; its
+dashboard and status pages listen on loopback port 3001 only. Reach the
+dashboard through an SSH tunnel. Describe the monitors in ignored
+`ops/local/uptime-monitors.json` (see `ops/uptime/monitors.example.json`), keep
+the administrator password in ignored `ops/local/uptime-admin-password.txt`,
+open `ssh -N -L 13001:127.0.0.1:3001 HOST`, then run `task ops:uptime:configure`.
+It adds monitors that are missing by name and saves the status page; it never
+edits or deletes a monitor. A monitor on the same host as the services it
+watches cannot report that host being down, and container limits (320 MiB) do
+not prove the 2 GiB host has room: check `free -m` before adding monitors.
+Publishing the status page needs a separately reviewed HTTPS origin.
+
+For release notes, `task ops:changelog:deploy` with ignored
+`ops/local/changelog.yml` (from `changelog.example.yml`) runs Openchangelog on
+loopback port 6001 and publishes the Markdown files of the repository's
+`changelog/` directory, removing published files that are no longer there. Name
+files `YYYY-MM-DD-NN.slug.md` so the newest sorts first, with `title`,
+`description`, `publishedAt` and `tags` front matter. Run the task again after
+adding a note. The listener is not public until an HTTPS origin routes to it.
+
 `ops:services:prepare` installs the Compose plugin and creates
 `/etc/tjuclaw-api.env` only when absent. Review existing configuration separately;
 rerunning preparation does not overwrite it.

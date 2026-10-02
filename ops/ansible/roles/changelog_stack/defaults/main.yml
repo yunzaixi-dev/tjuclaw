@@ -1,0 +1,25 @@
+---
+# Openchangelog stack defaults
+changelog_base_dir: /opt/tjuclaw-changelog
+changelog_project_name: tjuclaw-changelog
+changelog_listen_addr: "127.0.0.1:6001"
+
+# Immutable official image digest (amd64).
+changelog_image: "ghcr.io/jonashiltl/openchangelog:0.8.2@sha256:a91b9d8eaf955ac88f30851eefe82e4cd3c435f192863427538fdb5103a397fc"
+
+# Release notes are the Markdown files of this directory on the controller.
+changelog_notes_dir: "{{ playbook_dir }}/../../../changelog"
+
+changelog_title: "TJUClaw 更新日志"
+changelog_subtitle: "每一次发布改了什么。"
+changelog_color_scheme: "system"
+
+changelog_mem_limit: "64m"
+changelog_logging_max_size: "10m"
+changelog_logging_max_file: "3"
+
+changelog_health_timeout_seconds: 30
+changelog_health_delay_seconds: 2
+
+changelog_simulate: false
+changelog_become: true

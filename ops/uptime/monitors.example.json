@@ -1,0 +1,25 @@
+{
+  "status_page": {
+    "slug": "status",
+    "title": "Example service status",
+    "description": "Availability and response time of each component, measured once a minute."
+  },
+  "groups": [
+    {
+      "name": "Public entry points",
+      "monitors": [
+        { "name": "Web client", "url": "https://app.example.invalid/", "certificate_expiry": true },
+        { "name": "API through the edge", "url": "https://app.example.invalid/api/healthz" },
+        { "name": "Session endpoint", "url": "https://app.example.invalid/api/auth/session", "accepted": ["401"], "description": "Anonymous requests must get 401" },
+        { "name": "Client downloads", "url": "https://downloads.example.invalid/client/latest.json", "interval": 300 }
+      ]
+    },
+    {
+      "name": "Core services on this host",
+      "monitors": [
+        { "name": "API", "url": "http://127.0.0.1:18080/healthz" },
+        { "name": "Identity", "url": "http://127.0.0.1:4433/health/ready" }
+      ]
+    }
+  ]
+}

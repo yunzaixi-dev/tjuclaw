@@ -1,0 +1,17 @@
+---
+# Example configuration for deploying tjuclaw-changelog (Openchangelog)
+# Copy this file to ops/local/changelog.yml or pass via -e @ops/local/changelog.yml
+
+changelog_base_dir: "/opt/tjuclaw-changelog"
+changelog_project_name: "tjuclaw-changelog"
+
+# Loopback only. Put a reviewed HTTPS origin in front of it.
+changelog_listen_addr: "127.0.0.1:6001"
+
+# Immutable official image digest (amd64).
+changelog_image: "ghcr.io/jonashiltl/openchangelog:0.8.2@sha256:a91b9d8eaf955ac88f30851eefe82e4cd3c435f192863427538fdb5103a397fc"
+
+changelog_title: "TJUClaw 更新日志"
+changelog_subtitle: "每一次发布改了什么。"
+# system, light or dark
+changelog_color_scheme: "system"

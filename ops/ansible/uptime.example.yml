@@ -1,0 +1,20 @@
+---
+# Example configuration for deploying tjuclaw-uptime (Uptime Kuma)
+# Copy this file to ops/local/uptime.yml or pass via -e @ops/local/uptime.yml
+
+uptime_base_dir: "/opt/tjuclaw-uptime"
+uptime_project_name: "tjuclaw-uptime"
+
+# The dashboard and its public status pages listen on loopback only. Put a
+# reviewed HTTPS origin in front of the status page; reach the dashboard
+# through an SSH tunnel.
+uptime_listen_host: "127.0.0.1"
+uptime_listen_port: 3001
+
+# Immutable official image digest (amd64). A host that cannot reach Docker Hub
+# may name the same digest through its registry mirror instead.
+uptime_image: "louislam/uptime-kuma:2.5.5-slim@sha256:9c56a772a7df53f444a404c579e87a27bd0c201375d00d6745a75bf8138f4342"
+
+# The container is limited to 320 MiB and Node's heap to 160 MiB.
+uptime_mem_limit: "320m"
+uptime_node_heap_mb: 160

@@ -1,0 +1,10 @@
+---
+# Playbook to deploy Uptime Kuma status and latency monitoring
+- name: Deploy Uptime Kuma
+  hosts: all
+  serial: 1
+  become: "{{ uptime_become | default(true) }}"
+  gather_facts: false
+
+  roles:
+    - role: uptime_stack

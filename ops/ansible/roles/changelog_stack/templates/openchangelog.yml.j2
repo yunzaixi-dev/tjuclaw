@@ -1,0 +1,14 @@
+# Openchangelog configuration for tjuclaw-changelog
+# Managed by Ansible.
+addr: 0.0.0.0:6001
+
+local:
+  filesPath: /release-notes
+
+page:
+  title: {{ changelog_title | to_json }}
+  subtitle: {{ changelog_subtitle | to_json }}
+  colorScheme: {{ changelog_color_scheme }}
+
+search:
+  type: memory

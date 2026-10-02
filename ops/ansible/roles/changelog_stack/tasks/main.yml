@@ -1,0 +1,106 @@
+---
+- name: Require a digest-pinned image and a loopback listener
+  ansible.builtin.assert:
+    that:
+      - changelog_image is match('^[^@\s]+@sha256:[0-9a-f]{64}$')
+      - changelog_listen_addr is match('^127\.0\.0\.1:[0-9]{4,5}$')
+      - changelog_base_dir is match('^/opt/[a-z0-9-]+$')
+      - changelog_color_scheme in ['system', 'light', 'dark']
+    fail_msg: >-
+      changelog_image must be pinned by digest, the listener must be on loopback,
+      and changelog_base_dir must be a directory under /opt.
+
+- name: Find release notes on the controller
+  ansible.builtin.set_fact:
+    changelog_notes: "{{ lookup('ansible.builtin.fileglob', changelog_notes_dir ~ '/*.md', wantlist=True) | sort }}"
+
+- name: Require at least one release note
+  ansible.builtin.assert:
+    that: changelog_notes | length > 0
+    fail_msg: "No release notes (*.md) found in {{ changelog_notes_dir }}."
+
+- name: Ensure configuration and release note directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ 'root' if not (changelog_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (changelog_simulate | bool) else omit }}"
+    mode: "0755"
+  loop:
+    - "{{ changelog_base_dir }}"
+    - "{{ changelog_base_dir }}/release-notes"
+
+- name: Mark this directory as owned by the changelog role
+  ansible.builtin.copy:
+    content: "tjuclaw-changelog-v1\n"
+    dest: "{{ changelog_base_dir }}/.managed-by-ansible"
+    mode: "0600"
+
+- name: Publish release notes
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ changelog_base_dir }}/release-notes/{{ item | basename }}"
+    mode: "0644"
+  loop: "{{ changelog_notes }}"
+  loop_control:
+    label: "{{ item | basename }}"
+
+- name: List published release notes
+  ansible.builtin.find:
+    paths: "{{ changelog_base_dir }}/release-notes"
+    file_type: any
+    hidden: true
+  register: changelog_published
+
+- name: Remove release notes that are no longer in the repository
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ changelog_published.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in (changelog_notes | map('basename') | list)
+
+- name: Render Openchangelog configuration
+  ansible.builtin.template:
+    src: openchangelog.yml.j2
+    dest: "{{ changelog_base_dir }}/openchangelog.yml"
+    mode: "0644"
+  register: changelog_config
+
+- name: Render Compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ changelog_base_dir }}/compose.yaml"
+    mode: "0644"
+
+- name: Validate Compose configuration
+  ansible.builtin.command:
+    cmd: docker compose -p "{{ changelog_project_name }}" -f "{{ changelog_base_dir }}/compose.yaml" config --quiet
+  changed_when: false
+  when: not (changelog_simulate | bool)
+
+- name: Start Openchangelog
+  ansible.builtin.command:
+    cmd: docker compose -p "{{ changelog_project_name }}" -f "{{ changelog_base_dir }}/compose.yaml" up -d
+  register: changelog_up
+  changed_when: "'Started' in (changelog_up.stdout + changelog_up.stderr) or 'Created' in (changelog_up.stdout + changelog_up.stderr) or 'Recreated' in (changelog_up.stdout + changelog_up.stderr)"
+  when: not (changelog_simulate | bool)
+
+- name: Restart Openchangelog after a configuration change
+  ansible.builtin.command:
+    cmd: docker compose -p "{{ changelog_project_name }}" -f "{{ changelog_base_dir }}/compose.yaml" restart changelog
+  when: changelog_config.changed and not changelog_up.changed | default(false) and not (changelog_simulate | bool)
+
+- name: Verify the changelog is served on loopback
+  ansible.builtin.uri:
+    url: "http://{{ changelog_listen_addr }}/"
+    status_code: 200
+    return_content: true
+    timeout: 5
+    use_proxy: false
+  register: changelog_health
+  until: changelog_health.status | default(0) == 200
+  retries: "{{ ((changelog_health_timeout_seconds | int) / (changelog_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+  delay: "{{ changelog_health_delay_seconds }}"
+  when: not (changelog_simulate | bool)

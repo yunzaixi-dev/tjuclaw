@@ -1,0 +1,43 @@
+# Production compose configuration for tjuclaw-uptime
+# Managed by Ansible. Single-host deployment.
+name: {{ uptime_project_name }}
+
+services:
+  uptime:
+    image: {{ uptime_image }}
+    container_name: {{ uptime_project_name }}-app
+    restart: unless-stopped
+    pull_policy: missing
+    # Monitors probe this host's loopback services; the dashboard binds loopback only.
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    # NET_RAW is for ping monitors; the rest let the image prepare its data directory.
+    cap_add: [NET_RAW, CHOWN, DAC_OVERRIDE, FOWNER]
+    environment:
+      - UPTIME_KUMA_HOST={{ uptime_listen_host }}
+      - UPTIME_KUMA_PORT={{ uptime_listen_port }}
+      - UPTIME_KUMA_DB_TYPE=sqlite
+      - NODE_OPTIONS=--max-old-space-size={{ uptime_node_heap_mb }}
+      - TZ=Asia/Shanghai
+    volumes:
+      - uptime-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "extra/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: {{ uptime_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ uptime_logging_max_size }}"
+        max-file: "{{ uptime_logging_max_file }}"
+
+volumes:
+  uptime-data:

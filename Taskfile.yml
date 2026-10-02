@@ -176,6 +176,8 @@ tasks:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-newapi-origin.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-crawler.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-cap.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-uptime.yml --syntax-check
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-changelog.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-zitadel.yml --syntax-check
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/ansible/inventory.example.yml ops/ansible/playbooks/deploy-weknora.yml --syntax-check
   ops:test:
@@ -225,6 +227,31 @@ tasks:
       - test -f ops/local/cap.yml
     cmds:
       - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-cap.yml -e @ops/local/cap.yml
+  ops:uptime:deploy:
+    desc: Deploy Uptime Kuma status and latency monitoring on loopback
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/uptime.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-uptime.yml -e @ops/local/uptime.yml
+  ops:uptime:configure:
+    desc: Add missing Uptime Kuma monitors and save the status page through an SSH tunnel on port 13001
+    preconditions:
+      - test -f ops/local/uptime-monitors.json
+      - test -f ops/local/uptime-admin-password.txt
+    cmds:
+      - uv run --no-project --with 'python-socketio[client]' ops/uptime/configure.py --monitors ops/local/uptime-monitors.json --password-file ops/local/uptime-admin-password.txt
+  ops:changelog:deploy:
+    desc: Deploy the self-hosted Openchangelog and publish changelog/*.md
+    env:
+      ANSIBLE_CONFIG: '{{.ROOT_DIR}}/ops/ansible/ansible.cfg'
+    preconditions:
+      - test -f ops/local/ansible-inventory.yml
+      - test -f ops/local/changelog.yml
+    cmds:
+      - uv run --no-project --with-requirements ops/ansible/requirements.txt ansible-playbook -i ops/local/ansible-inventory.yml ops/ansible/playbooks/deploy-changelog.yml -e @ops/local/changelog.yml
   ops:crawler:deploy:
     desc: Deploy the verified crawler image and isolated PostgreSQL with rollback
     env:

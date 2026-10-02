@@ -1,0 +1,25 @@
+---
+# Uptime Kuma stack defaults
+uptime_base_dir: /opt/tjuclaw-uptime
+uptime_project_name: tjuclaw-uptime
+# Host networking lets monitors reach the loopback services of this host and
+# measures latency without a Docker bridge in between. The dashboard itself
+# stays on loopback.
+uptime_listen_host: "127.0.0.1"
+uptime_listen_port: 3001
+
+# Immutable official image digest (amd64). The slim image has no embedded
+# MariaDB or Chromium: SQLite only, no browser-engine monitors.
+uptime_image: "louislam/uptime-kuma:2.5.5-slim@sha256:9c56a772a7df53f444a404c579e87a27bd0c201375d00d6745a75bf8138f4342"
+
+uptime_mem_limit: "320m"
+uptime_node_heap_mb: 160
+
+uptime_logging_max_size: "10m"
+uptime_logging_max_file: "3"
+
+uptime_health_timeout_seconds: 90
+uptime_health_delay_seconds: 3
+
+uptime_simulate: false
+uptime_become: true

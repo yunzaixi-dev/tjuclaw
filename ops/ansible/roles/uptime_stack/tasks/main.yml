@@ -1,0 +1,57 @@
+---
+- name: Require a digest-pinned image and a loopback dashboard
+  ansible.builtin.assert:
+    that:
+      - uptime_image is match('^[^@\s]+@sha256:[0-9a-f]{64}$')
+      - uptime_listen_host in ['127.0.0.1', '::1']
+      - (uptime_listen_port | int) > 1023
+      - uptime_base_dir is match('^/opt/[a-z0-9-]+$')
+    fail_msg: >-
+      uptime_image must be pinned by digest, the dashboard must listen on loopback
+      with an unprivileged port, and uptime_base_dir must be a directory under /opt.
+
+- name: Ensure private configuration directory
+  ansible.builtin.file:
+    path: "{{ uptime_base_dir }}"
+    state: directory
+    owner: "{{ 'root' if not (uptime_simulate | bool) else omit }}"
+    group: "{{ 'root' if not (uptime_simulate | bool) else omit }}"
+    mode: "0700"
+
+- name: Mark this directory as owned by the Uptime role
+  ansible.builtin.copy:
+    content: "tjuclaw-uptime-v1\n"
+    dest: "{{ uptime_base_dir }}/.managed-by-ansible"
+    mode: "0600"
+
+- name: Render Compose configuration
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ uptime_base_dir }}/compose.yaml"
+    mode: "0644"
+
+- name: Validate Compose configuration
+  ansible.builtin.command:
+    cmd: docker compose -p "{{ uptime_project_name }}" -f "{{ uptime_base_dir }}/compose.yaml" config --quiet
+  changed_when: false
+  when: not (uptime_simulate | bool)
+
+- name: Start Uptime Kuma
+  ansible.builtin.command:
+    cmd: docker compose -p "{{ uptime_project_name }}" -f "{{ uptime_base_dir }}/compose.yaml" up -d
+  register: uptime_up
+  changed_when: "'Started' in (uptime_up.stdout + uptime_up.stderr) or 'Created' in (uptime_up.stdout + uptime_up.stderr) or 'Recreated' in (uptime_up.stdout + uptime_up.stderr)"
+  when: not (uptime_simulate | bool)
+
+- name: Verify the dashboard answers on loopback
+  ansible.builtin.uri:
+    url: "http://{{ uptime_listen_host }}:{{ uptime_listen_port }}/"
+    status_code: [200, 302]
+    follow_redirects: none
+    timeout: 5
+    use_proxy: false
+  register: uptime_health
+  until: uptime_health.status | default(0) in [200, 302]
+  retries: "{{ ((uptime_health_timeout_seconds | int) / (uptime_health_delay_seconds | int)) | round(0, 'ceil') | int }}"
+  delay: "{{ uptime_health_delay_seconds }}"
+  when: not (uptime_simulate | bool)

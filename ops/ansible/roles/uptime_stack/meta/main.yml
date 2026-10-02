@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: TJUClaw Team
+  description: Uptime Kuma status and latency monitoring on loopback with host networking
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+dependencies: []

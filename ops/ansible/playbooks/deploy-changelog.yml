@@ -1,0 +1,10 @@
+---
+# Playbook to deploy the self-hosted Openchangelog and publish release notes
+- name: Deploy Openchangelog
+  hosts: all
+  serial: 1
+  become: "{{ changelog_become | default(true) }}"
+  gather_facts: false
+
+  roles:
+    - role: changelog_stack

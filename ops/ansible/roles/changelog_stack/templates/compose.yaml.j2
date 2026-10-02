@@ -1,0 +1,31 @@
+# Production compose configuration for tjuclaw-changelog
+# Managed by Ansible. Single-host deployment.
+name: {{ changelog_project_name }}
+
+services:
+  changelog:
+    image: {{ changelog_image }}
+    container_name: {{ changelog_project_name }}-app
+    restart: unless-stopped
+    pull_policy: missing
+    user: "65532:65532"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    ports:
+      - "{{ changelog_listen_addr }}:6001"
+    volumes:
+      - ./release-notes:/release-notes:ro
+      - ./openchangelog.yml:/etc/openchangelog.yml:ro
+    deploy:
+      resources:
+        limits:
+          memory: {{ changelog_mem_limit }}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "{{ changelog_logging_max_size }}"
+        max-file: "{{ changelog_logging_max_file }}"
