@@ -34,6 +34,7 @@ private/ research/ ops/local/  ignored local material; never build inputs
 | Product decisions and status | `CONTEXT.md` |
 | Frontend/API boundary | `DEVELOPMENT.md`, `frontend/UI.md` |
 | Docs source and navigation | `docs/content/docs/`, `docs/content/docs/meta.json` |
+| Release notes | `changelog/`, published by `task ops:changelog:deploy` |
 | Auth policy | `ops/auth/README.md` |
 | Production deployment contract | `ops/ansible/DEPLOY.md` |
 | API composition | `backend/cmd/api/main.go` |
@@ -92,9 +93,21 @@ and cli use Go 1.27.0. Do not merge them into one workspace.
   `complete: false`; production crawler does not run OCR.
 - Commit subjects are `EMOJI [vVERSION] type(scope): summary`; stage explicit
   paths only. Version must match the staged component `package.json`.
+- Every change ships with a release note. Add or extend a file in `changelog/`
+  in the same piece of work, whichever component the change is in: submodule
+  changes are recorded here too. Name it `YYYY-MM-DD-NN.slug.md` (NN orders the
+  notes of one day) with `title`, `description`, `publishedAt` and `tags` front
+  matter. Write in Chinese for users: what changed for them, why, and any known
+  limit; no internal hostnames, credentials or private deployment detail. Do not
+  use Markdown tables, which are unreadable on the changelog's dark theme. A
+  change users cannot notice (a refactor, a test, CI) gets one line in that
+  day's maintenance note instead of its own file. Publishing is a separate,
+  authorized step: `task ops:changelog:deploy`.
 
 ## ANTI-PATTERNS
 
+- Never finish a change without its release note in `changelog/`, and never
+  describe as shipped something that is only committed or only built.
 - Never use `git add .`, force-push, or commit/tag/publish without authorization.
 - Never load PAT-bearing root `.env.local` into Task or client builds.
 - Never share crawler, WeKnora, Kratos, API, or regional crawler databases.
