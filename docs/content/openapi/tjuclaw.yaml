@@ -903,6 +903,35 @@ paths:
         '204': { description: 未启用沙箱，无需预热 }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /sessions/{id}/interrupt:
+    post:
+      tags: [Sessions]
+      summary: 停止会话正在进行的这一轮
+      description: |
+        需要登录。请求沙箱网关让当前这一轮尽快收尾：模型正在输出文字时停在当前位置，
+        正在执行的工具会先执行完。等待中的发送消息请求仍会正常返回这一轮的回复，
+        该回复带有 interrupted 标记。没有正在进行的一轮时返回 409；
+        未启用沙箱网关或网关不可达时返回 503，这一轮会继续运行。
+        其他用户的或不存在的会话返回 404。
+      operationId: interruptSession
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '202':
+          description: 已请求停止
+          headers:
+            Cache-Control: { schema: { type: string, const: no-store } }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [interrupted]
+                properties:
+                  interrupted: { type: boolean, const: true }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /vault/status:
     get:
       tags: [Vault]
