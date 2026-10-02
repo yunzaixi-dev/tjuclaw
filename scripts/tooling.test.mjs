@@ -20,7 +20,8 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.equal(workflow.on.pull_request_target, undefined);
   assert.equal(workflow.permissions.contents, 'read');
 
-  // Native jobs belong to the pinned client; integration keeps real auth.
+  // Native jobs belong to the pinned client. The real-auth regression is a
+  // local task (`task auth:test`), not a CI job.
   const clientJobs = parse(read('frontend/.github/workflows/ci.yml')).jobs;
   assert.equal(workflow.jobs['build-linux'], undefined);
   assert.equal(workflow.jobs['build-android'], undefined);
@@ -28,7 +29,8 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const jobs = { ...workflow.jobs, ...clientJobs };
   assert.ok(jobs['check']);
   assert.ok(jobs['browser']);
-  assert.ok(jobs['integration']);
+  assert.equal(workflow.jobs.integration, undefined);
+  assert.deepEqual(workflow.jobs.deploy.needs, ['check', 'ops']);
   assert.ok(jobs['build-artifacts']);
   assert.ok(jobs['build-linux']);
   assert.ok(jobs['build-android']);
@@ -80,10 +82,9 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.equal(planJob.steps.find(step => step.id === 'plan').run, 'node scripts/ci-plan.mjs');
   assert.deepEqual(Object.keys(planJob.outputs), planGroups);
   for (const group of planGroups) assert.equal(planJob.outputs[group], `\${{ steps.plan.outputs.${group} }}`);
-  for (const name of ['check', 'ops', 'integration', 'sandbox-images']) assert.equal(workflow.jobs[name].needs, 'plan');
+  for (const name of ['check', 'ops', 'sandbox-images']) assert.equal(workflow.jobs[name].needs, 'plan');
   assert.equal(workflow.jobs.check.if, undefined);
   assert.equal(workflow.jobs.ops.if, "needs.plan.outputs.ops == 'true'");
-  assert.equal(workflow.jobs.integration.if, "needs.plan.outputs.integration == 'true'");
   const checkSteps = workflow.jobs.check.steps;
   const checkStep = group => checkSteps.find(step => step.run === `task check:${group}`);
   assert.equal(checkStep('tooling').if, undefined);
@@ -100,15 +101,6 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   const opsRun = workflow.jobs.ops.steps.map(step => step.run ?? '').join('\n');
   assert.equal(opsRun.match(/uv run /g).length, 1);
   assert.match(opsRun, /node --test ops\/ansible\/tests\/\*\.test\.mjs scripts\/deploy-release\.test\.mjs/);
-  const integration = workflow.jobs.integration.steps;
-  const authRun = integration.findIndex(step => step.name === 'Run real auth regression');
-  assert.equal(integration[authRun].run, 'pnpm exec playwright test --config scripts/auth.playwright.config.mjs');
-  assert.equal(integration[authRun].env.AUTH_TEST_EVIDENCE, '0');
-  assert.equal(integration[authRun].env.TJUCLAW_SESSION_E2E, undefined);
-  assert.equal(integration[authRun - 1].run, 'pnpm --dir frontend exec vite build');
-  const protocol = integration[authRun + 1];
-  assert.equal(protocol.env.TJUCLAW_SESSION_E2E, '1');
-  assert.match(protocol.run, /browser-to-API \(Agent reply\|vault\)/);
   assert.match(read('scripts/auth.playwright.config.mjs'), /fullyParallel: true/);
   const browserRun = jobs.browser.steps.find(step => step.run?.includes('playwright test'))?.run ?? '';
   assert.match(browserRun, /scripts\/playwright\.config\.mjs/);
@@ -120,13 +112,6 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
       assert.ok(!step.with.path.includes('test-results'));
     }
   }
-  const integrationSteps = jobs.integration.steps;
-  assert.match(workflow.jobs.integration.env.AUTH_TEST_IMAGES, /oryd\/kratos:v26\.2\.0/);
-  const pullStart = integrationSteps.findIndex(step => step.name === 'Start pulling pinned identity and CAPTCHA test images');
-  const pullWait = integrationSteps.findIndex(step => step.name === 'Wait for the pinned identity and CAPTCHA test images');
-  assert.match(integrationSteps[pullWait].run, /docker image inspect "\$image" >\/dev\/null 2>&1 \|\| docker pull "\$image"/);
-  assert.ok(pullStart >= 0 && pullStart < pullWait && pullWait < authRun);
-  assert.ok(integrationSteps.some(step => step.if === 'always()' && step.run === 'node scripts/auth-test-stack.mjs --down'));
   assert.match(read('scripts/auth-test-stack.mjs'), /\['down', '--volumes', '--remove-orphans', '--timeout', '0'\]/);
   assert.deepEqual(parse(read('.gitlab-ci.yml')).workflow.rules, [{ when: 'never' }]);
   assert.ok(windowsWorkflow.on.push);

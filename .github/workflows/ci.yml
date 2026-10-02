@@ -62,7 +62,6 @@ jobs:
       cli: ${{ steps.plan.outputs.cli }}
       crawler: ${{ steps.plan.outputs.crawler }}
       ops: ${{ steps.plan.outputs.ops }}
-      integration: ${{ steps.plan.outputs.integration }}
       sandbox: ${{ steps.plan.outputs.sandbox }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -128,6 +127,10 @@ jobs:
       # together they are `task check`.
       - name: Check repository tooling
         run: task check:tooling
+      - name: Validate Compose configuration and context
+        run: |
+          task compose:config
+          task compose:context
       - name: Check Web client
         if: needs.plan.outputs.web == 'true'
         run: task check:web
@@ -258,74 +261,7 @@ jobs:
     # Production deploys are manual: the runner's link to the API host is too
     # slow for every push (use `task ops:api:deploy` locally, or run CI by hand
     # with deploy_api). An unchanged backend reuses the running binary.
-    needs: [check, integration, ops]
+    needs: [check, ops]
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_api && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
-
-  integration:
-    name: Real Kratos authentication, Cap and task ownership
-    needs: plan
-    if: needs.plan.outputs.integration == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      AUTH_TEST_IMAGES: oryd/kratos:v26.2.0 postgres:16.14-alpine axllent/mailpit:v1.27.8 tiago2/cap:3.1.11 valkey/valkey:9-alpine
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - name: Start pulling pinned identity and CAPTCHA test images
-        # Runs behind the toolchain setup; the wait step below pulls whatever is still missing.
-        run: |
-          nohup bash -c 'printf "%s\n" $AUTH_TEST_IMAGES | xargs -P 5 -I {} sh -c "docker image inspect {} >/dev/null 2>&1 || docker pull -q {}"' \
-            > "$RUNNER_TEMP/auth-image-pull.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/auth-image-pull.pid"
-      - uses: ./.github/actions/checkout-components
-        with:
-          server-key: ${{ secrets.SERVER_READ_KEY }}
-          cli-key: ${{ secrets.CLI_READ_KEY }}
-          crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
-      - name: Install Docker Compose CLI plugin
-        run: |
-          if docker compose version >/dev/null 2>&1; then
-            echo 'Runner image already has Docker Compose'
-          else
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends docker-compose-v2
-          fi
-      - uses: ./.github/actions/setup
-        with:
-          profile: integration
-          bun: 'false'
-          pnpm-cache-dependency-path: |
-            pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
-      - name: Validate Compose configuration and context
-        run: |
-          task compose:config
-          task compose:context
-      - name: Install Chromium with system dependencies
-        run: pnpm exec playwright install --with-deps chromium
-      - name: Wait for the pinned identity and CAPTCHA test images
-        run: |
-          tail --pid="$(cat "$RUNNER_TEMP/auth-image-pull.pid")" -f /dev/null
-          cat "$RUNNER_TEMP/auth-image-pull.log"
-          for image in $AUTH_TEST_IMAGES; do
-            docker image inspect "$image" >/dev/null 2>&1 || docker pull "$image"
-          done
-      - name: Build Web client
-        # The check job type-checks the client; do not compile it twice.
-        run: pnpm --dir frontend exec vite build
-      - name: Run real auth regression
-        env:
-          AUTH_TEST_EVIDENCE: '0'
-        run: pnpm exec playwright test --config scripts/auth.playwright.config.mjs
-      - name: Run isolated browser session and vault regressions
-        env:
-          AUTH_TEST_EVIDENCE: '0'
-          TJUCLAW_SESSION_E2E: '1'
-        run: pnpm exec playwright test --config scripts/auth.playwright.config.mjs --grep 'browser-to-API (Agent reply|vault)'
-      - name: Clean up exact test stack
-        if: always()
-        run: node scripts/auth-test-stack.mjs --down

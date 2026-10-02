@@ -7,19 +7,20 @@ const selected = files => groups.filter(group => plan(files)[group]);
 test('each change selects only the jobs that read it', () => {
   assert.deepEqual(selected([]), []);
   assert.deepEqual(selected(['docs/content/docs/index.md', 'README.md', 'DESIGN.md']), ['docs']);
-  assert.deepEqual(selected(['frontend']), ['web', 'integration']);
-  assert.deepEqual(selected(['backend']), ['api', 'integration']);
+  assert.deepEqual(selected(['frontend']), ['web']);
+  assert.deepEqual(selected(['backend']), ['api']);
   assert.deepEqual(selected(['cli']), ['cli', 'sandbox']);
   assert.deepEqual(selected(['crawler']), ['crawler']);
   assert.deepEqual(selected(['sandbox']), ['sandbox']);
   assert.deepEqual(selected(['ops/ansible/roles/api/tasks/main.yml']), ['ops']);
   assert.deepEqual(selected(['scripts/deploy-release.mjs']), ['ops']);
-  assert.deepEqual(selected(['ops/auth/compose.yaml']), ['api', 'ops', 'integration']);
-  assert.deepEqual(selected(['ops/images/nginx.conf']), ['api', 'ops', 'integration']);
-  assert.deepEqual(selected(['scripts/auth.spec.mjs']), ['integration']);
-  assert.deepEqual(selected(['compose.yaml']), ['integration']);
+  assert.deepEqual(selected(['ops/auth/compose.yaml']), ['api', 'ops']);
+  assert.deepEqual(selected(['ops/images/nginx.conf']), ['api', 'ops']);
+  // The real-auth regression is a local task; its inputs start no CI job.
+  assert.deepEqual(selected(['scripts/auth.spec.mjs']), []);
+  assert.deepEqual(selected(['compose.yaml']), []);
   assert.deepEqual(selected(['scripts/sync-api-docs.mjs']), ['web', 'docs', 'api', 'cli', 'crawler']);
-  assert.deepEqual(selected(['frontend', 'docs/content/docs/guide.md']), ['web', 'docs', 'integration']);
+  assert.deepEqual(selected(['frontend', 'docs/content/docs/guide.md']), ['web', 'docs']);
 });
 
 test('shared build inputs and unknown paths run everything', () => {

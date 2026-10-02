@@ -34,10 +34,11 @@ crawler 使用 `prod-sg` ARC 的仓库级临时 Runner：crawler 使用隔离 Di
 1. 在组件仓库实现并提交修改，通过该仓库 CI 后推送可访问的提交。
 2. 在集成仓库更新 `frontend/`、`backend/`、`cli/` 或 `crawler/` 的 submodule SHA，并逐路径暂存。
 3. 运行 `task check` 和需要的组合回归。真实认证使用 `task auth:test`，不使用 mock 替代。
+   真实认证回归只在本地运行，集成 CI 不再包含这一项：它每次要拉起完整的 Kratos、Cap 和邮件栈，耗时长且不稳定。改动认证、会话或保险库相关代码前后请在本地跑一遍。
 4. 合并或直接在 GitHub release 迭代（集成与生产部署基于 release，dev 保留备用）。集成 CI 检查锁定的组件组合，单向推送同 SHA 到 GitLab release。
 
 客户端负责外观与工作区回归及原生打包。仅修改服务端不会重新构建四个平台客户端。
-集成仍会构建 Web 以验证实际认证/任务接口；这是组合回归的一部分。
+集成 CI 检查锁定的组件组合能否通过各自的检查并构建；真实认证/任务接口的组合回归在本地用 `task auth:test` 运行。
 
 ## 源码与状态同步
 

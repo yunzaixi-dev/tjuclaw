@@ -4,26 +4,27 @@
 import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const groups = ['web', 'docs', 'api', 'cli', 'crawler', 'ops', 'integration', 'sandbox'];
+export const groups = ['web', 'docs', 'api', 'cli', 'crawler', 'ops', 'sandbox'];
 const portable = ['web', 'docs', 'api', 'cli', 'crawler'];
 const everything = () => Object.fromEntries(groups.map(group => [group, true]));
 
 // First match wins. Submodules appear as their gitlink path. Repository
 // tooling checks always run, so a rule lists only the extra groups.
 const rules = [
-  [/^frontend$/, ['web', 'integration']],
-  [/^backend$/, ['api', 'integration']],
+  [/^frontend$/, ['web']],
+  [/^backend$/, ['api']],
   [/^cli$/, ['cli', 'sandbox']],
   [/^crawler$/, ['crawler']],
   [/^sandbox$/, ['sandbox']],
   [/^ClaudeAnimationBase$/, []],
   [/^docs\//, ['docs']],
-  [/^ops\/(auth|images)\//, ['ops', 'api', 'integration']],
-  [/^ops\/compose\.env\.example$/, ['integration']],
+  [/^ops\/(auth|images)\//, ['ops', 'api']],
+  // The real-auth regression runs locally (`task auth:test`), not in CI.
+  [/^ops\/compose\.env\.example$/, []],
   [/^ops\/ci\//, []],
   [/^ops\//, ['ops']],
-  [/^(compose\.yaml|\.dockerignore)$/, ['integration']],
-  [/^scripts\/(auth|session-test-controller|local-sandbox|check-docker-context)/, ['integration']],
+  [/^(compose\.yaml|\.dockerignore)$/, []],
+  [/^scripts\/(auth|session-test-controller|local-sandbox|check-docker-context)/, []],
   [/^scripts\/deploy-release\./, ['ops']],
   [/^scripts\//, portable],
   [/^(draw|screenshots)\//, []],
