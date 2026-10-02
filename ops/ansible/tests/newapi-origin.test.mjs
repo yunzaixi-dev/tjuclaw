@@ -141,7 +141,8 @@ test('newapi_origin role configuration template and preflight assertions', () =>
     const sites = [
       { name: 'status', hostname: 'status.tjuclaw.cloud', backend_port: 3001, root_redirect: '/status/main',
         allowed_prefixes: ['/status/main', '/assets/'], allowed_paths: ['/icon.svg'] },
-      { name: 'changelog', hostname: 'changelog.tjuclaw.cloud', backend_port: 6001 },
+      { name: 'changelog', hostname: 'changelog.tjuclaw.cloud', backend_port: 6001,
+        root_page: join(import.meta.dirname, '../../uptime/status-page.html'), root_page_slug: 'main' },
     ];
     const sitesBase = { ...variables, newapi_origin_tls_pem: multiCertPath, newapi_origin_auth_enabled: true, newapi_origin_sites: sites };
     const sitesWrongCert = run({ ...sitesBase, newapi_origin_sites_tls_pem: multiCertPath });
@@ -160,6 +161,11 @@ test('newapi_origin role configuration template and preflight assertions', () =>
     assert.match(sitesCfg, /acl site_status_allowed path -m str \/icon\.svg/);
     assert.match(sitesCfg, /http-request deny deny_status 404 if is_site_status !site_status_allowed/);
     assert.doesNotMatch(sitesCfg, /site_changelog_allowed/);
+    // A site with a root page is answered by the origin itself, with the slug filled in.
+    assert.match(sitesCfg, /http-request return status 200 content-type "text\/html; charset=utf-8" file \S+\/site-changelog\.html hdr Cache-Control "no-cache" if is_site_changelog site_changelog_root/);
+    const rootPage = readFileSync(join(configDir, 'site-changelog.html'), 'utf8');
+    assert.match(rootPage, /<body data-slug="main">/);
+    assert.ok(Buffer.byteLength(rootPage) < 15000, 'the root page fits one HAProxy buffer');
     assert.match(sitesCfg, /use_backend site_status_backend if is_site_status/);
     assert.match(sitesCfg, /server site_status 127\.0\.0\.1:3001 check/);
     assert.match(sitesCfg, /server site_changelog 127\.0\.0\.1:6001 check/);

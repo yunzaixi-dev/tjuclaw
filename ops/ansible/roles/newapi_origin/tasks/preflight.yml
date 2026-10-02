@@ -48,6 +48,7 @@
       - (site.backend_port | int) < 65536
       - (site.backend_address | default('127.0.0.1') | string) is match('^[a-zA-Z0-9.:-]+$')
       - (site.root_redirect | default('/x') | string) is match('^/[A-Za-z0-9._/-]*$')
+      - (site.root_page_slug | default('status') | string) is match('^[a-z0-9-]+$')
       - (site.allowed_prefixes | default([]) + site.allowed_paths | default([])) | reject('match', '^/[A-Za-z0-9._/-]*$') | list | length == 0
     fail_msg: "Invalid site entry in newapi_origin_sites: {{ site.name | default('unnamed') }}."
   loop: "{{ newapi_origin_sites }}"

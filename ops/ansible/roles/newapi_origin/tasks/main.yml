@@ -56,6 +56,35 @@
     mode: "0755"
   when: newapi_origin_simulate | bool
 
+- name: Render the root page of each site that has one
+  ansible.builtin.template:
+    src: "{{ site.root_page }}"
+    dest: "{{ newapi_origin_config_dir }}/site-{{ site.name }}.html"
+    mode: "0644"
+  loop: "{{ newapi_origin_sites | selectattr('root_page', 'defined') | list }}"
+  loop_control:
+    loop_var: site
+    label: "{{ site.name }}"
+  register: newapi_origin_site_pages
+  notify: Reload dedicated NewAPI HAProxy service
+
+- name: Read the size of each rendered root page
+  ansible.builtin.stat:
+    path: "{{ newapi_origin_config_dir }}/site-{{ site.name }}.html"
+  loop: "{{ newapi_origin_sites | selectattr('root_page', 'defined') | list }}"
+  loop_control:
+    loop_var: site
+    label: "{{ site.name }}"
+  register: newapi_origin_site_page_stats
+
+- name: Require root pages small enough for one HAProxy buffer
+  ansible.builtin.assert:
+    that: item.stat.size < 15000
+    fail_msg: "A site root page must stay under 15 kB: HAProxy returns it from a single 16 kB buffer."
+  loop: "{{ newapi_origin_site_page_stats.results }}"
+  loop_control:
+    label: "{{ item.site.name }}"
+
 - name: Deploy dedicated HAProxy configuration file (production)
   ansible.builtin.template:
     src: haproxy.cfg.j2

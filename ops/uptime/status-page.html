@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服务状态</title>
+<link rel="icon" href="/icon.svg">
+<style>
+:root { --bg: #fcfcfb; --ink: #1a1a19; --muted: #6b6b66; --line: #e7e6e2; --series: #2a78d6; --good: #0ca30c; --bad: #d03b3b; --wait: #8a8a84; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1a1a19; --ink: #f2f1ee; --muted: #a3a29c; --line: #333330; --series: #3987e5; } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 16px 56px; background: var(--bg); color: var(--ink); font: 15px/1.6 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { margin: 0; font-size: 24px; }
+h2 { margin: 32px 0 4px; font-size: 14px; font-weight: 600; color: var(--muted); }
+a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+.lead, .foot { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+.overall { margin: 18px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; }
+.state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.state::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--wait); }
+.state.up::before { background: var(--good); }
+.state.down::before { background: var(--bad); border-radius: 2px; }
+.row { display: grid; grid-template-columns: minmax(0, 1.1fr) 280px minmax(0, 1fr); gap: 4px 16px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.name { font-weight: 600; overflow-wrap: anywhere; }
+.row .state { font-size: 13px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 2px 10px; margin: 0; font-variant-numeric: tabular-nums; }
+.stats dt { grid-row: 1; color: var(--muted); font-size: 12px; }
+.stats dd { grid-row: 2; margin: 0; font-size: 14px; white-space: nowrap; }
+.plot { position: relative; height: 44px; }
+.plot svg { display: block; width: 100%; height: 44px; overflow: visible; }
+.plot .line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.plot .miss { stroke: var(--bad); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.plot .cross { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; visibility: hidden; }
+.tip { position: absolute; top: -22px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 12px; white-space: nowrap; pointer-events: none; visibility: hidden; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.plot:hover .cross, .plot:hover .tip { visibility: visible; }
+@media (max-width: 720px) { .row { grid-template-columns: minmax(0, 1fr) auto; } .stats { grid-column: 1 / -1; grid-row: 2; } .plot { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; } .who { display: contents; } }
+</style>
+</head>
+<body data-slug="{{ site.root_page_slug | default('status') }}">
+<main>
+  <h1 id="title">服务状态</h1>
+  <p class="lead" id="lead"></p>
+  <p class="overall" id="overall" role="status">正在读取…</p>
+  <div id="groups"></div>
+  <p class="foot">延迟曲线是每个组件最近若干次探测的响应时间；竖线标出失败的探测。<a id="history" href="#">查看可用性历史</a> · <span id="stamp"></span></p>
+</main>
+<script>
+const slug = document.body.dataset.slug, base = '/api/status-page/';
+const el = (tag, cls, text) => { const node = document.createElement(tag); if (cls) node.className = cls; if (text != null) node.textContent = text; return node; };
+const svg = (tag, attrs) => { const node = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const key in attrs) node.setAttribute(key, attrs[key]); return node; };
+const ms = value => value == null ? '—' : value >= 1000 ? (value / 1000).toFixed(2) + ' s' : Math.round(value) + ' ms';
+const clock = time => new Date(time.replace(' ', 'T') + 'Z').toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+const pick = (sorted, share) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * share) - 1)] : null;
+
+function plot(beats) {
+  const box = el('div', 'plot'), W = 300, H = 44, pad = 4;
+  const chart = svg('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none', role: 'img' });
+  const pings = beats.map(beat => beat.status === 1 && beat.ping != null ? beat.ping : null);
+  const top = Math.max(1, ...pings.filter(value => value != null));
+  const x = index => beats.length > 1 ? index / (beats.length - 1) * W : W / 2;
+  const y = value => H - pad - value / top * (H - 2 * pad);
+  // A failed probe breaks the line, so a gap never reads as a fast response.
+  let path = '', pen = false;
+  pings.forEach((value, index) => {
+    if (value == null) { pen = false; chart.append(svg('line', { class: 'miss', x1: x(index), x2: x(index), y1: H - pad - 12, y2: H - pad })); return; }
+    path += `${pen ? 'L' : 'M'}${x(index).toFixed(1)} ${y(value).toFixed(1)}`; pen = true;
+  });
+  chart.append(svg('path', { class: 'line', d: path }));
+  const cross = svg('line', { class: 'cross', y1: 0, y2: H }), tip = el('span', 'tip');
+  chart.append(cross); box.append(chart, tip);
+  chart.setAttribute('aria-label', `最近 ${beats.length} 次探测的响应时间，最高 ${ms(top)}`);
+  box.addEventListener('pointermove', event => {
+    const area = box.getBoundingClientRect();
+    const index = Math.max(0, Math.min(beats.length - 1, Math.round((event.clientX - area.left) / area.width * (beats.length - 1))));
+    cross.setAttribute('x1', x(index)); cross.setAttribute('x2', x(index));
+    tip.style.left = x(index) / W * 100 + '%';
+    tip.textContent = `${clock(beats[index].time)} · ${pings[index] == null ? '探测失败' : ms(pings[index])}`;
+  });
+  return box;
+}
+
+function row(monitor, beats, uptime) {
+  const last = beats[beats.length - 1];
+  const state = !last ? ['wait', '暂无数据'] : last.status === 1 ? ['up', '正常'] : last.status === 0 ? ['down', '故障'] : ['wait', last.status === 3 ? '维护中' : '确认中'];
+  const sorted = beats.filter(beat => beat.status === 1 && beat.ping != null).map(beat => beat.ping).sort((a, b) => a - b);
+  const line = el('div', 'row'), who = el('div', 'who'), stats = el('dl', 'stats');
+  who.append(el('div', 'name', monitor.name), el('span', 'state ' + state[0], state[1]));
+  for (const [label, value] of [['当前', ms(last && last.status === 1 ? last.ping : null)], ['中位', ms(pick(sorted, .5))], ['P95', ms(pick(sorted, .95))], ['24 小时可用', uptime == null ? '—' : (uptime * 100).toFixed(2) + '%']]) stats.append(el('dt', '', label), el('dd', '', value));
+  line.append(who, stats, beats.length ? plot(beats) : el('div', 'plot'));
+  return { line, down: state[0] === 'down' };
+}
+
+async function load() {
+  try {
+    const [page, beats] = await Promise.all([fetch(base + slug), fetch(base + 'heartbeat/' + slug)].map(request => request.then(response => { if (!response.ok) throw new Error(response.status); return response.json(); })));
+    document.title = page.config.title;
+    document.getElementById('title').textContent = page.config.title;
+    document.getElementById('lead').textContent = page.config.description || '';
+    document.getElementById('history').href = '/status/' + slug;
+    const groups = document.createDocumentFragment();
+    let total = 0, down = 0;
+    for (const group of page.publicGroupList) {
+      groups.append(el('h2', '', group.name));
+      for (const monitor of group.monitorList) {
+        const made = row(monitor, beats.heartbeatList[monitor.id] || [], beats.uptimeList[monitor.id + '_24']);
+        total++; if (made.down) down++;
+        groups.append(made.line);
+      }
+    }
+    document.getElementById('groups').replaceChildren(groups);
+    const overall = document.getElementById('overall');
+    overall.replaceChildren(el('span', 'state ' + (down ? 'down' : 'up'), down ? `${down} 个组件故障，共 ${total} 个` : `全部 ${total} 个组件正常`));
+    document.getElementById('stamp').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+  } catch {
+    document.getElementById('overall').textContent = '暂时读取不到状态数据，稍后会自动重试。';
+  }
+}
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>

@@ -55,7 +55,10 @@ frontend newapi_tls_in
 {% for site in newapi_origin_sites %}
 
     # {{ site.hostname }}: a read-only site
-{% if site.root_redirect is defined %}
+{% if site.root_page is defined %}
+    acl site_{{ site.name }}_root path -m str /
+    http-request return status 200 content-type "text/html; charset=utf-8" file {{ newapi_origin_config_dir }}/site-{{ site.name }}.html hdr Cache-Control "no-cache" if is_site_{{ site.name }} site_{{ site.name }}_root
+{% elif site.root_redirect is defined %}
     acl site_{{ site.name }}_root path -m str /
     http-request redirect location {{ site.root_redirect }} code 302 if is_site_{{ site.name }} site_{{ site.name }}_root
 {% endif %}
