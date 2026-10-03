@@ -16,6 +16,8 @@ servers:
 tags:
   - name: System
     description: 服务运行状态
+  - name: ReleaseNotes
+    description: 客户端更新提示使用的更新日志条目
   - name: Authentication
     description: 应用层邮箱验证码、密码与会话接口
   - name: Kratos
@@ -32,6 +34,10 @@ tags:
     description: 用户 Forgejo 仓库中的不透明密封对象传输；尚未替换现有笔记存储
   - name: Models
     description: 用户模型配置与产品配额
+  - name: Skills
+    description: 精选技能插件；启用后 Agent 通过 read_skill 读取其做法
+  - name: MCP
+    description: 用户添加的远程 MCP 服务；其工具与产品工具一起提供给 Agent
   - name: Marketplace
     description: 知识库发布与订阅
   - name: Campus
@@ -2118,6 +2124,152 @@ paths:
               schema: { $ref: '#/components/schemas/ModelResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
 
+  /account/skills:
+    get:
+      tags: [Skills]
+      summary: 列出精选技能及是否启用
+      operationId: listSkills
+      responses:
+        '200':
+          description: 技能目录
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [skills]
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, title, summary, description, enabled]
+                      properties:
+                        id: { type: string }
+                        title: { type: string }
+                        summary: { type: string }
+                        description: { type: string }
+                        enabled: { type: boolean }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+  /account/skills/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [Skills]
+      summary: 启用或停用一个技能
+      operationId: setSkill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        '200': { description: 已更新 }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/Error' }
+  /account/mcp:
+    get:
+      tags: [MCP]
+      summary: 列出精选目录与已添加的 MCP 服务
+      description: 精选目录不含服务地址；已添加的服务只返回是否设置了密钥，从不返回密钥。
+      operationId: listMCP
+      responses:
+        '200':
+          description: 目录与已添加的服务
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MCPListResponse' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [MCP]
+      summary: 从精选目录或按地址添加 MCP 服务
+      description: >-
+        目录服务只需 `catalog_id`（需要密钥时附 `secret`）。自定义服务需公网 HTTPS 的
+        Streamable HTTP 地址、工具前缀 `name` 与认证方式。每个账号最多 12 个服务。
+      operationId: addMCP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddMCPRequest' }
+      responses:
+        '201':
+          description: 已添加
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MCPServerResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '409': { $ref: '#/components/responses/Error' }
+  /account/mcp/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9a-f]{32}$' } }
+    patch:
+      tags: [MCP]
+      summary: 启用、停用或更换密钥
+      operationId: updateMCP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                enabled: { type: boolean }
+                secret: { type: string, maxLength: 1024, description: 空字符串清除可选密钥；必需密钥不能清除。 }
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MCPServerResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [MCP]
+      summary: 移除 MCP 服务
+      operationId: deleteMCP
+      responses:
+        '204': { description: 已移除 }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/Error' }
+  /account/mcp/{id}/check:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, pattern: '^[0-9a-f]{32}$' } }
+    post:
+      tags: [MCP]
+      summary: 立即连接服务并列出其工具
+      description: 失败时 `error.id` 为 `mcp_unauthorized`、`mcp_unavailable`、`mcp_protocol` 或 `upstream_blocked`。
+      operationId: checkMCP
+      responses:
+        '200':
+          description: 服务提供的工具
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tools]
+                properties:
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, description]
+                      properties:
+                        name: { type: string }
+                        description: { type: string }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+
   /market:
     get:
       tags: [Marketplace]
@@ -2158,6 +2310,33 @@ paths:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /release-notes:
+    get:
+      tags: [ReleaseNotes]
+      summary: 列出最近的更新日志条目
+      description: |
+        读取配置的更新日志 RSS 源，按实际上线时间倒序返回最新 20 条。
+        未配置或源不可用时返回 503；源短暂不可用时仍可返回上一次成功的列表。
+      operationId: listReleaseNotes
+      security: []
+      responses:
+        '200':
+          description: 更新日志条目
+          headers:
+            Cache-Control:
+              description: 成功响应可缓存 60 秒。
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseNotesResponse'
+        '503':
+          description: 更新日志源不可用或未配置
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: { id: release_notes_unavailable } }
 
 components:
   securitySchemes:
@@ -2332,6 +2511,31 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
           example: { error: { id: not_found } }
   schemas:
+    ReleaseNote:
+      type: object
+      additionalProperties: false
+      required: [title, published_at, tags]
+      properties:
+        title:
+          type: string
+          description: 更新日志标题，超过 200 个字符会截断。
+        published_at:
+          type: string
+          format: date-time
+          description: 该条更新实际上线的时间。
+        tags:
+          type: array
+          maxItems: 8
+          items: { type: string }
+    ReleaseNotesResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/ReleaseNote' }
     SealedObject:
       type: object
       additionalProperties: false
@@ -2769,6 +2973,63 @@ components:
       required: [model]
       properties:
         model: { $ref: '#/components/schemas/Model' }
+    MCPCatalogEntry:
+      type: object
+      required: [id, title, summary, description, publisher, homepage, auth]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        description: { type: string }
+        publisher: { type: string }
+        homepage: { type: string, format: uri }
+        auth: { type: string, enum: [none, bearer, header, query] }
+        key_optional: { type: boolean }
+        key_label: { type: string }
+        key_help: { type: string }
+        key_url: { type: string, format: uri }
+    MCPServer:
+      type: object
+      required: [id, name, title, auth, has_secret, enabled, created_at, updated_at]
+      properties:
+        id: { type: string }
+        catalog_id: { type: string }
+        name: { type: string, description: 工具前缀；工具以 `mcp__<name>__<tool>` 提供给 Agent。 }
+        title: { type: string }
+        url: { type: string, format: uri, description: 仅自定义服务返回。 }
+        auth: { type: string, enum: [none, bearer, header, query] }
+        auth_name: { type: string }
+        has_secret: { type: boolean }
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    MCPListResponse:
+      type: object
+      required: [catalog, servers]
+      properties:
+        catalog: { type: array, items: { $ref: '#/components/schemas/MCPCatalogEntry' } }
+        servers: { type: array, items: { $ref: '#/components/schemas/MCPServer' } }
+    MCPServerResponse:
+      type: object
+      required: [server]
+      properties:
+        server: { $ref: '#/components/schemas/MCPServer' }
+    AddMCPRequest:
+      oneOf:
+        - type: object
+          required: [catalog_id]
+          properties:
+            catalog_id: { type: string }
+            secret: { type: string, maxLength: 1024 }
+        - type: object
+          required: [name, url]
+          properties:
+            name: { type: string, pattern: '^[a-z][a-z0-9_]{0,23}$' }
+            title: { type: string, maxLength: 40 }
+            url: { type: string, format: uri, description: 公网 HTTPS，Streamable HTTP 端点 }
+            auth: { type: string, enum: [none, bearer, header, query] }
+            auth_name: { type: string, description: header 或 query 方式下的请求头或参数名 }
+            secret: { type: string, maxLength: 1024 }
     PutModelRequest:
       description: 保存自定义上游，或在产品模型之间选择（二者互斥）。
       oneOf:
