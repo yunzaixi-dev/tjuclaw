@@ -7,6 +7,9 @@ api_group: tjuclaw-api
 api_base_dir: /opt/tjuclaw-api
 api_data_dir: /var/lib/tjuclaw-api
 api_listen_addr: 127.0.0.1:18080
+# The self-hosted changelog's RSS feed on this host (changelog_stack's listen
+# address). Empty leaves GET /release-notes answering 503.
+api_changelog_feed_url: http://127.0.0.1:6001/feed
 api_unit_file_path: "{{ (api_base_dir ~ '/' ~ api_service_name ~ '.service') if (api_deploy_simulate_systemd | bool) else ('/etc/systemd/system/' ~ api_service_name ~ '.service') }}"
 api_env_file: /etc/tjuclaw-api.env
 api_health_timeout_seconds: 15
