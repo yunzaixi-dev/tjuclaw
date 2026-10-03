@@ -116,7 +116,7 @@ const platforms = [
   {
     name: 'Web 云端版',
     tag: '无需安装 · 浏览器即用',
-    desc: '通过浏览器登录、创建任务并查看工作空间。云端智能体与沙箱执行链路仍在接入中。',
+    desc: '浏览器登录即可使用笔记、会话与校园小工具；智能体在云端隔离沙箱中执行，并可接入 MCP 服务与技能。',
     action: '立即访问',
     href: 'https://app.tjuclaw.cloud',
     external: true,
