@@ -113,6 +113,12 @@ tasks:
     desc: Test task workspace client behavior using isolated mocks
     cmds:
       - task --dir frontend workspace:test -- {{.CLI_ARGS}}
+  workspace:system:test:
+    desc: Test the compiled system CLI, API routing and isolated stdio MCP peer
+    cmds: ['bash scripts/test-system-workspaces.sh {{.CLI_ARGS}}']
+  workspace:cloud:test:
+    desc: Test isolated cloud API and compiled gateway/Broker (optional --pi or --pi-features)
+    cmds: ['bash scripts/test-cloud-runtime.sh {{.CLI_ARGS}}']
   docs:dev:
     desc: Run Fumadocs on port 3000
     cmds: [node scripts/docs-dev.mjs]
@@ -317,7 +323,7 @@ tasks:
     dir: backend
     cmds: [go build -trimpath -o bin/ ./cmd/api]
   cli:build:
-    desc: Build tjucli with its component version
+    desc: Build the product CLI, campus CLI and tool server with the component version
     dir: cli
     vars:
       CLI_VERSION:
@@ -325,12 +331,13 @@ tasks:
     cmds:
       - go build -trimpath -ldflags="-X main.version={{.CLI_VERSION}}" -o bin/ ./cmd/tjucli
       - go build -trimpath -o bin/ ./cmd/tjucli-server
+      - go build -trimpath -ldflags="-X main.version={{.CLI_VERSION}}" -o bin/ ./cmd/tjuclaw
   cli:server:dev:
     desc: Run internal tool server with TJUCLI_GRANTS_FILE configured
     dir: cli
     cmds: [go run ./cmd/tjucli-server]
   cli:test:
-    desc: Test the campus CLI and public course provider
+    desc: Test system workspace CLI, runtimes and campus tools
     dir: cli
     cmds: [go test -race ./...]
   cli:lint:

@@ -35,6 +35,15 @@ edits or deletes a monitor. A monitor on the same host as the services it
 watches cannot report that host being down, and container limits (320 MiB) do
 not prove the 2 GiB host has room: check `free -m` before adding monitors.
 
+Include public HTTPS probes for the status page and changelog homepage, not
+just their loopback services: they measure access through DNS, TLS and the
+public entry point. Keep the changelog's loopback probe as a separate measure.
+For Forgejo, use the verified published origin's `/api/healthz`, requiring a
+successful HTTP response; do not treat an edge-generated 403 as service health.
+This checks Forgejo and its database/cache, not private repository contents,
+Git clone/push or LFS operations. New probes need time to accumulate samples:
+their initial median, P95 and availability only cover the observed period.
+
 For release notes, `task ops:changelog:deploy` with ignored
 `ops/local/changelog.yml` (from `changelog.example.yml`) runs Openchangelog on
 loopback port 6001 and publishes the Markdown files of the repository's

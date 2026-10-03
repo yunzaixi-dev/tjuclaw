@@ -55,13 +55,14 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.equal(workflow.env.GOFLAGS, undefined);
   assert.ok(publicClientJobs.every(job => ['ubuntu-24.04', 'macos-15'].includes(job['runs-on'])));
   assert.ok(windowsJobs.every(job => job['runs-on'] === 'windows-2022'));
-  for (const [path, label] of [
+  // The public CLI also checks its Windows private-state paths on a hosted Windows runner.
+  for (const [path, ...labels] of [
     ['backend/.github/workflows/ci.yml', 'tjuclaw-server'],
     ['crawler/.github/workflows/ci.yml', 'tjuclaw-crawler'],
     ['crawler/.github/workflows/image.yml', 'tjuclaw-crawler'],
-    ['cli/.github/workflows/ci.yml', 'ubuntu-24.04'],
+    ['cli/.github/workflows/ci.yml', 'ubuntu-24.04', 'windows-2025'],
   ]) {
-    assert.ok(Object.values(parse(read(path)).jobs).every(job => job['runs-on'] === label), `${path} uses ${label}`);
+    assert.ok(Object.values(parse(read(path)).jobs).every(job => labels.includes(job['runs-on'])), `${path} uses ${labels.join(' or ')}`);
   }
   const allJobs = [...rootJobs, ...publicClientJobs, ...windowsJobs];
   const commands = allJobs.flatMap(job => (job.steps ?? []).flatMap(step =>
@@ -158,9 +159,20 @@ test('Windows workflow is configured with pinned actions and checksums', () => {
   assert.equal(workflow.permissions.contents, 'read');
   const job = workflow.jobs.windows;
   assert.equal(job['runs-on'], 'windows-2022');
+  // Outside actions are pinned to a commit; the repository's own composite actions pin theirs.
   for (const step of (job.steps ?? []).filter(step => step.uses)) {
+    if (step.uses.startsWith('./.github/actions/')) {
+      const local = parse(read(`frontend/${step.uses.slice(2)}/action.yml`));
+      for (const inner of local.runs.steps.filter(inner => inner.uses)) assert.match(inner.uses, /@[a-f0-9]{40}$/);
+      continue;
+    }
     assert.match(step.uses, /@[a-f0-9]{40}$/);
   }
+  // The desktop package bundles the public CLI from the pinned revision, checked out without credentials.
+  const cliSource = parse(read('frontend/.github/actions/cli-source/action.yml')).runs.steps.find(inner => inner.uses?.startsWith('actions/checkout@'));
+  assert.equal(cliSource.with.repository, 'yunzaixi-dev/tjucli');
+  assert.equal(cliSource.with['persist-credentials'], false);
+  assert.match(read('frontend/src-tauri/CLI_REVISION').trim(), /^[0-9a-f]{40}$/);
   const checkout = job.steps.find(step => step.uses?.startsWith('actions/checkout@'));
   assert.equal(checkout.with['persist-credentials'], false);
   const artifact = job.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
