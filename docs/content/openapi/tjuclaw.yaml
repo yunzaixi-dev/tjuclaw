@@ -30,6 +30,8 @@ tags:
     description: 知识库、条目与文件
   - name: Sessions
     description: 知识库智能体会话
+  - name: Work
+    description: 工作视图的项目与文件夹：项目是某台主机上的工作目录，文件夹用来整理会话
   - name: Vault
     description: 用户 Forgejo 仓库中的不透明密封对象传输；尚未替换现有笔记存储
   - name: Models
@@ -843,10 +845,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Sessions]
-      summary: 重命名智能体会话
+      summary: 重命名或放置智能体会话
       description: |
-        需要登录。设置会话的名称，名称会作为会话列表里的标题。空白名称清除自定义名称，
-        标题恢复为第一个问题的开头。重命名不改变会话的更新时间。其他用户的或不存在的会话返回 404。
+        需要登录。`title` 设置会话的名称，名称会作为会话列表里的标题；空白名称清除自定义名称，
+        标题恢复为第一个问题的开头。`host`、`project_id`、`folder_id` 设置会话在工作视图里的位置：
+        放进项目会把主机设为项目所在的主机；会话在项目和文件夹之间二选一，放进其中一个会清除另一个。
+        两类字段可以同时给。重命名和放置都不改变会话的更新时间。其他用户的或不存在的会话返回 404。
       operationId: renameSession
       parameters: [{ $ref: '#/components/parameters/ResourceId' }]
       requestBody:
@@ -855,20 +859,26 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title]
+              minProperties: 1
               properties:
                 title: { type: string, maxLength: 60, description: 新名称；首尾空白与连续空白会被整理 }
+                host: { type: string, description: '`cloud`（云端沙箱）或 `ws:<工作空间 ID>`；空字符串表示默认的云端' }
+                project_id: { type: string, description: 所在项目；空字符串表示不在项目里 }
+                folder_id: { type: string, description: 所在文件夹；空字符串表示不在文件夹里 }
       responses:
         '200':
-          description: 已重命名
+          description: 已重命名或放置；只返回本次改动的字段
           content:
             application/json:
               schema:
                 type: object
-                required: [id, name]
+                required: [id]
                 properties:
                   id: { type: string, pattern: '^[0-9a-f]{32}$' }
                   name: { type: string, description: 整理后的名称；为空表示已清除 }
+                  host: { type: string }
+                  project_id: { type: string }
+                  folder_id: { type: string }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2124,6 +2134,154 @@ paths:
               schema: { $ref: '#/components/schemas/ModelResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
 
+  /work/layout:
+    get:
+      tags: [Work]
+      summary: 读取工作视图的项目与文件夹
+      operationId: getWorkLayout
+      responses:
+        '200':
+          description: 项目与文件夹
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [layout]
+                properties:
+                  layout: { $ref: '#/components/schemas/WorkLayout' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+  /work/projects:
+    post:
+      tags: [Work]
+      summary: 新建项目
+      description: 电脑上的项目需要该电脑上的绝对路径；云端项目不填路径。同一主机上项目名不能重复，每人最多 64 个项目。
+      operationId: createWorkProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host, name]
+              properties:
+                host: { type: string, description: '`cloud` 或 `ws:<工作空间 ID>`' }
+                name: { type: string, maxLength: 60 }
+                path: { type: string, maxLength: 512, description: 绝对路径（Unix 或 Windows）；云端项目留空 }
+      responses:
+        '201':
+          description: 已新建
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project]
+                properties:
+                  project: { $ref: '#/components/schemas/WorkProject' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '409': { $ref: '#/components/responses/Error' }
+  /work/projects/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+    patch:
+      tags: [Work]
+      summary: 重命名项目或修改路径
+      operationId: updateWorkProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 60 }
+                path: { type: string, maxLength: 512 }
+      responses:
+        '200':
+          description: 已更新
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [project]
+                properties:
+                  project: { $ref: '#/components/schemas/WorkProject' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Work]
+      summary: 删除项目
+      description: 只删除项目本身；其中的会话保留，显示在所在主机下。
+      operationId: deleteWorkProject
+      responses:
+        '204': { description: 已删除 }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /work/folders:
+    post:
+      tags: [Work]
+      summary: 新建会话文件夹
+      operationId: createWorkFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 60 }
+      responses:
+        '201':
+          description: 已新建
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folder]
+                properties:
+                  folder: { $ref: '#/components/schemas/WorkFolder' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '409': { $ref: '#/components/responses/Error' }
+  /work/folders/{id}:
+    parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+    patch:
+      tags: [Work]
+      summary: 重命名会话文件夹
+      operationId: updateWorkFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 60 }
+      responses:
+        '200':
+          description: 已重命名
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folder]
+                properties:
+                  folder: { $ref: '#/components/schemas/WorkFolder' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Work]
+      summary: 删除会话文件夹
+      description: 只删除文件夹本身；其中的会话回到所在主机下。
+      operationId: deleteWorkFolder
+      responses:
+        '204': { description: 已删除 }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /account/skills:
     get:
       tags: [Skills]
@@ -2973,6 +3131,28 @@ components:
       required: [model]
       properties:
         model: { $ref: '#/components/schemas/Model' }
+    WorkProject:
+      type: object
+      required: [id, host, name, created_at]
+      properties:
+        id: { type: string }
+        host: { type: string }
+        name: { type: string }
+        path: { type: string }
+        created_at: { type: string, format: date-time }
+    WorkFolder:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+    WorkLayout:
+      type: object
+      required: [projects, folders]
+      properties:
+        projects: { type: array, items: { $ref: '#/components/schemas/WorkProject' } }
+        folders: { type: array, items: { $ref: '#/components/schemas/WorkFolder' } }
     MCPCatalogEntry:
       type: object
       required: [id, title, summary, description, publisher, homepage, auth]
