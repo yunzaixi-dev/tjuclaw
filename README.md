@@ -20,6 +20,10 @@ TJUClaw 是一个从天津大学校园场景出发、正在走向通用的智能
   - **Windows**: 64 位安装程序（`.exe`）
   - **Linux**: Debian / Ubuntu 软件包（`.deb`）
   - **Android**: 安装包（`.apk`）
+- **TJUClaw CLI**：把自己的电脑连到账号，在网页和手机上打开它的终端，一条命令安装：
+  - **macOS / Linux**：`curl -fsSL https://tjuclaw-release.zaixi.dev/cli/install.sh | sh`
+  - **Windows**（PowerShell）：`irm https://tjuclaw-release.zaixi.dev/cli/install.ps1 | iex`
+  - 安装后运行 `tjuclaw workspace init` 与 `tjuclaw connect`，详见 [CLI 工作空间说明](https://github.com/yunzaixi-dev/tjucli/blob/release/WORKSPACES.md)；
 - **服务状态**：[https://status.tjuclaw.cloud/](https://status.tjuclaw.cloud/) 实时显示各组件的可用性与响应延迟；
 - **更新日志**：[https://changelog.tjuclaw.cloud/](https://changelog.tjuclaw.cloud/) 记录每一次发布改了什么。
 
@@ -35,6 +39,7 @@ TJUClaw 是一个从天津大学校园场景出发、正在走向通用的智能
 
 1. **连接电脑**：TJUClaw CLI 正式发布 Linux、macOS 与 Windows 版本，桌面客户端内置；一条 `tjuclaw connect` 命令把电脑连到账号，“工作”侧栏的主机列表随即出现这台电脑；在电脑上的项目里开始的对话，Agent 就在那个项目文件夹里工作。
 2. **远程开发体验**：电脑上的每一步实时显示在网页和手机上；Agent 需要执行命令或修改文件时，在网页和手机上审批；会话里可以查看改动差异、命令输出与测试结果，可以中断、续接，并在 Pi、Codex、Claude Code 之间切换引擎。
+   - [x] 一键安装：macOS、Linux、Windows 的 x64 与 arm64 共六个平台，一条命令安装并校验 SHA256。
    - [x] 远程终端：在网页和手机上直接打开电脑上的终端（可在项目目录启动），多标签、可调高度，手机上带 Esc、Tab、Ctrl 与方向键。
 3. **Coding Agent CLI**：`tjuclaw` 在终端里就是一个完整的编程 Agent，支持交互式界面、读写文件、运行命令、审批与会话续接；适配 Codex 与 Claude Code，可直接使用自己的账号；终端里的会话同步到账号，在网页上也能查看和继续。
 4. **校园与 MCP 完善**：MCP 支持需要 OAuth 登录的服务、按工具开关与调用前确认，扩充精选目录并逐个实测；校园小工具（课表、GPA、考试、自习室、论坛、入校码）逐项回归，完成校园任务与执行任务两条验收流程。
