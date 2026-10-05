@@ -30,6 +30,8 @@ cli/*
 !cli/skills/
 !cli/skills/tjucli/
 !cli/skills/tjucli/SKILL.md
+# The library skill is for agents on users' machines, not the sandbox image.
+cli/skills/tjuclaw-library/
 !sandbox/
 sandbox/*
 !sandbox/go.mod
