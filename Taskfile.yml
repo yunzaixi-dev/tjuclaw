@@ -340,6 +340,12 @@ tasks:
     desc: Test system workspace CLI, runtimes and campus tools
     dir: cli
     cmds: [go test -race ./...]
+  cli:library:test:
+    desc: Drive a built tjuclaw through API sign-in and library sync end to end
+    cmds:
+      - mkdir -p .task-tmp
+      - cd cli && go build -o ../.task-tmp/tjuclaw ./cmd/tjuclaw
+      - cd backend && TJUCLAW_CLI_BIN="$(cd .. && pwd)/.task-tmp/tjuclaw" go test -count=1 -run TestCLILibraryEndToEnd ./cmd/api
   cli:lint:
     desc: Check the independent CLI module
     dir: cli
