@@ -3770,27 +3770,36 @@ components:
         nickname: { type: string }
         expires_at: { type: string, format: date-time }
     OfficeCaptchaResponse:
-      type: object
-      required: [captcha_id, content_type, data, expires_at]
-      properties:
-        captcha_id: { type: string }
-        content_type: { type: string }
-        data: { type: string, contentEncoding: base64 }
-        expires_at: { type: string, format: date-time }
+      description: 一次性办公网检查挑战。微北洋教务协议不需要图片验证码；自定义验证码适配器仍返回图片。
+      oneOf:
+        - type: object
+          required: [captcha_required, captcha_id, expires_at]
+          properties:
+            captcha_required: { type: boolean, const: false }
+            captcha_id: { type: string }
+            expires_at: { type: string, format: date-time }
+        - type: object
+          required: [captcha_id, content_type, data, expires_at]
+          properties:
+            captcha_id: { type: string }
+            content_type: { type: string }
+            data: { type: string, contentEncoding: base64 }
+            expires_at: { type: string, format: date-time }
     OfficeSessionRequest:
       type: object
       additionalProperties: false
-      required: [username, password, captcha_id, captcha]
+      required: [username, password, captcha_id]
       properties:
         username: { type: string, minLength: 1 }
         password: { type: string, minLength: 1, format: password }
         captcha_id: { type: string }
-        captcha: { type: string, minLength: 1 }
+        captcha: { type: string, description: 图片验证码适配器必填；微北洋教务协议无需填写。 }
     OfficeSessionResponse:
       type: object
       required: [username, expires_at]
       properties:
         username: { type: string }
+        protocol: { type: string, enum: [learning, captcha] }
         expires_at: { type: string, format: date-time }
     CampusClassesResponse:
       type: object
