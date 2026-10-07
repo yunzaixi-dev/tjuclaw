@@ -1439,7 +1439,7 @@ paths:
     post:
       tags: [Campus]
       summary: 验证微北洋账号输入
-      description: 仅检查当前输入，丢弃上游令牌，不保存账号或替换当前校园会话。
+      description: 仅检查当前输入，丢弃上游令牌，不保存账号或替换当前校园会话。仅上游明确的账号拒绝返回 401；服务拒绝或缺少登录令牌返回 502，不代表密码错误。错误可包含不含隐私的数字 upstream_code，不转发上游原始消息。
       operationId: verifyCampusWpyAccount
       requestBody:
         required: true
@@ -3006,6 +3006,11 @@ components:
             id:
               type: string
               description: 稳定的机器可读错误 ID。
+            upstream_code:
+              type: integer
+              minimum: 0
+              maximum: 99999
+              description: 可选的微北洋登录服务错误码，仅用于区分账号拒绝、服务拒绝及不完整响应；不包含上游原始消息或账号信息。
     HealthResponse:
       type: object
       required: [status]
