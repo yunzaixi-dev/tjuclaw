@@ -1435,6 +1435,75 @@ paths:
         '204': { description: 已记录 }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+  /campus/accounts/wpy/verify:
+    post:
+      tags: [Campus]
+      summary: 验证微北洋账号输入
+      description: 仅检查当前输入，丢弃上游令牌，不保存账号或替换当前校园会话。
+      operationId: verifyCampusWpyAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CampusLoginRequest' }
+      responses:
+        '200':
+          description: 当前输入验证通过
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid]
+                properties:
+                  valid: { type: boolean, const: true }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /campus/accounts/office/captcha:
+    get:
+      tags: [Campus]
+      summary: 获取账号验证专用办公网验证码
+      description: 临时验证码归属于当前身份，与工具连接独立；获取新图片会替换旧挑战，有效期五分钟。
+      operationId: getCampusOfficeVerificationCaptcha
+      responses:
+        '200':
+          description: 验证码图片，data 为 base64
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfficeCaptchaResponse' }
+        '401': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /campus/accounts/office/verify:
+    post:
+      tags: [Campus]
+      summary: 验证办公网账号输入
+      description: 使用当前身份的一次性验证挑战检查账号、密码和验证码，不保存账号或修改工具连接。提交后无论成功失败都必须获取新验证码。
+      operationId: verifyCampusOfficeAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfficeSessionRequest' }
+      responses:
+        '200':
+          description: 当前输入验证通过
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid]
+                properties:
+                  valid: { type: boolean, const: true }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /campus/session:
     post:
       tags: [Campus]
