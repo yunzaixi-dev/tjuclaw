@@ -232,6 +232,10 @@ async function mockApi(route, state) {
   if (p === '/auth/session') return json(route, 200, identity);
   if (p === '/vault/status') return json(route, 200, { configured: false });
   if (p === '/libraries' && method === 'GET') return json(route, 200, { libraries: [library] });
+  if (p === '/work/layout') return json(route, 200, { layout: { projects: [], folders: [] } });
+  if (p === '/sessions' && method === 'GET') return json(route, 200, { sessions: Object.values(state.sessions).map(({ messages, ...session }) => ({
+    ...session, title: messages.find(message => message.role === 'user')?.content ?? '新对话',
+  })) });
   if ((m = p.match(/^\/libraries\/([0-9a-f]{32})\/entries$/)) && method === 'GET') {
     return json(route, 200, { entries: Object.values(state.entryById).map(entry => ({ ...entry, body: undefined })) });
   }
@@ -279,6 +283,13 @@ async function mockApi(route, state) {
   if (p === '/market' || p.endsWith('/publications')) return json(route, 200, { publications: [] });
   if (p.endsWith('/search')) return json(route, 200, { hits: [] });
   if (p === '/reviews') return json(route, 200, { reviews: [] });
+  if (p === '/campus/session' && method === 'POST') return json(route, 200, {
+    user_number: '3020999999', nickname: '演示同学', expires_at: new Date(Date.now() + 180000).toISOString(),
+  });
+  if (p === '/campus/entry-code') return json(route, 200, {
+    content: 'DEMO-NOT-A-VALID-CAMPUS-ENTRY', expires_at: new Date(Date.now() + 180000).toISOString(),
+  });
+  if (p === '/campus/session' && method === 'DELETE') return json(route, 204, {});
   if (p === '/decks') return json(route, 200, { decks: [deck] });
   if (p === '/cards') return json(route, 200, { cards });
   if (p === `/decks/${deck.id}/study-summary`) return json(route, 200, { last_reviewed_at: at(540) });
@@ -351,7 +362,7 @@ async function openNote(page, folderTitle, title) {
 
 async function openTutor(page) {
   // Conversations are listed by their first question.
-  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await page.getByRole('button', { name: '工作', exact: true }).click();
   await page.locator('.conversation-row').filter({ hasText: '帮我梳理一下基尔霍夫定律' }).click();
   await expect(page.getByRole('log', { name: '会话记录' })).toContainText('基尔霍夫');
 }
@@ -379,10 +390,8 @@ for (const scheme of ['light', 'dark']) {
       await expect(page.locator('.markdown-preview table').first()).toBeVisible();
       await shot(page, `desktop-${scheme}-02-workspace-read`);
       await page.getByRole('button', { name: '编辑模式' }).click();
-      if (scheme === 'dark') return;
-
       await page.getByRole('button', { name: '知识图谱' }).click();
-      await expect(page.getByRole('dialog').getByText(/篇笔记 · \d+ 条双向链接/)).toBeVisible();
+      await expect(page.getByRole('dialog').getByText(/篇笔记 · \d+ 条链接/)).toBeVisible();
       await shot(page, `desktop-${scheme}-03-knowledge-graph`);
       await page.keyboard.press('Escape');
 
@@ -512,8 +521,8 @@ test.describe('video', () => {
     let sentAt = 0;
     await page.route('**/api/sessions/*/live', route => {
       const elapsed = sentAt ? (Date.now() - sentAt) / 1000 : 0;
-      const steps = timeline.filter(step => elapsed >= step.at).map(step => ({ name: step.name, input: step.input, status: elapsed >= step.done ? 'done' : 'running' }));
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ steps }) });
+      const items = timeline.filter(step => elapsed >= step.at).map((step, i) => ({ i, kind: 'tool', name: step.name, input: step.input ?? '{}', status: elapsed >= step.done ? 'done' : 'running' }));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ version: 1, items, count: items.length }) });
     });
     await page.route('**/api/sessions/*/messages', async route => {
       const id = new URL(route.request().url()).pathname.split('/')[3];
@@ -530,8 +539,8 @@ test.describe('video', () => {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ session }) });
     });
 
-    await page.getByRole('button', { name: 'Agent', exact: true }).click();
-    await expect(page.getByRole('heading', { name: /今天想让/ })).toBeVisible();
+    await page.getByRole('button', { name: '工作', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: '发送给 Agent 的消息' })).toBeVisible();
     await page.waitForTimeout(3500);
     const composer = page.getByRole('textbox', { name: '发送给 Agent 的消息' });
     await composer.click();
@@ -548,3 +557,44 @@ test.describe('video', () => {
     fs.copyFileSync(await video.path(), path.join(outDir, 'conversation-live.webm'));
   });
 });
+
+for (const scheme of ['light', 'dark']) {
+  test.describe(`current campus notebook mobile ${scheme}`, () => {
+    test.use({ ...MOBILE, colorScheme: scheme });
+    test('seven-day timetable and demonstration entry QR', async ({ page }) => {
+      await page.addInitScript(owner => localStorage.setItem(`tjuclaw.campus.data.v1.${owner}`, JSON.stringify({
+        courses: [
+          { id: 'demo-mon', name: '电路分析', place: '45-B201', teacher: '演示教师', day: 0, start: 1, end: 2, color: 0 },
+          { id: 'demo-tue', name: '高等数学', place: '46-A408', day: 1, start: 3, end: 4, color: 1 },
+          { id: 'demo-wed', name: '大学物理', place: '45-B302', day: 2, start: 5, end: 6, color: 2 },
+          { id: 'demo-thu', name: '程序设计', place: '46-A212', day: 3, start: 1, end: 4, color: 3 },
+          { id: 'demo-fri', name: '电路实验', place: '实验楼', day: 4, start: 7, end: 8, color: 4 },
+          { id: 'demo-sun', name: '英语听说', place: '33-140', day: 6, start: 9, end: 10, color: 5 },
+        ], grades: [],
+      })), identity.id);
+      await openApp(page, initialState());
+      await page.getByRole('button', { name: '打开侧栏', exact: true }).click();
+      await page.getByRole('treeitem', { name: '课程表校园笔记', exact: true }).getByRole('button', { name: '课程表', exact: true }).click();
+      await expect(page.locator('.campus-week-day')).toHaveCount(7);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+      await shot(page, `mobile-07-${scheme}-timetable`);
+      await page.getByRole('button', { name: '打开侧栏', exact: true }).click();
+      // Verify that ordinary notes still share the sidebar while a campus note is open.
+      await expect(page.locator('.obsidian-tree').getByRole('button', { name: '基尔霍夫定律', exact: true })).toBeVisible();
+      await page.locator('.obsidian-sidebar').getByRole('button', { name: '设置', exact: true }).click();
+      await page.getByRole('navigation', { name: '设置分类' }).getByRole('button', { name: '校园账号', exact: true }).click();
+      const settings = page.getByRole('dialog');
+      await settings.getByRole('textbox', { name: /^微北洋账号/ }).fill('demo-not-a-real-account');
+      await settings.getByLabel('微北洋密码').fill('demo-not-a-real-password');
+      await settings.getByLabel('本地解锁口令').fill('demo-only-local-passphrase');
+      await settings.getByRole('button', { name: '加密保存', exact: true }).click();
+      await expect(settings.getByText('已加密保存在这台设备上。')).toBeVisible();
+      await settings.getByRole('button', { name: '关闭设置', exact: true }).click();
+      await page.getByRole('button', { name: '打开侧栏', exact: true }).click();
+      await page.getByRole('treeitem', { name: '入校码校园笔记', exact: true }).getByRole('button', { name: '入校码', exact: true }).click();
+      await expect(page.getByRole('img', { name: '实时入校二维码', exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+      await shot(page, `mobile-08-${scheme}-entry-qr-demo`);
+    });
+  });
+}

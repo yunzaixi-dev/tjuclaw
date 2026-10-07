@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
+import { CliInstall } from '../../components/cli-install';
 import type { LucideIcon } from 'lucide-react';
 import {
   AppWindow,
@@ -179,12 +180,12 @@ const platforms = [
   },
   {
     name: 'CLI 终端工具',
-    tag: '架构对接 · tjucli 独立命令',
-    desc: '面向极客开发者的纯终端工作流，支持一键在 Shell 中下发任务、管道过滤资料与自动化脚本集成。',
-    action: '即将开放',
-    href: '#',
+    tag: '已发布 · macOS / Linux / Windows',
+    desc: '安装 tjuclaw，把本机连接到账号；同步笔记与附件，在网页和手机上打开已授权电脑的终端。',
+    action: '查看安装指令',
+    href: '#cli-install',
     external: false,
-    available: false,
+    available: true,
   },
 ];
 
@@ -198,8 +199,8 @@ function HeroShot() {
         <em>app.tjuclaw.cloud</em>
       </div>
       {/* Both themes ship; the site's own light/dark switch picks one. */}
-      <img className="nx-shot-light" src="/images/home-notes-light.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
-      <img className="nx-shot-dark" src="/images/home-notes-dark.webp" width={2560} height={1440} alt="TJUClaw 的笔记页面（深色）：左侧是文件与记忆闪卡，右侧是以所见即所得方式编辑的《基尔霍夫定律》笔记。" />
+      <img className="nx-shot-light" src="/images/home-notes-light.webp" width={2560} height={1440} alt="TJUClaw 笔记工作区的浅色演示：左侧是资料目录，右侧正在编辑《基尔霍夫定律》笔记。" />
+      <img className="nx-shot-dark" src="/images/home-notes-dark.webp" width={2560} height={1440} alt="TJUClaw 笔记工作区的深色演示：左侧是资料目录，右侧正在编辑《基尔霍夫定律》笔记。" />
     </div>
   );
 }
@@ -229,7 +230,7 @@ export default function HomePage() {
         </div>
         <div className="nx-hero-media">
           <HeroShot />
-          <p className="nx-caption">真实界面 · 笔记页面</p>
+          <p className="nx-caption">当前 Web 界面 · 演示资料 · 2026 年 10 月 7 日</p>
         </div>
       </section>
 
@@ -317,12 +318,13 @@ export default function HomePage() {
               </>
             );
             return p.available ? (
-              <a className={`nx-tile ${p.primary ? 'is-featured' : ''}`} href={p.href} target="_blank" rel="noreferrer" key={p.name}>{body}</a>
+              <a className={`nx-tile ${p.primary ? 'is-featured' : ''}`} href={p.href} target={p.external ? '_blank' : undefined} rel={p.external ? 'noreferrer' : undefined} key={p.name}>{body}</a>
             ) : (
               <div className="nx-tile is-disabled" key={p.name}>{body}</div>
             );
           })}
         </div>
+        <CliInstall />
       </section>
 
       <section className="nx-section" aria-label="代码仓库划分">

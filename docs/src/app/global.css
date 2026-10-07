@@ -1018,6 +1018,21 @@ a.nx-tile:hover { background: var(--nx-surface-hover); }
 .nx-shot .nx-shot-dark, .dark .nx-shot .nx-shot-light { display: none; }
 .dark .nx-shot .nx-shot-dark { display: block; }
 
+.nx-cli-install { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--nx-line); scroll-margin-top: 6rem; }
+.nx-cli-install h3 { font-size: clamp(1.25rem, 3vw, 1.65rem); font-weight: 650; letter-spacing: -.02em; }
+.nx-cli-install > p { color: var(--nx-muted); margin-top: .75rem; line-height: 1.7; }
+.nx-cli-commands { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1.5rem; }
+.nx-cli-command { min-width: 0; }
+.nx-cli-command-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .5rem; }
+.nx-cli-command-head strong { font-size: .95rem; font-weight: 600; }
+.nx-cli-command-head button { display: inline-flex; align-items: center; gap: .4rem; min-height: 44px; padding: .4rem .65rem; font-size: .875rem; cursor: pointer; border-radius: 4px; }
+.nx-cli-command-head button:hover { background: var(--nx-surface-hover); }
+.nx-cli-command-head button:focus-visible, .nx-cli-command pre:focus-visible { outline: 2px solid var(--nx-blue); outline-offset: 3px; }
+.nx-cli-command pre { background: var(--nx-surface); border: 1px solid var(--nx-line); border-radius: 6px; padding: 1rem; font-size: .85rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nx-cli-help a { color: var(--nx-blue-text); text-decoration: underline; text-underline-offset: 3px; }
+.nx-cli-install .nx-cli-feedback { min-height: 1.5rem; font-size: .875rem; }
+@media (max-width: 767px) { .nx-cli-commands { grid-template-columns: minmax(0, 1fr); } }
+
 /* The drawn campus line art returns behind the hero (light and dark
    versions), full width and fading out before the screenshot. */
 .nx-hero { isolation: isolate; }

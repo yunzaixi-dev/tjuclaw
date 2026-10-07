@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     cwd: '..',
-    command: 'pnpm --dir frontend exec vite preview --host 127.0.0.1 --port 1425 --strictPort',
+    command: `pnpm --dir frontend exec vite preview ${process.env.TJUCLAW_SCREENSHOT_ARTIFACT ? `--outDir "${process.env.TJUCLAW_SCREENSHOT_ARTIFACT}" ` : ''}--host 127.0.0.1 --port 1425 --strictPort`,
     url: 'http://127.0.0.1:1425', reuseExistingServer: false,
   },
 });
