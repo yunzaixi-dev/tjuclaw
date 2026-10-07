@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
@@ -339,4 +339,26 @@ test('homepage source stays synchronized with generated README and DESIGN docume
   assert.equal(generated.design, read('DESIGN.md'));
   assert.match(read('.githooks/pre-commit'), /generate-design-doc\.mjs --check-index/);
   assert.match(read('Taskfile.yml'), /docs:check-sync/);
+});
+
+test('API and sandbox use the same reviewed product catalog, without media-only or duplicate aliases', t => {
+  // The portable GitHub job checks out four components, not the private
+  // sandbox. A full integration checkout runs this combination contract.
+  if (!existsSync(new URL('../sandbox/internal/gateway/product_policy.go', import.meta.url))) {
+    t.skip('requires the pinned sandbox checkout');
+    return;
+  }
+  const models = path => {
+    const catalog = read(path).match(/var latestProductModels = \[\]string\{([\s\S]*?)\n\}/);
+    assert.ok(catalog, `${path} has a reviewed catalog`);
+    return [...catalog[1].matchAll(/"([^"]+)"/g)].map(match => match[1]);
+  };
+  const api = models('backend/internal/library/product_policy.go');
+  const sandbox = models('sandbox/internal/gateway/product_policy.go');
+  assert.deepEqual(api, sandbox);
+  assert.equal(new Set(api).size, api.length);
+  assert.deepEqual(api.slice(0, 2), ['deepseek-flash', 'gemini-3.8-flash-tiered']);
+  assert.ok(api.includes('gpt-6.1-sol'));
+  assert.ok(api.includes('claude-opus-4-7'));
+  assert.ok(api.every(name => !name.includes('/') && !/image|audio|video|realtime|chat_\d/.test(name)));
 });
