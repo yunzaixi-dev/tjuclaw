@@ -2396,6 +2396,49 @@ paths:
         '204': { description: 已删除 }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /account/agent-prompt:
+    get:
+      tags: [Models]
+      summary: 获取账号的自定义预置提示词
+      description: 仅返回当前认证账号的偏好，不包含模型密钥；响应不缓存。
+      operationId: getAccountAgentPrompt
+      responses:
+        '200':
+          description: 账号偏好与 UTF-8 字节上限
+          content:
+            application/json:
+              schema: &accountAgentPromptResponse
+                type: object
+                required: [prompt, max_bytes]
+                properties:
+                  prompt: { type: string }
+                  max_bytes: { type: integer, const: 4096 }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
+    put:
+      tags: [Models]
+      summary: 保存或清空账号的自定义预置提示词
+      description: 学习 Agent 和引导对话在系统指令后追加此偏好；不覆盖权限与安全规则，也不被独立工作环境继承。最多 4096 个 UTF-8 字节，禁止 NUL。空字符串恢复默认；切换模型不会删除偏好。
+      operationId: putAccountAgentPrompt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [prompt]
+              properties:
+                prompt: { type: string, maxLength: 4096 }
+      responses:
+        '200':
+          description: 保存后的账号偏好
+          content:
+            application/json:
+              schema: *accountAgentPromptResponse
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '503': { $ref: '#/components/responses/Error' }
   /account/skills:
     get:
       tags: [Skills]
