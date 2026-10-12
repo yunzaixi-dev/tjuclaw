@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TJUClaw API
-  version: 0.0.48
+  version: 0.0.49
   description: |
     TJUClaw 同源 HTTP API。浏览器通过 Web 端的 `/api` 前缀访问这些接口；
     直接运行 Go API 时，服务根路径就是 API 根路径。
@@ -1703,7 +1703,7 @@ paths:
     post:
       tags: [Campus]
       summary: 建立办公网 CAS 会话
-      description: 验证码、办公网账号与当前身份绑定；若登录期间验证码被替换或会话被删除，返回 409 campus_office_session_changed，不恢复旧会话。
+      description: 验证码、办公网账号与当前身份绑定。支持自动识别的图片挑战可传 auto_captcha=true，每个挑战最多自动尝试一次，识别失败返回 409 campus_office_captcha_manual_required，可改用手填。识别接口仅收到图片。若登录期间验证码被替换或会话被删除，返回 409 campus_office_session_changed，不恢复旧会话。
       operationId: connectCampusOffice
       requestBody:
         required: true
@@ -3832,6 +3832,7 @@ components:
             captcha_id: { type: string }
             content_type: { type: string }
             data: { type: string, contentEncoding: base64 }
+            auto_captcha_supported: { type: boolean, description: 当前图片挑战是否支持自动识别。 }
             expires_at: { type: string, format: date-time }
     OfficeSessionRequest:
       type: object
@@ -3841,7 +3842,8 @@ components:
         username: { type: string, minLength: 1 }
         password: { type: string, minLength: 1, format: password }
         captcha_id: { type: string }
-        captcha: { type: string, description: 图片验证码适配器必填；微北洋教务协议无需填写。 }
+        captcha: { type: string, description: 图片验证码适配器手动验证时必填；微北洋教务协议无需填写。 }
+        auto_captcha: { type: boolean, default: false, description: 对支持自动识别的图片挑战尝试识别，与非空 captcha 互斥；微北洋教务协议不接受 true。 }
     OfficeSessionResponse:
       type: object
       required: [username, expires_at]
