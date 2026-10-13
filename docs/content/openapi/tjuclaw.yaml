@@ -787,6 +787,60 @@ paths:
               schema: { $ref: '#/components/schemas/OkResponse' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /entries/{id}/image:
+    get:
+      tags: [Libraries]
+      summary: 读取私人云端笔记引用的图片
+      description: |
+        id 必须为当前会话可访问的自有笔记。target 为该笔记所在资料库内的图片路径，
+        不接受外部地址、仓库名或对象 ID。订阅副本返回 404，沿用原有文件快照。
+        默认返回图片字节；delivery=direct 时可返回 Forgejo 为已有 R2 LFS 对象签发的短期地址。
+        只读操作，不复制或上传对象。所有响应禁止缓存，地址不应持久化或写入日志。
+      operationId: readNoteImage
+      parameters:
+        - { $ref: '#/components/parameters/ResourceId' }
+        - name: target
+          in: query
+          required: true
+          schema: { type: string, maxLength: 400 }
+        - name: wiki
+          in: query
+          schema: { type: string, enum: ['1'] }
+          description: 按资料库根目录解释 Obsidian 显式路径；./ 和 ../ 仍相对笔记目录。
+        - name: delivery
+          in: query
+          schema: { type: string, enum: [direct] }
+      responses:
+        '200':
+          description: 图片二进制，或带 X-TJUClaw-File-Delivery=r2 标记的下载地址
+          headers:
+            X-TJUClaw-File-Delivery:
+              schema: { type: string, enum: [r2] }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+            application/json:
+              schema:
+                type: object
+                required: [download]
+                properties:
+                  download:
+                    type: object
+                    required: [url, expires_at, filename, content_type, size]
+                    properties:
+                      url: { type: string, format: uri }
+                      expires_at: { type: string, format: date-time }
+                      filename: { type: string }
+                      content_type: { type: string }
+                      size: { type: integer, minimum: 1, maximum: 8388608 }
+        '400':
+          description: invalid_entry：图片路径无效
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: entry_conflict：读取期间笔记被修改
+        '503':
+          description: image_unavailable：云端图片暂时不可读
   /entries/{id}/file:
     get:
       tags: [Libraries]
