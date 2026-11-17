@@ -539,6 +539,43 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '409': { $ref: '#/components/responses/Error' }
+  /libraries/changes:
+    get:
+      tags: [Libraries]
+      summary: 等待当前账号的知识库变更通知
+      operationId: pollLibraryChanges
+      description: |
+        通过会话 Cookie 认证。未传 cursor、cursor 失效（包括服务重启）或有新变更时立即返回。
+        cursor 与当前值相同时，最多等待 15 秒；若未发生变更，返回原 cursor。
+        响应只含 cursor；收到新的 cursor 后，用既有接口重新读取知识库树和所需正文。
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: 上一次响应返回的游标，按原值传回，不要解析。
+          schema: { type: string }
+      responses:
+        '200':
+          description: 当前游标
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cursor]
+                additionalProperties: false
+                properties:
+                  cursor: { type: string }
+        '401': { $ref: '#/components/responses/SessionRequired' }
+        '429':
+          description: 当前账号或服务的等待请求数已达上限（library_changes_wait_limit）。
+          headers:
+            Retry-After:
+              description: 重试前至少等待的秒数。
+              schema: { type: integer, example: 1 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503': { $ref: '#/components/responses/StorageUnavailable' }
   /libraries/{id}:
     get:
       tags: [Libraries]
