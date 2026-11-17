@@ -10,10 +10,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const digest = value => createHash('sha256').update(value).digest('hex');
-function run(variables) {
+function run(variables, playbook = 'ops/ansible/playbooks/deploy-api.yml') {
   return new Promise((resolve, reject) => {
     const child = spawn('uv', ['run', '--no-project', '--with-requirements', 'ops/ansible/requirements.txt',
-      'ansible-playbook', '-i', 'localhost,', 'ops/ansible/playbooks/deploy-api.yml', '-e', JSON.stringify(variables), '--connection=local'],
+      'ansible-playbook', '-i', 'localhost,', playbook, '-e', JSON.stringify(variables), '--connection=local'],
     { cwd: root, env: { ...process.env, ANSIBLE_CONFIG: join(root, 'ops/ansible/ansible.cfg'), ANSIBLE_NOCOLOR: '1' } });
     let output = '';
     child.stdout.on('data', chunk => output += chunk);
@@ -364,5 +364,94 @@ test('sandbox cutover refuses legacy objects and an unavailable or incomplete cl
   } finally {
     health.close();
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test('sandbox URL contract accepts only literal loopback HTTP with a valid port and keeps public HTTPS', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'tjuclaw-sandbox-url-contract-'));
+  const contract = readFileSync(join(root, 'ops/ansible/roles/api_deploy/tasks/preflight.yml'), 'utf8')
+    .split('- name: Validate production sandbox gateway configuration before deployment')[1]
+    .split('- name: Validate sandbox cluster selection')[0];
+  const tasks = join(directory, 'contract.yml'), playbook = join(directory, 'playbook.yml');
+  writeFileSync(tasks, '- name: Validate production sandbox gateway configuration before deployment' + contract.replace(
+    '  no_log: true', '  no_log: true\n  register: gateway_contract\n  ignore_errors: true') + `
+- name: Check expected gateway URL decision
+  ansible.builtin.assert:
+    that:
+      - (gateway_contract is failed) == (not item.allowed)
+`);
+  writeFileSync(playbook, JSON.stringify([{ hosts: 'localhost', gather_facts: false, tasks: [{
+    name: 'Evaluate each gateway URL through the real preflight assertion',
+    'ansible.builtin.include_tasks': tasks, loop: '{{ cases }}',
+    vars: { api_target_sandbox_url: '{{ item.private }}', api_target_sandbox_public_url: '{{ item.public }}',
+      api_env_file: 'synthetic.env', api_env_file_slurp: { content: Buffer.from(`SANDBOX_GATEWAY_HMAC_SECRET=${'s'.repeat(32)}\n`).toString('base64') } },
+  }] }]));
+  const cases = [
+    ...['http://127.0.0.1:1', 'http://127.0.0.1:18280/', 'http://127.0.0.1:65535', 'https://gateway.example.invalid'].map(privateURL => ({ private: privateURL, public: 'https://edge.example.invalid', allowed: true })),
+    ...['http://localhost:18280', 'http://10.0.0.1:18280', 'http://127.0.0.2:18280', 'http://127.0.0.1',
+      'http://127.0.0.1:0', 'http://127.0.0.1:65536', 'http://127.0.0.1:18280/path', 'http://127.0.0.1:18280?query=1',
+      'http://127.0.0.1:18280#fragment', 'http://user@127.0.0.1:18280', 'http://127.0.0.1.evil:18280'].map(privateURL => ({ private: privateURL, public: '', allowed: false })),
+    { private: 'http://127.0.0.1:18280', public: 'http://127.0.0.1:18281', allowed: false },
+  ];
+  try {
+    const result = await run({ cases }, playbook);
+    assert.equal(result.status, 0, result.output);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('same-host HTTP sandbox still screens inventory, readiness and authentication before deployment', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'tjuclaw-loopback-preflight-'));
+  const artifact = join(directory, 'artifact'), envFile = join(directory, 'api.env'), base = join(directory, 'opt');
+  const inventory = join(directory, 'inventory.json'), kubectl = join(directory, 'kubectl');
+  const methods = [];
+  let ready = true, authenticate = true;
+  const gateway = createServer((req, res) => {
+    methods.push(`${req.method} ${req.url}`);
+    assert.equal(req.headers.authorization, undefined);
+    res.setHeader('Content-Type', 'application/json');
+    if (req.url === '/readyz') { res.writeHead(200); res.end(JSON.stringify({ status: ready ? 'ready' : 'not-ready' })); }
+    else { res.writeHead(authenticate ? 401 : 200); res.end(JSON.stringify(authenticate ? { error: { id: 'unauthorized' } } : { ok: true })); }
+  });
+  const health = createServer((_req, res) => { res.writeHead(200); res.end('health'); });
+  await new Promise(resolve => gateway.listen(0, '127.0.0.1', resolve));
+  await new Promise(resolve => health.listen(0, '127.0.0.1', resolve));
+  writeFileSync(artifact, 'loopback-sandbox-version');
+  writeFileSync(envFile, `APP_PUBLIC_URL=https://app.example.invalid\nKRATOS_PUBLIC_URL=http://127.0.0.1:4433\nAUTH_COOKIE_KEY=${Buffer.alloc(32, 3).toString('base64')}\nCAP_URL=http://127.0.0.1:3300\nCAP_SITE_KEY=site\nCAP_SECRET_KEY=secret\nSANDBOX_SESSION_URL=http://127.0.0.1:${gateway.address().port}\nSANDBOX_GATEWAY_HMAC_SECRET=${'s'.repeat(32)}\n`);
+  writeFileSync(inventory, JSON.stringify({ kind: 'List', items: [] }));
+  writeFileSync(kubectl, `#!/bin/sh\ncat ${JSON.stringify(inventory)}\n`);
+  chmodSync(kubectl, 0o755);
+  const vars = { api_release_sha: 'f'.repeat(40), api_artifact_path: artifact, api_artifact_sha256: digest('loopback-sandbox-version'),
+    api_env_file: envFile, api_base_dir: base, api_data_dir: join(directory, 'data'),
+    api_listen_addr: `127.0.0.1:${health.address().port}`, api_verify_kratos_ready: false,
+    api_deploy_simulate_systemd: true, api_sandbox_probe_in_simulation: true, api_sandbox_kube_probe_in_simulation: true,
+    api_sandbox_kube_context: 'synthetic-local', api_sandbox_kubectl_path: kubectl,
+    api_deploy_become: false, api_health_timeout_seconds: 1 };
+  try {
+    // A complete local-only run must reach both inventory and unauthenticated probes.
+    let result = await run(vars);
+    assert.equal(result.status, 0, result.output);
+    assert.match(result.output, /Query live Sandboxes/);
+    for (const method of ['GET', 'PUT', 'DELETE']) assert.ok(methods.includes(`${method} /v1/vault/objects/0123456789abcdef0123456789abcdef`));
+    assert.ok(methods.includes('GET /v1/vault/status'));
+    assert.ok(methods.includes('POST /v1/sessions/ensure'));
+    const blocked = { ...vars, api_base_dir: join(directory, 'blocked') };
+    ready = false;
+    result = await run(blocked);
+    assert.notEqual(result.status, 0); assert.match(result.output, /did not return the expected ready JSON/);
+    assert.ok(!existsSync(blocked.api_base_dir));
+    ready = true; authenticate = false;
+    result = await run(blocked);
+    assert.notEqual(result.status, 0); assert.match(result.output, /Status code was 200 and not \[401\]/);
+    assert.ok(!existsSync(blocked.api_base_dir));
+    authenticate = true;
+    for (const contents of [{ kind: 'List' }, { kind: 'List', items: [{ metadata: { name: 'legacy' } }] }]) {
+      writeFileSync(inventory, JSON.stringify(contents));
+      result = await run(blocked);
+      assert.notEqual(result.status, 0, result.output);
+      assert.ok(!existsSync(blocked.api_base_dir));
+    }
+  } finally {
+    gateway.close(); health.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -179,16 +179,19 @@
 - name: Validate production sandbox gateway configuration before deployment
   ansible.builtin.assert:
     that:
-      - api_target_sandbox_url == '' or api_target_sandbox_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
+      - api_target_sandbox_url == '' or api_target_sandbox_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$') or api_target_sandbox_url is match('^http://127\\.0\\.0\\.1:[1-9][0-9]{0,4}/?$')
+      - not api_target_sandbox_url.startswith('http://') or (api_target_sandbox_url | urlsplit('port') | int) <= 65535
       - api_target_sandbox_public_url == '' or api_target_sandbox_public_url is match('^https://[a-zA-Z0-9.-]+(:[0-9]+)?/?$')
       - api_target_sandbox_public_url == '' or api_target_sandbox_url != ''
       - api_target_sandbox_url != '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]+)$') | length) == 0
       - api_target_sandbox_url == '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]+)$') | length) == 1
       - api_target_sandbox_url == '' or (api_env_file_slurp.content | b64decode | regex_findall('(?m)^SANDBOX_GATEWAY_HMAC_SECRET=([^\r\n]{32,})$') | length) == 1
     fail_msg: >-
-      Sandbox mode requires a HTTPS SANDBOX_SESSION_URL and exactly one
+      Sandbox mode requires an HTTPS origin or http://127.0.0.1 with an explicit
+      port from 1 to 65535 for SANDBOX_SESSION_URL, and exactly one
       SANDBOX_GATEWAY_HMAC_SECRET of at least 32 bytes; no secret or public
-      gateway URL may be configured without the private origin.
+      gateway URL may be configured without the private origin. The public Gateway
+      URL must still use HTTPS.
   no_log: true
 
 - name: Validate sandbox cluster selection for live cutover screening
@@ -279,6 +282,7 @@
     method: GET
     status_code: 200
     timeout: 10
+    use_proxy: false
     follow_redirects: none
     validate_certs: true
     ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
@@ -304,6 +308,7 @@
     body: "{{ item.body | default(omit) }}"
     status_code: 401
     timeout: 10
+    use_proxy: false
     follow_redirects: none
     validate_certs: true
     ca_path: "{{ api_sandbox_preflight_ca_path | default(omit, true) }}"
