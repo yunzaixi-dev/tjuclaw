@@ -145,7 +145,7 @@ test('portable checks and the same-SHA API artifact do not wait for unrelated sy
   assert.equal(crawler.if, "needs.plan.outputs.crawler == 'true'");
   assert.equal(crawler.services['crawler-postgres'].image, 'postgres:17-alpine');
   const crawlerCommands = crawler.steps.map(step => step.run ?? '').join('\n');
-  assert.match(crawlerCommands, /apt-get install -y --no-install-recommends poppler-utils\s*\n/);
+  assert.match(crawlerCommands, /apt-get install -y --no-install-recommends poppler-utils webp python3-pil\s*\n/);
   const crawlerCheck = crawler.steps.find(step => step.run === 'task check:crawler');
   assert.match(crawlerCheck.env.CRAWLER_TEST_DATABASE_URL, /job\.services\.crawler-postgres\.ports/);
 });

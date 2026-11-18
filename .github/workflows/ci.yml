@@ -193,13 +193,16 @@ jobs:
             GOBIN="$RUNNER_TEMP/task-bin" go install github.com/go-task/task/v3/cmd/task@v3.49.1
             echo "$RUNNER_TEMP/task-bin" >> "$GITHUB_PATH"
           fi
-      - name: Install Poppler if PDF test commands are missing
+      - name: Install PDF and WebP preview dependencies for crawler
         run: |
-          if ! command -v pdfinfo >/dev/null || ! command -v pdfseparate >/dev/null || ! command -v pdfunite >/dev/null; then
+          if ! command -v pdfinfo >/dev/null || ! command -v pdfseparate >/dev/null || ! command -v pdfunite >/dev/null || ! command -v cwebp >/dev/null || ! /usr/bin/python3 -c 'from PIL import Image' 2>/dev/null; then
             sudo apt-get update
-            sudo apt-get install -y --no-install-recommends poppler-utils
+            sudo apt-get install -y --no-install-recommends poppler-utils webp python3-pil
           fi
-          command -v pdfinfo pdfseparate pdfunite
+          command -v pdfinfo pdfseparate pdfunite cwebp
+          mkdir -p "$RUNNER_TEMP/crawler-python"
+          ln -sf /usr/bin/python3 "$RUNNER_TEMP/crawler-python/python3"
+          echo "$RUNNER_TEMP/crawler-python" >> "$GITHUB_PATH"
       - name: Check crawler
         env:
           CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports['5432'] }}/crawler_test
