@@ -31,6 +31,7 @@ jobs:
   mirror:
     name: Mirror reviewed source to GitLab
     if: >-
+      vars.GITLAB_MIRROR_ENABLED == 'true' &&
       github.repository == 'yunzaixi-dev/tjuclaw' &&
       github.event_name == 'push' &&
       (github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v'))
