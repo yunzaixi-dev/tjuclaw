@@ -3,13 +3,16 @@ description: Checkout the exact gitlinks with separate read-only component keys
 inputs:
   server-key:
     description: Read-only deploy key for the server repository
-    required: true
+    required: false
   cli-key:
     description: Read-only deploy key for the CLI repository
-    required: true
+    required: false
   crawler-key:
     description: Read-only deploy key for the crawler repository
     required: true
+  crawler-only:
+    description: Checkout only the pinned crawler without accessing the other components
+    default: 'false'
 runs:
   using: composite
   steps:
@@ -24,6 +27,7 @@ runs:
           echo "$component=$sha" >> "$GITHUB_OUTPUT"
         done
     - name: Checkout public client
+      if: inputs.crawler-only != 'true'
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: yunzaixi-dev/tjuclaw-client
@@ -31,6 +35,7 @@ runs:
         path: frontend
         persist-credentials: false
     - name: Checkout private server
+      if: inputs.crawler-only != 'true'
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: yunzaixi-dev/tjuclaw-server
@@ -39,6 +44,7 @@ runs:
         ssh-key: ${{ inputs.server-key }}
         persist-credentials: false
     - name: Checkout private CLI and Skill
+      if: inputs.crawler-only != 'true'
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
         repository: yunzaixi-dev/tjucli

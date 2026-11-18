@@ -30,7 +30,7 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.ok(jobs['check']);
   assert.ok(jobs['browser']);
   assert.equal(workflow.jobs.integration, undefined);
-  assert.deepEqual(workflow.jobs.deploy.needs, ['check', 'ops']);
+  assert.deepEqual(workflow.jobs.deploy.needs, ['check', 'crawler', 'ops']);
   assert.ok(jobs['build-artifacts']);
   assert.ok(jobs['build-linux']);
   assert.ok(jobs['build-android']);
@@ -83,13 +83,13 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.equal(planJob.steps.find(step => step.id === 'plan').run, 'node scripts/ci-plan.mjs');
   assert.deepEqual(Object.keys(planJob.outputs), planGroups);
   for (const group of planGroups) assert.equal(planJob.outputs[group], `\${{ steps.plan.outputs.${group} }}`);
-  for (const name of ['check', 'ops', 'sandbox-images']) assert.equal(workflow.jobs[name].needs, 'plan');
+  for (const name of ['check', 'crawler', 'ops', 'sandbox-images']) assert.equal(workflow.jobs[name].needs, 'plan');
   assert.equal(workflow.jobs.check.if, undefined);
   assert.equal(workflow.jobs.ops.if, "needs.plan.outputs.ops == 'true'");
   const checkSteps = workflow.jobs.check.steps;
   const checkStep = group => checkSteps.find(step => step.run === `task check:${group}`);
   assert.equal(checkStep('tooling').if, undefined);
-  for (const group of ['web', 'docs', 'api', 'cli', 'crawler']) {
+  for (const group of ['web', 'docs', 'api', 'cli']) {
     assert.equal(checkStep(group).if, `needs.plan.outputs.${group} == 'true'`);
   }
   assert.equal(checkStep('api').env.GO_TEST_FLAGS, '-race');
@@ -120,6 +120,34 @@ test('CI retains every build and mandatory regression with bounded artifacts', (
   assert.ok(windowsWorkflow.on.workflow_dispatch !== undefined);
   assert.equal(windowsWorkflow.on.pull_request_target, undefined);
   assert.equal(windowsWorkflow.permissions.contents, 'read');
+});
+
+test('portable checks and the same-SHA API artifact do not wait for unrelated system dependencies', () => {
+  const { jobs } = parse(read('.github/workflows/ci.yml'));
+  const steps = jobs.check.steps;
+  assert.equal(jobs.check.services, undefined);
+  assert.ok(!steps.some(step => step.run?.includes('task check:crawler')));
+  assert.doesNotMatch(steps.map(step => step.run ?? '').join('\n'), /ffmpeg|poppler-utils|python3-pil|iproute2|libc6-dev/);
+  const upload = steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
+  assert.equal(upload.if, "needs.plan.outputs.api == 'true'");
+  assert.equal(upload.with.name, 'api-${{ github.sha }}');
+  const raceIndex = steps.findIndex(step => step.run === 'task check:api');
+  const installIndex = steps.findIndex(step => step.run?.includes('apt-get install'));
+  const composeIndex = steps.findIndex(step => step.run?.includes('task compose:context'));
+  assert.ok(raceIndex >= 0 && raceIndex < steps.indexOf(upload));
+  assert.ok(steps.indexOf(upload) < installIndex && installIndex < composeIndex);
+  assert.match(steps[installIndex].run, /if ! docker compose version/);
+  assert.match(steps[installIndex].run, /apt-get install -y --no-install-recommends docker-compose-v2\s*\n/);
+  assert.match(steps[composeIndex].run, /task compose:config/);
+  assert.equal(steps[composeIndex].if, undefined);
+
+  const crawler = jobs.crawler;
+  assert.equal(crawler.if, "needs.plan.outputs.crawler == 'true'");
+  assert.equal(crawler.services['crawler-postgres'].image, 'postgres:17-alpine');
+  const crawlerCommands = crawler.steps.map(step => step.run ?? '').join('\n');
+  assert.match(crawlerCommands, /apt-get install -y --no-install-recommends poppler-utils\s*\n/);
+  const crawlerCheck = crawler.steps.find(step => step.run === 'task check:crawler');
+  assert.match(crawlerCheck.env.CRAWLER_TEST_DATABASE_URL, /job\.services\.crawler-postgres\.ports/);
 });
 
 test('sandbox image check builds pinned private sources without gating the API release', () => {

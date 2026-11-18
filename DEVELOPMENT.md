@@ -85,6 +85,18 @@
 
 From the root, using RTK in agent sessions:
 
+For a quick Go API + Web source regression, install the locked frontend dependencies
+with `pnpm --dir frontend install --frozen-lockfile`, then run:
+
+```bash
+rtk task check:api check:web 'GO_TEST_FLAGS=-race -count=1'
+```
+
+This runs Go vet, fresh race tests, the mail policy test, and Web lint/type checks.
+It needs Go with a C compiler for `-race`, Node/pnpm and Task; it does not run
+Docker, install system packages, build Web assets, or package native clients.
+Use the following commands when your change needs broader coverage:
+
 ```bash
 rtk task check
 rtk task ui:install

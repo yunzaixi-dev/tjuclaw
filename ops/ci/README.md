@@ -40,6 +40,8 @@ crawler 使用 `prod-sg` ARC 的仓库级临时 Runner：crawler 使用隔离 Di
 客户端负责外观与工作区回归及原生打包。仅修改服务端不会重新构建四个平台客户端。
 集成 CI 检查锁定的组件组合能否通过各自的检查并构建；真实认证/任务接口的组合回归在本地用 `task auth:test` 运行。
 
+集成 CI 先检查 Go/Web 等选中的组件，并为当前 SHA 生成、上传 API 制品。Compose 配置与实际构建上下文仍须通过检查；只有 Runner 缺少 Compose 插件时才安装它。Crawler 单独运行，仅在计划选中时启动 PostgreSQL，并按需安装 PDF 回归需要的 Poppler。手动发布 API 仍须等待组件检查、Compose、Crawler 和运维检查全部通过。
+
 ## 源码与状态同步
 
 - 旧 GitLab → GitHub Push Mirror 已停用，禁止与新方向同时启用。

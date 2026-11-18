@@ -83,6 +83,77 @@ jobs:
     needs: plan
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/checkout-components
+        with:
+          server-key: ${{ secrets.SERVER_READ_KEY }}
+          cli-key: ${{ secrets.CLI_READ_KEY }}
+          # Tooling verifies the pinned crawler workflow as source, without running it.
+          crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
+      - uses: ./.github/actions/setup
+        with:
+          profile: portable
+          go-cache: ${{ needs.plan.outputs.api == 'true' || needs.plan.outputs.cli == 'true' }}
+          pnpm-cache-dependency-path: |
+            pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+      # Component checks run only when the plan saw an input change.
+      - name: Check repository tooling
+        run: task check:tooling
+      - name: Check Web client
+        if: needs.plan.outputs.web == 'true'
+        run: task check:web
+      - name: Check documentation site
+        if: needs.plan.outputs.docs == 'true'
+        run: task check:docs
+      - name: Check Go API
+        if: needs.plan.outputs.api == 'true'
+        env:
+          # cli:test already races. Race the API here instead of a second full compile.
+          GO_TEST_FLAGS: -race
+        run: task check:api
+      - name: Check campus CLI
+        if: needs.plan.outputs.cli == 'true'
+        run: task check:cli
+      - name: Build documentation site
+        # A release push that touches Docs is built and published by deploy-docs.yml.
+        if: needs.plan.outputs.docs == 'true' && !(github.event_name == 'push' && github.ref == 'refs/heads/release')
+        run: task docs:build
+      - name: Build immutable API deployment artifact
+        if: needs.plan.outputs.api == 'true'
+        run: |
+          mkdir -p backend/bin/deploy
+          (cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/deploy/api ./cmd/api)
+          node scripts/deploy-release.mjs --manifest
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: needs.plan.outputs.api == 'true'
+        with:
+          name: api-${{ github.sha }}
+          path: backend/bin/deploy/
+          if-no-files-found: error
+          retention-days: 14
+      # Keep the context allowlist as a mandatory gate; runner package downloads
+      # must not hold up Go/Web feedback or preparation of the API artifact.
+      - name: Install Docker Compose CLI plugin if missing
+        run: |
+          if ! docker compose version >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends docker-compose-v2
+          fi
+      - name: Validate Compose configuration and context
+        run: |
+          task compose:config
+          task compose:context
+
+  crawler:
+    name: Pinned crawler and PDF extraction checks
+    needs: plan
+    if: needs.plan.outputs.crawler == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     services:
       crawler-postgres:
         image: postgres:17-alpine
@@ -103,71 +174,36 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/checkout-components
         with:
-          server-key: ${{ secrets.SERVER_READ_KEY }}
-          cli-key: ${{ secrets.CLI_READ_KEY }}
+          crawler-only: 'true'
           crawler-key: ${{ secrets.CRAWLER_READ_KEY }}
-      - name: Install system test dependencies
-        run: |
-          if command -v ffmpeg >/dev/null && command -v gcc >/dev/null && docker compose version >/dev/null 2>&1 \
-            && dpkg -s poppler-utils webp python3-pil >/dev/null 2>&1; then
-            echo 'Runner image already has system test dependencies'
-          else
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends docker-compose-v2 ffmpeg gcc iproute2 libc6-dev poppler-utils webp python3 python3-pil
-          fi
-      - uses: ./.github/actions/setup
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.0.1
         with:
-          profile: portable
-          bun: ${{ needs.plan.outputs.crawler }}
-          go-cache: ${{ needs.plan.outputs.api == 'true' || needs.plan.outputs.cli == 'true' }}
-          pnpm-cache-dependency-path: |
-            pnpm-lock.yaml
-            frontend/pnpm-lock.yaml
-      # Each group below runs only when the plan saw a change it reads;
-      # together they are `task check`.
-      - name: Check repository tooling
-        run: task check:tooling
-      - name: Validate Compose configuration and context
+          bun-version: '1.3.14'
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('crawler/bun.lock') }}
+          restore-keys: bun-
+      - run: bun install --frozen-lockfile
+        working-directory: crawler
+      - name: Install pinned Task 3.49.1
+        # This job needs Task, not the portable Go/Node/pnpm toolchain.
         run: |
-          task compose:config
-          task compose:context
-      - name: Check Web client
-        if: needs.plan.outputs.web == 'true'
-        run: task check:web
-      - name: Check documentation site
-        if: needs.plan.outputs.docs == 'true'
-        run: task check:docs
-      - name: Check Go API
-        if: needs.plan.outputs.api == 'true'
-        env:
-          # cli:test already races. Race the API here instead of a second full compile.
-          GO_TEST_FLAGS: -race
-        run: task check:api
-      - name: Check campus CLI
-        if: needs.plan.outputs.cli == 'true'
-        run: task check:cli
+          if ! task --version 2>/dev/null | grep -qE '(^|[^0-9.])v?3\.49\.1([^0-9]|$)'; then
+            GOBIN="$RUNNER_TEMP/task-bin" go install github.com/go-task/task/v3/cmd/task@v3.49.1
+            echo "$RUNNER_TEMP/task-bin" >> "$GITHUB_PATH"
+          fi
+      - name: Install Poppler if PDF test commands are missing
+        run: |
+          if ! command -v pdfinfo >/dev/null || ! command -v pdfseparate >/dev/null || ! command -v pdfunite >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends poppler-utils
+          fi
+          command -v pdfinfo pdfseparate pdfunite
       - name: Check crawler
-        if: needs.plan.outputs.crawler == 'true'
         env:
           CRAWLER_TEST_DATABASE_URL: postgresql://crawler_test:crawler_test@127.0.0.1:${{ job.services.crawler-postgres.ports['5432'] }}/crawler_test
         run: task check:crawler
-      - name: Build documentation site
-        # A release push that touches Docs is built and published by deploy-docs.yml.
-        if: needs.plan.outputs.docs == 'true' && !(github.event_name == 'push' && github.ref == 'refs/heads/release')
-        run: task docs:build
-      - name: Build immutable API deployment artifact
-        if: needs.plan.outputs.api == 'true'
-        run: |
-          mkdir -p backend/bin/deploy
-          (cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o bin/deploy/api ./cmd/api)
-          node scripts/deploy-release.mjs --manifest
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: needs.plan.outputs.api == 'true'
-        with:
-          name: api-${{ github.sha }}
-          path: backend/bin/deploy/
-          if-no-files-found: error
-          retention-days: 14
 
   ops:
     name: Ansible deployment checks
@@ -261,7 +297,7 @@ jobs:
     # Production deploys are manual: the runner's link to the API host is too
     # slow for every push (use `task ops:api:deploy` locally, or run CI by hand
     # with deploy_api). An unchanged backend reuses the running binary.
-    needs: [check, ops]
+    needs: [check, crawler, ops]
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_api && github.ref == 'refs/heads/release' && github.repository == 'yunzaixi-dev/tjuclaw'
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
