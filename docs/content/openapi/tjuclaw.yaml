@@ -1041,21 +1041,28 @@ paths:
         需要登录。返回当前用户在本 API 进程内记录的回合时间线 `items`：按发生顺序排列的思考、
         模型说的话和工具调用。工具调用从参数开始写入（`writing`）到执行（`running`）再到结束
         （`done` 或 `failed`）都在同一条目上更新；写文件时 `lines` 是已写入的行数，
-        结束后 `added`、`removed` 是改动的行数。带 `version` 时最长等待 15 秒，直到回合状态与该版本
+        结束后 `added`、`removed` 是改动的行数。默认返回 JSON；带 `version` 时最长等待 15 秒，直到回合状态与该版本
         不同才返回，客户端由此无需定时轮询。同时带 `tail` 与 `at` 时只返回该版本之后变化的条目，
         且 `tail` 指向的条目只返回 `at` 字节之后的文本；偏移无效时该条目从头返回。
         `steps` 与 `stream` 是时间线之前的形状（工具调用列表，以及当前这次模型调用的思考与正文），
         为尚未更新的客户端保留；带 `call`、`thinking`、`text` 时 `stream` 只返回尚未拿到的部分。
         空闲、缺失或其他用户的合法会话 ID 均返回空回合；无效 ID 返回 404。
         回合结束后清除，不替代已保存的会话记录。
+
+        发送 `Accept: text/event-stream` 改用 SSE，并必须指定 `client_request_id`。连接先刷新一条注释，
+        然后发送 `data: <JSON>\n\n` 帧，每帧包含 `client_request_id`、`version`、`count`、`items`、`stage` 和 `rate`。
+        缺省发送匹配回合的快照；重连可带上 `version` 和已有的 `tail`、`at` 接收增量。没有变化时只有心跳注释。
+        尚未注册的回合可以在当前连接上开始；未匹配的回合不发送数据。连接约 22 秒正常结束，也可在已经观察到的回合清除后提前结束。
+        EOF 仅结束本次连接，客户端应按回合请求的状态决定是否重连。
       operationId: getSessionLiveSteps
       parameters:
         - { $ref: '#/components/parameters/ResourceId' }
-        - { name: version, in: query, schema: { type: integer, minimum: 0 }, description: 客户端已有的版本；提供时等待变化 }
+        - { name: client_request_id, in: query, schema: { type: string, pattern: '^[0-9a-f]{32}$' }, description: 按消息请求 ID 限定可见回合；SSE 必填 }
+        - { name: version, in: query, schema: { type: integer, minimum: 0 }, description: 客户端已有的版本；JSON 长轮询等待变化，SSE 从该版本接续 }
         - { name: call, in: query, schema: { type: string }, description: 客户端已有输出所属的模型调用 }
         - { name: thinking, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 thinking_next }
         - { name: text, in: query, schema: { type: integer, minimum: 0 }, description: 上次响应的 text_next }
-        - { name: tail, in: query, schema: { type: integer, minimum: 0 }, description: 客户端仍在接收文本的时间线条目序号；提供时只返回 version 之后变化的条目 }
+        - { name: tail, in: query, schema: { type: integer, minimum: 0 }, description: 客户端仍在接收文本的时间线条目序号；JSON 模式在提供时才按 version 筛选变化的条目 }
         - { name: at, in: query, schema: { type: integer, minimum: 0 }, description: 该条目上次响应的 next }
       responses:
         '200':
@@ -1068,6 +1075,7 @@ paths:
                 type: object
                 required: [version, steps, stream, items, count, rate]
                 properties:
+                  client_request_id: { type: string, description: 匹配回合的请求 ID；无匹配或旧客户端未指定 ID 时可为空 }
                   version: { type: integer, description: 回合状态版本；空闲为 0 }
                   count: { type: integer, description: 时间线的条目总数 }
                   items:
@@ -1117,6 +1125,9 @@ paths:
                       text: { type: string }
                       text_from: { type: integer }
                       text_next: { type: integer }
+            text/event-stream:
+              schema: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/SessionRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
   /sessions/{id}/prepare:
